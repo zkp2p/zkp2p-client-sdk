@@ -1,6 +1,6 @@
 {
   "name": "@zkp2p/client-sdk",
-  "version": "0.1.1-dev.9",
+  "version": "0.1.0",
   "description": "Browser-first TypeScript SDK for ZKP2P with peerauth extension integration",
   "license": "MIT",
   "main": "packages/client-sdk/dist/index.cjs",
