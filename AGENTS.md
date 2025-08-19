@@ -39,7 +39,14 @@
 - Validate `event.origin` for all `postMessage` listeners (already implemented in `PeerauthExtension`).
 
 ## Release Workflow
-- Versioning: Conventional Commits via `release-it`.
-- Dry-run: `cd packages/client-sdk && npx release-it --dry-run --ci`.
-- Tag & Publish (CI): push a tag like `v0.1.0` to trigger `.github/workflows/release.yml`.
-- Tokens: set `NPM_TOKEN` (repo secret). For GitHub Release notes via API, set `GITHUB_TOKEN` (or rely on web fallback).
+- Dev (manual):
+  - `cd packages/client-sdk && npm pkg set name=@zkp2p/client-sdk && npm pkg set version=0.1.0`
+  - `npm ci && npm run build`
+  - Publish as dev tag (doesn’t affect `latest`):
+    - With 2FA: `npm publish --access public --tag dev --no-provenance --otp <CODE>`
+    - Without 2FA: `npm publish --access public --tag dev --no-provenance`
+  - Verify: `npm view @zkp2p/client-sdk dist-tags`
+- Stable:
+  - Bump version (semver) and publish without `--tag dev`.
+  - Use provenance if publishing from a public CI; avoid provenance from private repos.
+  - Verify dist-tags and share install instructions.

@@ -266,5 +266,34 @@ await client.signalIntent({
 await client.fulfillIntent({ intentHash, paymentProofs: [{ proof }] });
 ```
 
+---
+
+## Releases
+
+Two common flows: Development (dev tag) and Stable (latest).
+
+Dev release (manual, recommended while iterating)
+- Ensure you have publish access to the `@zkp2p` org: `npm whoami`
+- Set the package scope and version:
+  - `cd packages/client-sdk`
+  - `npm pkg set name=@zkp2p/client-sdk`
+  - `npm pkg set version=0.1.0` (or bump as needed)
+- Build and publish under the `dev` dist-tag so it won’t affect `latest`:
+  - `npm ci && npm run build`
+  - If using 2FA: `npm publish --access public --tag dev --no-provenance --otp <CODE>`
+  - Otherwise: `npm publish --access public --tag dev --no-provenance`
+- Verify: `npm view @zkp2p/client-sdk dist-tags`
+- Install in consumer apps: `npm i @zkp2p/client-sdk@dev`
+
+Stable release (promote to `latest`)
+- Bump version (e.g., `0.1.1`).
+- Prefer publishing from a public CI with provenance; or publish locally:
+  - `npm publish --access public --no-provenance` (provenance requires a public repo)
+- Verify: `npm view @zkp2p/client-sdk dist-tags`
+
+Notes
+- Use `--tag dev` for non-production builds so integrators can test without moving `latest`.
+- `--no-provenance` is required when publishing from a private repository. Use provenance only from public CI.
+
 ## License
 MIT
