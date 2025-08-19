@@ -1,6 +1,6 @@
 {
   "name": "@zkp2p/client-sdk",
-  "version": "0.1.1-dev.12",
+  "version": "0.1.2",
   "description": "Browser-first TypeScript SDK for ZKP2P with peerauth extension integration",
   "license": "MIT",
   "main": "dist/index.cjs",
@@ -23,7 +23,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src --ext .ts,.tsx",
     "test": "vitest run",
-    "release": "release-it"
+    "release": "release-it",
+    "docs": "typedoc"
   },
   "files": [
     "dist",
@@ -64,7 +65,8 @@
     "typescript": "^5.4.0",
     "vitest": "^1.5.0",
     "@typescript-eslint/eslint-plugin": "^7.16.0",
-    "@typescript-eslint/parser": "^7.16.0"
+    "@typescript-eslint/parser": "^7.16.0",
+    "typedoc": "^0.25.12"
   },
   "dependencies": {
     "canonicalize": "^1.0.8",

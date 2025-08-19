@@ -23,7 +23,8 @@
     "typecheck": "npm --prefix packages/client-sdk run typecheck",
     "lint": "npm --prefix packages/client-sdk run lint",
     "test": "npm --prefix packages/client-sdk run test",
-    "release": "npm --prefix packages/client-sdk run release"
+    "release": "npm --prefix packages/client-sdk run release",
+    "docs": "npm --prefix packages/client-sdk run docs"
   },
   "files": [
     "packages/client-sdk/dist",

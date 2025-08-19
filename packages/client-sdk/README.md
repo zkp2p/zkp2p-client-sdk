@@ -47,6 +47,29 @@ ext.fetchVersion();
 - Platforms: `wise`, `venmo`, `revolut`, `cashapp`, `mercadopago`, `zelle`, `paypal`, `monzo`.
 - Currencies: AED, ARS, AUD, CAD, CHF, CNY, CZK, DKK, EUR, GBP, HKD, HUF, IDR, ILS, INR, JPY, KES, MXN, MYR, NOK, NZD, PHP, PLN, RON, SAR, SEK, SGD, THB, TRY, UGX, USD, VND, ZAR.
 
+## Examples
+
+- See the repo `examples/` folder for:
+  - A Vite React walkthrough (get quotes and integrate the extension)
+  - A minimal Node script to fetch quotes (`examples/node-scripts/get-quote.ts`)
+  - A browser E2E journey demo with a mock extension (`examples/e2e-browser/index.html`)
+
+### Run the E2E browser demo
+
+This demo simulates the peerauth extension with a small in-page mock so you can see the end-to-end flow.
+
+Steps:
+- Build the SDK: `npm run build`
+- Serve the repo root (to ensure same-origin messaging works). For example:
+  - `npx http-server -p 5174 .` or `npx serve .`
+- Open `http://localhost:5174/examples/e2e-browser/` in your browser.
+
+What it shows:
+- Requests the extension version via `postMessage`
+- Generates a proof and receives a mock proof payload
+- Converts the payload into a `ReclaimProof` with `parseExtensionProof`
+- Shows the next step to call `fulfillIntent` with the proof
+
 ## Wallet Setup (viem)
 
 You can pass any `viem` `WalletClient` (from wagmi or raw viem). Example with injected wallet on Base:

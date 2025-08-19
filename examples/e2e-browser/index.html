@@ -1,0 +1,138 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ZKP2P E2E Extension Journey (Mock)</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, sans-serif; margin: 20px; }
+      button { margin-right: 8px; margin-bottom: 8px; }
+      pre { background: #f7f7f7; padding: 12px; border-radius: 6px; }
+      .row { margin: 12px 0; }
+    </style>
+  </head>
+  <body>
+    <h1>ZKP2P E2E Journey (Mock Extension)</h1>
+    <p>This demo simulates the Peerauth extension via window.postMessage to show the journey from requesting a version to receiving a proof and converting it to a ReclaimProof.</p>
+    <div class="row">
+      <button id="btn-version">Check Extension Version</button>
+      <button id="btn-generate">Generate Proof</button>
+      <button id="btn-fetch">Fetch Proof By ID</button>
+      <button id="btn-run">Run Journey</button>
+    </div>
+    <div class="row">
+      <label>Intent Hash: <input id="intentHash" size="70" value="0x1111111111111111111111111111111111111111111111111111111111111111" /></label>
+    </div>
+    <h3>Events</h3>
+    <pre id="log"></pre>
+
+    <script type="module">
+      import { PeerauthExtension } from '../../packages/client-sdk/dist/extension.mjs';
+      import { parseExtensionProof } from '../../packages/client-sdk/dist/extension.mjs';
+
+      const logEl = document.getElementById('log');
+      const log = (...args) => {
+        const line = args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
+        logEl.textContent += line + '\n';
+        logEl.scrollTop = logEl.scrollHeight;
+      };
+
+      // Mock Extension: listens for SDK postMessages and responds with expected messages
+      const ExtensionPostMessage = {
+        OPEN_NEW_TAB: 'open_new_tab',
+        FETCH_EXTENSION_VERSION: 'fetch_extension_version',
+        FETCH_PROOF_BY_ID: 'fetch_proof_by_id',
+        GENERATE_PROOF: 'generate_proof',
+      };
+      const ExtensionReceiveMessage = {
+        EXTENSION_VERSION_RESPONSE: 'extension_version_response',
+        METADATA_MESSAGES_RESPONSE: 'metadata_messages_response',
+        FETCH_PROOF_BY_ID_RESPONSE: 'fetch_proof_by_id_response',
+        FETCH_PROOF_REQUEST_ID_RESPONSE: 'fetch_proof_request_id_response',
+      };
+
+      let lastProofId = null;
+      window.addEventListener('message', (evt) => {
+        // Only respond to messages from our page
+        if (evt.origin !== window.location.origin) return;
+        const { data } = evt;
+        if (!data || typeof data.type !== 'string') return;
+        switch (data.type) {
+          case ExtensionPostMessage.FETCH_EXTENSION_VERSION: {
+            log('MockExt: version requested');
+            window.postMessage({
+              type: ExtensionReceiveMessage.EXTENSION_VERSION_RESPONSE,
+              status: 'ok',
+              version: 'mock-1.0.0',
+            }, window.location.origin);
+            break;
+          }
+          case ExtensionPostMessage.GENERATE_PROOF: {
+            log('MockExt: generate_proof', { platform: data.platform, intentHash: data.intentHash });
+            lastProofId = 'mock-proof-1';
+            window.postMessage({
+              type: ExtensionReceiveMessage.FETCH_PROOF_REQUEST_ID_RESPONSE,
+              status: 'ok',
+              proofId: lastProofId,
+            }, window.location.origin);
+            // After a short delay, emit proof-by-id response
+            setTimeout(() => {
+              const mockProof = {
+                claim: {
+                  provider: data.platform || 'wise',
+                  parameters: '{}',
+                  context: '',
+                  identifier: '0x' + '00'.repeat(32),
+                  owner: '0x0000000000000000000000000000000000000001',
+                  timestampS: 1,
+                  epoch: 1,
+                },
+                signatures: { claimSignature: [1, 2, 3] },
+              };
+              window.postMessage({
+                type: ExtensionReceiveMessage.FETCH_PROOF_BY_ID_RESPONSE,
+                status: 'ok',
+                requestHistory: { notaryRequest: { id: lastProofId, proof: mockProof } },
+              }, window.location.origin);
+            }, 300);
+            break;
+          }
+          case ExtensionPostMessage.FETCH_PROOF_BY_ID: {
+            log('MockExt: fetch_proof_by_id', { proofId: data.proofId });
+            // No-op here; GENERATE_PROOF schedules the proof-by-id response
+            break;
+          }
+        }
+      });
+
+      const ext = new PeerauthExtension({
+        onVersion: (v) => log('Extension version:', v),
+        onProofId: (id) => log('Received proofId:', id),
+        onProof: (req) => {
+          if (!req) return log('No proof in response');
+          log('Received proof payload, converting to ReclaimProof...');
+          const reclaimProof = parseExtensionProof((req as any).proof);
+          log('ReclaimProof:', reclaimProof);
+          const intentHash = document.getElementById('intentHash').value;
+          log('Next: fulfillIntent({ intentHash, paymentProofs: [{ proof: ReclaimProof }] })');
+        },
+        onError: (e) => log('Extension error:', String(e)),
+      });
+
+      document.getElementById('btn-version').onclick = () => ext.fetchVersion();
+      document.getElementById('btn-generate').onclick = () => {
+        const intentHash = (document.getElementById('intentHash')).value.trim();
+        ext.generateProof('wise', intentHash, 0);
+      };
+      document.getElementById('btn-fetch').onclick = () => ext.fetchProofById();
+      document.getElementById('btn-run').onclick = () => {
+        ext.fetchVersion();
+        const intentHash = (document.getElementById('intentHash')).value.trim();
+        setTimeout(() => ext.generateProof('wise', intentHash, 0), 100);
+      };
+
+      log('Demo ready. Use buttons above to drive the flow.');
+    </script>
+  </body>
+  </html>
+

@@ -3,6 +3,11 @@
 ZKP2P Client SDK workspace
 - Primary package: `packages/client-sdk/` — see `packages/client-sdk/README.md` for integration docs.
 
+## Examples
+
+- See `examples/` for a Vite React walkthrough and a minimal Node quote script.
+- A browser E2E journey demo with a mock extension lives at `examples/e2e-browser/`. Build the package (`npm run build`) and serve the repo root (`npx http-server .`), then open `/examples/e2e-browser/`.
+
 ## Supported Platforms and Currencies
 
 - Platforms: `wise`, `venmo`, `revolut`, `cashapp`, `mercadopago`, `zelle`, `paypal`, `monzo`.
