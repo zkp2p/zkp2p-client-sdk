@@ -126,7 +126,10 @@ export class PeerauthExtension {
   }
 
   private _onProof(event: ExtensionEventMessage) {
-    const req = event.data?.requestHistory?.notaryRequest as ExtensionNotaryProofRequest | undefined;
+    const history = event.data?.requestHistory as
+      | { notaryRequest?: ExtensionNotaryProofRequest; notaryRequests?: ExtensionNotaryProofRequest[] }
+      | undefined;
+    const req = history?.notaryRequest ?? (history?.notaryRequests && history.notaryRequests[0]) ?? undefined;
     this._callbacks.onProof?.(req ?? null);
   }
 }

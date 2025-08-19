@@ -196,13 +196,24 @@ export const PAYMENT_PLATFORMS = [
   'cashapp',
   'mercadopago',
   'zelle',
+  'paypal',
+  'monzo',
 ] as const;
 export type PaymentPlatformType = typeof PAYMENT_PLATFORMS[number];
 
 // Extension types (ported structure)
 export type ExtensionEventMessage = {
   origin: string;
-  data: { type: string; status: string; proofId?: string; requestHistory?: { notaryRequest: ExtensionNotaryProofRequest } };
+  data: {
+    type: string;
+    status: string;
+    proofId?: string;
+    platform?: string;
+    requestHistory?: {
+      notaryRequests?: ExtensionNotaryProofRequest[];
+      notaryRequest?: ExtensionNotaryProofRequest;
+    };
+  };
 };
 
 export type ExtensionEventVersionMessage = { origin: string; data: { type: string; status: string; version: string } };

@@ -42,6 +42,11 @@ ext.fetchVersion();
 - The extension module is browser-only and exposed via subpath import `@zkp2p/client-sdk/extension`.
 - Ensure you validate extension availability and version before relying on it.
 
+## Supported Platforms and Currencies
+
+- Platforms: `wise`, `venmo`, `revolut`, `cashapp`, `mercadopago`, `zelle`, `paypal`, `monzo`.
+- Currencies: AED, ARS, AUD, CAD, CHF, CNY, CZK, DKK, EUR, GBP, HKD, HUF, IDR, ILS, INR, JPY, KES, MXN, MYR, NOK, NZD, PHP, PLN, RON, SAR, SEK, SGD, THB, TRY, UGX, USD, VND, ZAR.
+
 ## Wallet Setup (viem)
 
 You can pass any `viem` `WalletClient` (from wagmi or raw viem). Example with injected wallet on Base:
@@ -163,7 +168,7 @@ const ext = new PeerauthExtension({
   onProof: async (notaryRequest) => {
     if (!notaryRequest) return;
     // 4) Convert extension proof → ReclaimProof shape expected by the contracts
-    const reclaimProof = extensionProofToReclaimProof(notaryRequest.proof);
+    const reclaimProof = parseExtensionProof(notaryRequest.proof);
     // Submit proof on-chain
     await client.fulfillIntent({
       intentHash,
@@ -178,7 +183,7 @@ const ext = new PeerauthExtension({
 // Kick off version check and proof generation
 ext.fetchVersion();
 ext.generateProof(
-  'wise',        // platform identifier (e.g. 'wise', 'venmo', 'revolut', etc)
+  'wise',        // platform identifier (e.g. 'wise', 'venmo', 'revolut', 'paypal', 'monzo', ...)
   intentHash,    // `0x…` intent hash to fulfill
   0              // originalIndex for the selected transaction/metadata
 );
@@ -217,6 +222,10 @@ const reclaimProof = parseExtensionProof(notaryRequest.proof);
 - getAccountIntent(address): reads current intent view from chain
 
 See TypeScript types exported from the package for full shapes.
+
+## SSR and Extension
+
+- The extension entry `@zkp2p/client-sdk/extension` is browser-only. In SSR environments (Next.js), use dynamic import or guards to avoid referencing `window` during server rendering.
 
 ## Callbacks and Errors
 
