@@ -1,0 +1,76 @@
+{
+  "name": "@zkp2p/client-sdk",
+  "version": "0.1.1-dev.12",
+  "description": "Browser-first TypeScript SDK for ZKP2P with peerauth extension integration",
+  "license": "MIT",
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    },
+    "./extension": {
+      "import": "./dist/extension.mjs",
+      "require": "./dist/extension.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "clean": "rimraf dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src --ext .ts,.tsx",
+    "test": "vitest run",
+    "release": "release-it"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "zkp2p",
+    "sdk",
+    "browser",
+    "extension",
+    "peerauth",
+    "viem"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zkp2p/zkp2p-client-sdk.git",
+    "directory": "packages/client-sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/zkp2p/zkp2p-client-sdk/issues"
+  },
+  "homepage": "https://github.com/zkp2p/zkp2p-client-sdk#readme",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@release-it/conventional-changelog": "^9.0.4",
+    "@types/node": "^20.10.0",
+    "eslint": "^8.57.0",
+    "release-it": "^17.11.0",
+    "rimraf": "^5.0.5",
+    "tsup": "^8.0.2",
+    "typescript": "^5.4.0",
+    "vitest": "^1.5.0",
+    "@typescript-eslint/eslint-plugin": "^7.16.0",
+    "@typescript-eslint/parser": "^7.16.0"
+  },
+  "dependencies": {
+    "canonicalize": "^1.0.8",
+    "ethers": "^5.7.2"
+  },
+  "peerDependencies": {
+    "viem": ">=2.9.0"
+  }
+}

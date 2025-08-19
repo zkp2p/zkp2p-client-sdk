@@ -1,0 +1,42 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs/Editors
+.idea/
+.vscode/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# Node
+node_modules/
+**/node_modules/
+
+# Build artifacts
+dist/
+**/dist/
+.cache/
+.parcel-cache/
+coverage/
+.nyc_output/
+*.tsbuildinfo
+
+# Env files (do not commit secrets)
+.env
+.env.*
+!.env.example
+.npmrc
+
+# NPM pack artifacts
+*.tgz
+
+# Misc
+**/*.orig
+/zkp2p-v2-client-REFERENCE
+/zkp2p-react-native-sdk-REFERENCE
+CLIENT_SDK_PLAN.md

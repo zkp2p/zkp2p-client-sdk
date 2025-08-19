@@ -1,0 +1,56 @@
+{
+  "name": "@zkp2p/client-sdk",
+  "version": "0.1.1-dev.9",
+  "description": "Browser-first TypeScript SDK for ZKP2P with peerauth extension integration",
+  "license": "MIT",
+  "main": "packages/client-sdk/dist/index.cjs",
+  "module": "packages/client-sdk/dist/index.mjs",
+  "types": "packages/client-sdk/dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "import": "./packages/client-sdk/dist/index.mjs",
+      "require": "./packages/client-sdk/dist/index.cjs"
+    },
+    "./extension": {
+      "import": "./packages/client-sdk/dist/extension.mjs",
+      "require": "./packages/client-sdk/dist/extension.cjs"
+    }
+  },
+  "scripts": {
+    "build": "npm --prefix packages/client-sdk run build",
+    "clean": "npm --prefix packages/client-sdk run clean",
+    "typecheck": "npm --prefix packages/client-sdk run typecheck",
+    "lint": "npm --prefix packages/client-sdk run lint",
+    "test": "npm --prefix packages/client-sdk run test",
+    "release": "npm --prefix packages/client-sdk run release"
+  },
+  "files": [
+    "packages/client-sdk/dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "zkp2p",
+    "sdk",
+    "browser",
+    "extension",
+    "peerauth",
+    "viem"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zkp2p/zkp2p-client-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zkp2p/zkp2p-client-sdk/issues"
+  },
+  "homepage": "https://github.com/zkp2p/zkp2p-client-sdk#readme",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

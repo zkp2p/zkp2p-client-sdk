@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: packages/client-sdk/package-lock.json
+
+      - name: Install
+        working-directory: packages/client-sdk
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: packages/client-sdk
+        run: npm run typecheck
+
+      - name: Lint
+        working-directory: packages/client-sdk
+        run: npm run lint
+
+      - name: Build
+        working-directory: packages/client-sdk
+        run: npm run build
+
+      - name: Test
+        working-directory: packages/client-sdk
+        run: npm run test --if-present

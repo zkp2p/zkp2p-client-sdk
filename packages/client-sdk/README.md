@@ -1,0 +1,270 @@
+# @zkp2p/client-sdk
+
+Browser-first TypeScript SDK for integrating ZKP2P into web apps. Built on the proven core from the React Native SDK and extended with peerauth browser extension integration.
+
+## Install
+
+`npm install @zkp2p/client-sdk viem`
+
+## Quickstart
+
+```ts
+import { Zkp2pClient } from '@zkp2p/client-sdk';
+
+const client = new Zkp2pClient({
+  walletClient,         // viem wallet client
+  apiKey: 'YOUR_API_KEY',
+  chainId: 8453,        // Base mainnet
+});
+
+// Fetch quotes
+const quotes = await client.getQuote({
+  paymentPlatforms: ['wise'],
+  fiatCurrency: 'USD',
+  user: '0xYourAddress',
+  recipient: '0xPayeeAddress',
+  destinationChainId: 8453,
+  destinationToken: client.getUsdcAddress(),
+  amount: '100', // exact fiat by default
+});
+
+// Use the extension (optional)
+import { PeerauthExtension } from '@zkp2p/client-sdk/extension';
+const ext = new PeerauthExtension({ onVersion: v => console.log('Extension version', v) });
+ext.fetchVersion();
+
+// After generating proof via extension, fulfill intent
+// await client.fulfillIntent({ intentHash, paymentProofs: [{ proof }], paymentMethod: 1 });
+```
+
+## Notes
+- Core APIs mirror the React Native SDK where applicable.
+- The extension module is browser-only and exposed via subpath import `@zkp2p/client-sdk/extension`.
+- Ensure you validate extension availability and version before relying on it.
+
+## Wallet Setup (viem)
+
+You can pass any `viem` `WalletClient` (from wagmi or raw viem). Example with injected wallet on Base:
+
+```ts
+import { createWalletClient, custom } from 'viem'
+import { base } from 'viem/chains'
+
+const walletClient = createWalletClient({
+  chain: base,
+  transport: typeof window !== 'undefined' ? custom((window as any).ethereum) : undefined,
+});
+
+const client = new Zkp2pClient({ walletClient, apiKey: 'YOUR_API_KEY', chainId: base.id });
+```
+
+Override RPC URL if desired by passing `rpcUrl` to the constructor.
+
+```ts
+const client = new Zkp2pClient({ walletClient, apiKey, chainId: base.id, rpcUrl: 'https://base-mainnet.g.alchemy.com/v2/<key>' });
+```
+
+Supported chains match `DEPLOYED_ADDRESSES`. Use `client.getDeployedAddresses()` and `client.getUsdcAddress()` when needed.
+
+## Configuration & Environment
+
+Best practice: pass values into the SDK at initialization. The SDK does not read env directly.
+
+- Vite (.env):
+```
+VITE_ZKP2P_API_KEY=your_public_key
+VITE_ZKP2P_RPC_URL=https://base-mainnet.g.alchemy.com/v2/xxx
+```
+
+Code:
+```ts
+const apiKey = import.meta.env.VITE_ZKP2P_API_KEY;
+if (!apiKey) throw new Error('Missing VITE_ZKP2P_API_KEY');
+
+const client = new Zkp2pClient({
+  walletClient,
+  apiKey,
+  chainId: 8453,
+  rpcUrl: import.meta.env.VITE_ZKP2P_RPC_URL,
+  // Optional overrides:
+  // baseApiUrl: import.meta.env.VITE_ZKP2P_BASE_API_URL,
+  // witnessUrl: import.meta.env.VITE_ZKP2P_WITNESS_URL,
+});
+```
+
+- Next.js (.env.local):
+```
+NEXT_PUBLIC_ZKP2P_API_KEY=your_public_key
+NEXT_PUBLIC_ZKP2P_RPC_URL=https://base-mainnet.g.alchemy.com/v2/xxx
+```
+
+Code:
+```ts
+const apiKey = process.env.NEXT_PUBLIC_ZKP2P_API_KEY;
+if (!apiKey) throw new Error('Missing NEXT_PUBLIC_ZKP2P_API_KEY');
+
+const client = new Zkp2pClient({
+  walletClient,
+  apiKey,
+  chainId: 8453,
+  rpcUrl: process.env.NEXT_PUBLIC_ZKP2P_RPC_URL,
+});
+```
+
+Security: only use public runtime env vars in the browser (VITE_/NEXT_PUBLIC_). If keys must remain private, proxy via your server.
+
+## Types: Platforms and Currencies
+
+- Payment platforms: `PAYMENT_PLATFORMS` is an exported `as const` array and `PaymentPlatformType` is the corresponding string union. Use it for extension calls to get autocomplete and type-safety.
+
+```ts
+import { PAYMENT_PLATFORMS, type PaymentPlatformType } from '@zkp2p/client-sdk';
+const platform: PaymentPlatformType = 'wise'; // from PAYMENT_PLATFORMS
+```
+
+- Currencies: `CurrencyType` is the ISO-like currency code union (e.g., `'USD' | 'EUR' | …'`). Use it in `signalIntent`.
+
+```ts
+import { type CurrencyType } from '@zkp2p/client-sdk';
+
+await client.signalIntent({
+  processorName: 'wise',
+  depositId: '1',
+  tokenAmount: '1000000',
+  payeeDetails: '{"email":"alice@example.com"}',
+  toAddress: '0xRecipient',
+  currency: 'USD' as CurrencyType,
+});
+```
+
+## Extension Flow: Proof → Fulfill
+
+The typical browser flow is:
+1) Detect the peerauth extension and request its version
+2) Ask the extension to generate a payment proof for a given `intentHash`
+3) Fetch the proof by ID and convert it to the on-chain `ReclaimProof` format
+4) Call `fulfillIntent` with the encoded proof
+
+```ts
+import { Zkp2pClient } from '@zkp2p/client-sdk';
+import { PeerauthExtension } from '@zkp2p/client-sdk/extension';
+
+// 1) Initialize the client
+const client = new Zkp2pClient({ walletClient, apiKey, chainId: 8453 });
+
+// 2) Set up the extension with callbacks
+let cachedProofId: string | null = null;
+const ext = new PeerauthExtension({
+  onVersion: (v) => console.log('extension version:', v),
+  onProofId: (id) => {
+    cachedProofId = id;
+    if (cachedProofId) ext.fetchProofById(); // 3) Request proof details once we have the id
+  },
+  onProof: async (notaryRequest) => {
+    if (!notaryRequest) return;
+    // 4) Convert extension proof → ReclaimProof shape expected by the contracts
+    const reclaimProof = extensionProofToReclaimProof(notaryRequest.proof);
+    // Submit proof on-chain
+    await client.fulfillIntent({
+      intentHash,
+      paymentProofs: [{ proof: reclaimProof }],
+      // optionally include a paymentMethod identifier (uint8) if needed by verifier
+      // paymentMethod: 1,
+    });
+  },
+  onError: (e) => console.error('extension error:', e),
+});
+
+// Kick off version check and proof generation
+ext.fetchVersion();
+ext.generateProof(
+  'wise',        // platform identifier (e.g. 'wise', 'venmo', 'revolut', etc)
+  intentHash,    // `0x…` intent hash to fulfill
+  0              // originalIndex for the selected transaction/metadata
+);
+
+// Helper: Convert extension proof payload → ReclaimProof
+import { parseExtensionProof } from '@zkp2p/client-sdk/extension';
+const reclaimProof = parseExtensionProof(notaryRequest.proof);
+```
+
+---
+
+## API Overview
+
+- createDeposit(params): creates a deposit on-chain and stores deposit details via API
+  - Params: `{ token, amount, intentAmountRange, conversionRates, processorNames, depositData, onSuccess, onMined, onError }`
+  - Returns: `{ depositDetails, hash }`
+
+- signalIntent(params): verifies intent via API and emits on-chain `signalIntent`
+  - Params: `{ processorName, depositId, tokenAmount, payeeDetails, toAddress, currency, onSuccess, onMined, onError }`
+  - Returns: `SignalIntentResponse & { txHash?: Hash }`
+
+- fulfillIntent({ intentHash, paymentProofs, paymentMethod? }): submits proof bytes to fulfill an intent
+
+- withdrawDeposit({ depositId }): withdraws a deposit
+
+- cancelIntent({ intentHash }): cancels a pending intent
+
+- releaseFundsToPayer({ intentHash }): releases escrowed funds back to payer
+
+- getQuote(req): retrieves quotes from API (exact-fiat by default)
+
+- getPayeeDetails({ platform, hashedOnchainId })
+
+- getAccountDeposits(address): reads deposit views from chain
+
+- getAccountIntent(address): reads current intent view from chain
+
+See TypeScript types exported from the package for full shapes.
+
+## Callbacks and Errors
+
+- Callbacks (optional and per-method):
+  - `onSuccess({ hash })`: emitted after the transaction is broadcast
+  - `onMined({ hash })`: emitted after transaction is confirmed
+  - `onError(error)`: emitted when any step fails
+
+- Error classes:
+  - `ZKP2PError` (base), `NetworkError`, `APIError`, `ContractError`, `ValidationError`, `ProofGenerationError`
+
+## SSR vs Browser
+
+- Core SDK is isomorphic; it does not require `window`.
+- The extension entry `@zkp2p/client-sdk/extension` is browser-only. In SSR, import it dynamically or guard with `typeof window !== 'undefined'`.
+
+## End-to-End Outline
+
+1) Maker deposits liquidity:
+```ts
+await client.createDeposit({
+  token: client.getUsdcAddress(),
+  amount: 1000000n, // 1 USDC with 6 decimals
+  intentAmountRange: { min: 500000n, max: 2000000n },
+  processorNames: ['wise'],
+  conversionRates: [[{ currency: 'USD', conversionRate: '1000000' }]],
+  depositData: [{ /* payee details per processor */ }],
+});
+```
+
+2) Buyer signals intent (after quote selection):
+```ts
+await client.signalIntent({
+  processorName: 'wise',
+  depositId: '1',
+  tokenAmount: '1000000',
+  payeeDetails: '{"email":"alice@example.com"}',
+  toAddress: '0xRecipient',
+  currency: 'USD',
+});
+```
+
+3) Buyer proves payment in browser via extension and fulfills intent (see section above for proof flow):
+```ts
+// ext.generateProof(...)
+// const proof = parseExtensionProof(...)
+await client.fulfillIntent({ intentHash, paymentProofs: [{ proof }] });
+```
+
+## License
+MIT

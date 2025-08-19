@@ -1,0 +1,59 @@
+name: Publish Package
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+          cache-dependency-path: packages/client-sdk/package-lock.json
+
+      - name: Generate root lockfile for provenance
+        run: |
+          npm install --package-lock-only
+
+      - name: Install dependencies (package workspace)
+        run: npm ci --prefix packages/client-sdk
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify lockfile at repo root
+        run: |
+          echo "Listing repo root to verify lockfile presence"
+          ls -la
+          test -f package-lock.json || (echo "ERROR: package-lock.json missing at repo root" && exit 1)
+
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF##*/}"
+          echo "Publishing for tag: $TAG"
+          if [[ "$TAG" == *"-dev."* ]]; then
+            echo "Detected dev pre-release tag. Publishing under temporary UNscoped name zkp2p-client-sdk-dev with dist-tag 'dev' (no provenance)"
+            # Sync root package version with workspace version for consistency
+            ROOT_VERSION=$(node -p "require('./packages/client-sdk/package.json').version")
+            npm pkg set version="$ROOT_VERSION"
+            # Rewrite package name for dev publishes to an unscoped temporary name (no org scope permissions required)
+            npm pkg set name=zkp2p-client-sdk-dev
+            # Disable provenance because this repository is private
+            npm publish --access public --tag dev --no-provenance
+          else
+            npm publish --access public --provenance
+          fi
