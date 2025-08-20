@@ -33,7 +33,7 @@ import { PeerauthExtension } from '@zkp2p/client-sdk/extension';
 const ext = new PeerauthExtension({ onVersion: v => console.log('Extension version', v) });
 ext.fetchVersion();
 
-// After generating proof via extension, fulfill intent
+// After generating proof via extension, fulfill intent (see Extension Flow section)
 // await client.fulfillIntent({ intentHash, paymentProofs: [{ proof }], paymentMethod: 1 });
 ```
 
@@ -174,8 +174,8 @@ The typical browser flow is:
 4) Call `fulfillIntent` with the encoded proof
 
 ```ts
-import { Zkp2pClient } from '@zkp2p/client-sdk';
-import { PeerauthExtension } from '@zkp2p/client-sdk/extension';
+import { Zkp2pClient, assembleProofBytes } from '@zkp2p/client-sdk';
+import { PeerauthExtension, parseExtensionProof, ExtensionProofFlow } from '@zkp2p/client-sdk/extension';
 
 // 1) Initialize the client
 const client = new Zkp2pClient({ walletClient, apiKey, chainId: 8453 });
@@ -212,11 +212,49 @@ ext.generateProof(
 );
 
 // Helper: Convert extension proof payload → ReclaimProof
-import { parseExtensionProof } from '@zkp2p/client-sdk/extension';
 const reclaimProof = parseExtensionProof(notaryRequest.proof);
 ```
 
+### Orchestrated N‑proof flow (optional)
+
+If a platform requires two proofs, or you want a single helper to handle polling/timeout and parsing, use `ExtensionProofFlow` and `assembleProofBytes`:
+
+```ts
+const flow = new ExtensionProofFlow();
+try {
+  const proofs = await flow.generateProofs(
+    'wise',                        // platform
+    BigInt(intentHash).toString(), // decimal string expected by extension
+    0,                             // originalIndex from extension metadata
+    { requiredProofs: 1, pollIntervalMs: 3000, timeoutMs: 60000 },
+    (p) => console.log('progress', p)
+  );
+
+  // Option A: assemble bytes and submit manually
+  const bytes = assembleProofBytes(proofs, { paymentMethod: 1 });
+  // ... submit via your own viem client if desired
+
+  // Option B: submit via SDK using the raw proofs
+  await client.fulfillIntent({
+    intentHash,
+    paymentProofs: proofs.map((proof) => ({ proof })),
+    paymentMethod: 1,
+  });
+} finally {
+  flow.dispose();
+}
+```
+
 ---
+
+## Proof Helpers
+
+- encode single: `encodeProofAsBytes(proof)`
+- encode two: `encodeTwoProofs(proof1, proof2)`
+- encode many: `encodeManyProofs([proofs])`
+- tag method: `encodeProofAndPaymentMethodAsBytes(bytes, method)`
+- assemble: `assembleProofBytes(proofs, { paymentMethod? })`
+- parse extension payload: `parseExtensionProof(payload)`
 
 ## API Overview
 

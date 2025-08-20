@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseExtensionProof, toHexSignature } from '../extension/proof';
+import { assembleProofBytes } from '../utils/proofEncoding';
 
 describe('extension proof helper', () => {
   it('converts array signature to hex', () => {
@@ -23,6 +24,8 @@ describe('extension proof helper', () => {
     const proof = parseExtensionProof(payload);
     expect(proof.claimInfo.provider).toBe('wise');
     expect(proof.signedClaim.signatures[0]).toMatch(/^0x[0-9a-f]+$/);
+
+    const bytes = assembleProofBytes([proof]);
+    expect(bytes.startsWith('0x')).toBe(true);
   });
 });
-

@@ -69,6 +69,15 @@ export const encodeTwoProofs = (proof1: ReclaimProof, proof2: ReclaimProof) => {
   );
 };
 
+// Encodes an arbitrary number of proofs as separate top-level tuple params
+export const encodeManyProofs = (proofs: ReclaimProof[]) => {
+  if (!Array.isArray(proofs) || proofs.length === 0) {
+    throw new Error('encodeManyProofs requires at least one proof');
+  }
+  const types = proofs.map(() => PROOF_ENCODING_STRING);
+  return ethers.utils.defaultAbiCoder.encode(types, proofs as any);
+};
+
 export const encodeProofAndPaymentMethodAsBytes = (
   proof: `0x${string}`,
   paymentMethod: number
@@ -99,4 +108,26 @@ export function getIdentifierFromClaimInfo(info: ClaimInfo): string {
   }
   const str = `${info.provider}\n${info.parameters}\n${info.context || ''}`;
   return utils.keccak256(new TextEncoder().encode(str)).toLowerCase();
+}
+
+// High-level helper to assemble proof bytes from one or more proofs and optional payment method
+export function assembleProofBytes(
+  proofs: ReclaimProof[],
+  opts?: { paymentMethod?: number }
+): `0x${string}` {
+  if (!Array.isArray(proofs) || proofs.length === 0) {
+    throw new Error('No proofs provided');
+  }
+  let proofBytes: `0x${string}`;
+  if (proofs.length === 1) {
+    proofBytes = encodeProofAsBytes(proofs[0]!) as `0x${string}`;
+  } else if (proofs.length === 2) {
+    proofBytes = encodeTwoProofs(proofs[0]!, proofs[1]!) as `0x${string}`;
+  } else {
+    proofBytes = encodeManyProofs(proofs) as `0x${string}`;
+  }
+  if (opts?.paymentMethod !== undefined) {
+    proofBytes = encodeProofAndPaymentMethodAsBytes(proofBytes, opts.paymentMethod) as `0x${string}`;
+  }
+  return proofBytes;
 }

@@ -25,7 +25,7 @@ describe('mapConversionRatesToOnchain', () => {
   });
 
   it('throws on invalid structure', () => {
-    // @ts-expect-error testing runtime guard
+    // @ts-ignore testing runtime guard
     expect(() => mapConversionRatesToOnchain([])).toThrow(/nested array/);
   });
 
@@ -34,4 +34,3 @@ describe('mapConversionRatesToOnchain', () => {
     expect(() => mapConversionRatesToOnchain(groups)).toThrow(/Invalid currency/);
   });
 });
-
