@@ -1,0 +1,28 @@
+{
+  "buildCommand": "yarn build",
+  "outputDirectory": "build",
+  "framework": null,
+  "build": {
+    "env": {
+      "VERCEL_FORCE_NO_BUILD_CACHE": "1",
+      "NODE_VERSION": "18.20.6"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/manifest.json",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    }
+  ]
+}

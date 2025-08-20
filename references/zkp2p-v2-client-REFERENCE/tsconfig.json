@@ -1,0 +1,51 @@
+{
+  "compilerOptions": {
+    "target": "es2020",
+    "module": "esnext",
+    "esModuleInterop": true,
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext",
+      "webworker"
+    ],
+    "baseUrl": "src",
+    "paths": {
+      "@components/*": ["components/*"],
+      "@hooks/*": ["hooks/*"],
+      "@helpers/*": ["helpers/*"],
+      "@theme/*": ["theme/*"],
+      "@contexts/*": ["contexts/*"],
+      "@assets/*": ["assets/*"],
+      "@icons/*": ["icons/*"],
+      "@pages/*": ["pages/*"],
+      "@utils/*": ["utils/*"],
+      "@types/*": ["types/*"],
+      "@services/*": ["services/*"],
+      "@store/*": ["store/*"],
+      "@styles/*": ["styles/*"],
+      "@test/*": ["test/*"]
+    },
+    "allowJs": true,
+    "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "types": [
+      "node"
+    ],
+    "incremental": true
+  },
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

@@ -21,7 +21,7 @@ export class ExtensionProofFlow {
   private lastRequest: any | null = null;
   private disposed = false;
 
-  constructor() {
+  constructor(opts: { debug?: boolean } = {}) {
     this.ext = new PeerauthExtension({
       onProofId: (id) => {
         this.proofId = id;
@@ -29,7 +29,7 @@ export class ExtensionProofFlow {
       onProof: (req) => {
         this.lastRequest = req;
       },
-    });
+    }, { debug: opts.debug });
   }
 
   dispose() {
@@ -107,4 +107,3 @@ export class ExtensionProofFlow {
     return new Promise((res) => setTimeout(res, ms));
   }
 }
-

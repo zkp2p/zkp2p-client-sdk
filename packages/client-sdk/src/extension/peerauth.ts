@@ -26,9 +26,11 @@ export class PeerauthExtension {
   private _version: string | null = null;
   private _proofId: string | null = null;
   private _callbacks: Callbacks;
+  private _debug: boolean;
 
-  constructor(callbacks: Callbacks = {}) {
+  constructor(callbacks: Callbacks = {}, opts: { debug?: boolean } = {}) {
     this._callbacks = callbacks;
+    this._debug = !!opts.debug;
     if (this.isBrowser()) {
       window.addEventListener('message', this._handleMessage);
     }
@@ -46,7 +48,9 @@ export class PeerauthExtension {
 
   fetchVersion() {
     if (!this.isBrowser()) return;
-    window.postMessage({ type: ExtensionPostMessage.FETCH_EXTENSION_VERSION }, '*');
+    const msg = { type: ExtensionPostMessage.FETCH_EXTENSION_VERSION };
+    if (this._debug) console.debug('[PeerauthExtension] postMessage', msg);
+    window.postMessage(msg, '*');
   }
 
   isInstalled(): boolean {
@@ -59,24 +63,30 @@ export class PeerauthExtension {
 
   openNewTab(actionType: string, platform: string) {
     if (!this.isBrowser()) return;
-    window.postMessage({ type: ExtensionPostMessage.OPEN_NEW_TAB, actionType, platform }, '*');
+    const msg = { type: ExtensionPostMessage.OPEN_NEW_TAB, actionType, platform };
+    if (this._debug) console.debug('[PeerauthExtension] postMessage', msg);
+    window.postMessage(msg, '*');
   }
 
   generateProof(platform: PaymentPlatformType, intentHash: string, originalIndex: number, proofIndex?: number) {
     if (!this.isBrowser()) return;
     this._proofId = null;
-    window.postMessage({
+    const msg = {
       type: ExtensionPostMessage.GENERATE_PROOF,
       platform,
       intentHash,
       originalIndex,
       proofIndex,
-    }, '*');
+    } as const;
+    if (this._debug) console.debug('[PeerauthExtension] postMessage', msg);
+    window.postMessage(msg, '*');
   }
 
   fetchProofById() {
     if (!this.isBrowser() || !this._proofId) return;
-    window.postMessage({ type: ExtensionPostMessage.FETCH_PROOF_BY_ID, proofId: this._proofId }, '*');
+    const msg = { type: ExtensionPostMessage.FETCH_PROOF_BY_ID, proofId: this._proofId };
+    if (this._debug) console.debug('[PeerauthExtension] postMessage', msg);
+    window.postMessage(msg, '*');
   }
 
   private _handleMessage = (event: MessageEvent) => {
@@ -84,6 +94,7 @@ export class PeerauthExtension {
       if (!this.isBrowser()) return;
       if (event.origin !== window.location.origin) return;
       const data: any = (event as any).data || {};
+      if (this._debug) console.debug('[PeerauthExtension] onMessage', data);
       if (!data || typeof data.type !== 'string') return;
 
       switch (data.type) {

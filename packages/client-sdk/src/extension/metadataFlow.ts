@@ -10,6 +10,7 @@ export type MetadataRecord = {
 export type ExtensionMetadataFlowOptions = {
   // Optionally ping the extension for version to detect install status
   versionPollMs?: number; // default 5000
+  debug?: boolean;
 };
 
 type Subscriber = (platform: PaymentPlatformType, record: MetadataRecord) => void;
@@ -32,7 +33,7 @@ export class ExtensionMetadataFlow {
         this.cache.set(platform, record);
         for (const cb of this.subscribers) cb(platform, record);
       },
-    });
+    }, { debug: opts.debug });
 
     const poll = Math.max(0, opts.versionPollMs ?? 5000);
     if (poll > 0 && this.ext.isBrowser()) {
@@ -68,6 +69,7 @@ export class ExtensionMetadataFlow {
 
   // Convenience: request metadata by opening the appropriate extension tab/action
   requestMetadata(actionType: string, platform: PaymentPlatformType) {
+    if (this.ext && (this.ext as any)._debug) console.debug('[ExtensionMetadataFlow] requestMetadata', actionType, platform);
     this.ext.openNewTab(actionType, platform);
   }
 
