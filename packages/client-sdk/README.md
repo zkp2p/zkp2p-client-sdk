@@ -174,8 +174,8 @@ The typical browser flow is:
 4) Call `fulfillIntent` with the encoded proof
 
 ```ts
-import { Zkp2pClient, assembleProofBytes } from '@zkp2p/client-sdk';
-import { PeerauthExtension, parseExtensionProof, ExtensionProofFlow } from '@zkp2p/client-sdk/extension';
+import { Zkp2pClient, assembleProofBytes, intentHashHexToDecimalString } from '@zkp2p/client-sdk';
+import { PeerauthExtension, parseExtensionProof, ExtensionProofFlow, ExtensionMetadataFlow, metadataUtils } from '@zkp2p/client-sdk/extension';
 
 // 1) Initialize the client
 const client = new Zkp2pClient({ walletClient, apiKey, chainId: 8453 });
@@ -222,13 +222,13 @@ If a platform requires two proofs, or you want a single helper to handle polling
 ```ts
 const flow = new ExtensionProofFlow();
 try {
-  const proofs = await flow.generateProofs(
-    'wise',                        // platform
-    BigInt(intentHash).toString(), // decimal string expected by extension
-    0,                             // originalIndex from extension metadata
-    { requiredProofs: 1, pollIntervalMs: 3000, timeoutMs: 60000 },
-    (p) => console.log('progress', p)
-  );
+const proofs = await flow.generateProofs(
+  'wise',                                   // platform
+  intentHashHexToDecimalString(intentHash), // safe decimal string for extension
+  0,                                        // originalIndex from extension metadata
+  { requiredProofs: 1, pollIntervalMs: 3000, timeoutMs: 60000 },
+  (p) => console.log('progress', p)
+);
 
   // Option A: assemble bytes and submit manually
   const bytes = assembleProofBytes(proofs, { paymentMethod: 1 });
@@ -246,6 +246,43 @@ try {
 ```
 
 ---
+
+## Transaction Metadata → Selection → Proof (separation)
+
+Surface transaction candidates first, let the user choose, then generate proofs. This gives integrators full control over selection logic.
+
+```ts
+// 1) Start metadata flow (receives metadata pushed from extension)
+const meta = new ExtensionMetadataFlow({ versionPollMs: 5000 });
+const unsubscribe = meta.subscribe((platform, record) => {
+  if (platform !== 'wise') return;
+  const visible = metadataUtils.filterVisible(record.metadata);
+  const sorted = metadataUtils.sortByDateDesc(visible);
+  // Render `sorted` to your UI and let the user pick one
+});
+
+// Optionally, request metadata via extension action (actionType varies by platform/method)
+// meta.requestMetadata('<actionTypeFromPlatformConfig>', 'wise');
+
+// 2) Once user picks a transaction, capture its `originalIndex`
+const chosenOriginalIndex = 0; // from the user’s selection
+
+// 3) Generate proof(s)
+const flow = new ExtensionProofFlow();
+const proofs = await flow.generateProofs('wise', intentHashHexToDecimalString(intentHash), chosenOriginalIndex, { requiredProofs: 1 });
+
+// 4) Submit
+await client.fulfillIntent({ intentHash, paymentProofs: proofs.map(p => ({ proof: p })), paymentMethod: 1 });
+
+// Cleanup on unmount
+unsubscribe();
+meta.dispose();
+flow.dispose();
+```
+
+Notes:
+- The extension pushes metadata via `postMessage`; the SDK caches and emits the latest per-platform.
+- `expiresAt` indicates when metadata becomes stale. Use `meta.isExpired(platform)` to decide re-fetch strategy.
 
 ## Proof Helpers
 

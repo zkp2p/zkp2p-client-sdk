@@ -58,14 +58,43 @@ export const parseReclaimProxyProof = (proofObject: any) => {
 const PROOF_ENCODING_STRING =
   '(tuple(string provider, string parameters, string context) claimInfo, tuple(tuple(bytes32 identifier, address owner, uint32 timestampS, uint32 epoch) claim, bytes[] signatures) signedClaim, bool isAppclipProof)';
 
+// Convert proof into ABI-encodable structure with uint32-safe numbers
+function toEncodableProof(proof: ReclaimProof) {
+  const UINT32_MAX = 4294967295n;
+  const ts = proof.signedClaim.claim.timestampS;
+  const ep = proof.signedClaim.claim.epoch;
+  if (ts < 0n || ts > UINT32_MAX) {
+    throw new Error(`timestampS ${ts.toString()} exceeds uint32 bounds`);
+  }
+  if (ep < 0n || ep > UINT32_MAX) {
+    throw new Error(`epoch ${ep.toString()} exceeds uint32 bounds`);
+  }
+  return {
+    claimInfo: proof.claimInfo,
+    signedClaim: {
+      claim: {
+        identifier: proof.signedClaim.claim.identifier,
+        owner: proof.signedClaim.claim.owner,
+        timestampS: Number(ts),
+        epoch: Number(ep),
+      },
+      signatures: proof.signedClaim.signatures,
+    },
+    isAppclipProof: proof.isAppclipProof,
+  };
+}
+
 export const encodeProofAsBytes = (proof: ReclaimProof) => {
-  return ethers.utils.defaultAbiCoder.encode([PROOF_ENCODING_STRING], [proof]);
+  const enc = toEncodableProof(proof);
+  return ethers.utils.defaultAbiCoder.encode([PROOF_ENCODING_STRING], [enc]);
 };
 
 export const encodeTwoProofs = (proof1: ReclaimProof, proof2: ReclaimProof) => {
+  const p1 = toEncodableProof(proof1);
+  const p2 = toEncodableProof(proof2);
   return ethers.utils.defaultAbiCoder.encode(
     [PROOF_ENCODING_STRING, PROOF_ENCODING_STRING],
-    [proof1, proof2]
+    [p1, p2]
   );
 };
 
@@ -75,7 +104,8 @@ export const encodeManyProofs = (proofs: ReclaimProof[]) => {
     throw new Error('encodeManyProofs requires at least one proof');
   }
   const types = proofs.map(() => PROOF_ENCODING_STRING);
-  return ethers.utils.defaultAbiCoder.encode(types, proofs as any);
+  const values = proofs.map(toEncodableProof) as any;
+  return ethers.utils.defaultAbiCoder.encode(types, values);
 };
 
 export const encodeProofAndPaymentMethodAsBytes = (
@@ -130,4 +160,12 @@ export function assembleProofBytes(
     proofBytes = encodeProofAndPaymentMethodAsBytes(proofBytes, opts.paymentMethod) as `0x${string}`;
   }
   return proofBytes;
+}
+
+// Helper: convert `0x…` intent hash to decimal string for extension
+export function intentHashHexToDecimalString(hash: `0x${string}`): string {
+  if (typeof hash !== 'string' || !hash.startsWith('0x')) {
+    throw new Error('intent hash must be a 0x-prefixed hex string');
+  }
+  return BigInt(hash).toString(10);
 }

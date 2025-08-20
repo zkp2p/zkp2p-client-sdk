@@ -10,5 +10,6 @@ export {
   encodeManyProofs,
   encodeProofAndPaymentMethodAsBytes,
   assembleProofBytes,
+  intentHashHexToDecimalString,
   type ReclaimProof,
 } from './utils/proofEncoding';

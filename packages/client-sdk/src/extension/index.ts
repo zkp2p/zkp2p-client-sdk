@@ -2,3 +2,4 @@
 export * from './peerauth';
 export * from './proof';
 export * from './flow';
+export * from './metadataFlow';
