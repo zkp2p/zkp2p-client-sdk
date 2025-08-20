@@ -215,6 +215,29 @@ ext.generateProof(
 const reclaimProof = parseExtensionProof(notaryRequest.proof);
 ```
 
+### Orchestrated, Platform‑Abstracted Flow (recommended)
+
+Use the `ExtensionOrchestrator` to hide platform action strings and required proof counts. It requests metadata, lets you pick a transaction, generates the correct number of proofs, and builds the bytes for contract submission.
+
+```ts
+import { ExtensionOrchestrator } from '@zkp2p/client-sdk/extension';
+
+const orch = new ExtensionOrchestrator({ debug: false, versionPollMs: 5000 });
+
+// 1) Request and render payments (internal action strings are abstracted)
+const payments = await orch.requestAndGetPayments('revolut');
+const selected = payments[0]; // render and let user pick in real apps
+
+// 2) Generate the correct number of proofs, based on platform config
+const proofs = await orch.generateProofs('revolut', intentHash, selected.originalIndex);
+
+// 3) Submit on-chain
+await client.fulfillIntent({
+  intentHash,
+  paymentProofs: proofs.map((p) => ({ proof: p })),
+});
+```
+
 ### Orchestrated N‑proof flow (optional)
 
 If a platform requires two proofs, or you want a single helper to handle polling/timeout and parsing, use `ExtensionProofFlow` and `assembleProofBytes`:
@@ -283,6 +306,19 @@ flow.dispose();
 Notes:
 - The extension pushes metadata via `postMessage`; the SDK caches and emits the latest per-platform.
 - `expiresAt` indicates when metadata becomes stale. Use `meta.isExpired(platform)` to decide re-fetch strategy.
+
+### Debugging
+
+Enable debug logging to see postMessage traffic and progress:
+
+```ts
+import { ExtensionOrchestrator, ExtensionMetadataFlow, ExtensionProofFlow } from '@zkp2p/client-sdk/extension';
+
+const orch = new ExtensionOrchestrator({ debug: true });
+const meta = new ExtensionMetadataFlow({ debug: true });
+const proofFlow = new ExtensionProofFlow({ debug: true });
+```
+
 
 ## Proof Helpers
 
