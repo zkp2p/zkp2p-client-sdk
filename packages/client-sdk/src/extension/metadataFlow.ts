@@ -94,7 +94,19 @@ export const metadataUtils = {
     return (list || []).filter((m) => !m.hidden);
   },
   sortByDateDesc(list: ExtensionRequestMetadata[]) {
-    return [...(list || [])].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    const toEpoch = (d: any): number => {
+      if (d == null) return 0;
+      if (typeof d === 'number' && Number.isFinite(d)) return d;
+      if (typeof d === 'string') {
+        // If numeric-like string, parse as int; else Date.parse
+        const maybeNum = Number(d);
+        if (Number.isFinite(maybeNum)) return maybeNum;
+        const parsed = Date.parse(d);
+        return Number.isNaN(parsed) ? 0 : parsed;
+      }
+      return 0;
+    };
+    return [...(list || [])].sort((a: any, b: any) => toEpoch(b?.date) - toEpoch(a?.date));
   },
   selectByOriginalIndex(list: ExtensionRequestMetadata[], originalIndex: number) {
     return (list || []).find((m) => m.originalIndex === originalIndex);

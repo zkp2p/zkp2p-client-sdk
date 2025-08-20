@@ -30,5 +30,21 @@ describe('ExtensionMetadataFlow', () => {
     unsub();
     flow.dispose();
   });
-});
 
+  it('sorts dates when metadata.date is number or string', () => {
+    const flow = new ExtensionMetadataFlow({ versionPollMs: 0 });
+    flow.ingest('revolut' as any, [
+      { originalIndex: 1, hidden: false, amount: '10', date: 1706000000000 } as any, // number ms epoch (highest)
+      { originalIndex: 2, hidden: false, amount: '20', date: '2024-01-02T00:00:00Z' } as any, // ISO string
+      { originalIndex: 3, hidden: false, amount: '30', date: '1690000000' } as any, // numeric string
+      { originalIndex: 4, hidden: false, amount: '40' } as any, // missing date
+    ], Date.now() + 60_000);
+
+    const rec = flow.get('revolut' as any)!;
+    const sorted = metadataUtils.sortByDateDesc(rec.metadata);
+    expect(sorted[0].originalIndex).toBe(1); // highest epoch
+    expect(sorted[sorted.length - 1].originalIndex).toBe(4); // missing date lowest
+
+    flow.dispose();
+  });
+});
