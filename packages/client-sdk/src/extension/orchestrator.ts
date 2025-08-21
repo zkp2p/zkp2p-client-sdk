@@ -4,15 +4,22 @@ import { resolvePlatformMethod } from './platformConfig';
 import { intentHashHexToDecimalString, assembleProofBytes, type ReclaimProof } from '../utils/proofEncoding';
 import type { PaymentPlatformType } from '../types';
 
-export type OrchestratorOptions = { debug?: boolean; versionPollMs?: number };
+export type OrchestratorOptions = {
+  debug?: boolean;
+  versionPollMs?: number;
+  // Maximum time to wait for the first metadata payload to arrive after requesting
+  metadataTimeoutMs?: number; // default 60000
+};
 
 export class ExtensionOrchestrator {
   private meta: ExtensionMetadataFlow;
   private debug: boolean;
+  private metadataTimeoutMs: number;
 
   constructor(opts: OrchestratorOptions = {}) {
     this.meta = new ExtensionMetadataFlow({ versionPollMs: opts.versionPollMs ?? 5000, debug: opts.debug });
     this.debug = !!opts.debug;
+    this.metadataTimeoutMs = typeof opts.metadataTimeoutMs === 'number' ? opts.metadataTimeoutMs : 60000;
   }
 
   dispose() {
@@ -28,7 +35,7 @@ export class ExtensionOrchestrator {
     this.meta.requestMetadata(method.actionType, method.actionPlatform as any);
 
     // Wait until we have metadata for the platform (basic poll)
-    const rec = await this.waitForMetadata(platform, 15000);
+    const rec = await this.waitForMetadata(platform, this.metadataTimeoutMs);
     const visible = metadataUtils.filterVisible(rec.metadata);
     const sorted = metadataUtils.sortByDateDesc(visible);
     if (this.debug) console.debug('[ExtensionOrchestrator] received payments', { count: sorted.length });
@@ -83,4 +90,3 @@ export class ExtensionOrchestrator {
     });
   }
 }
-

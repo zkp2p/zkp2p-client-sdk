@@ -222,7 +222,7 @@ Use the `ExtensionOrchestrator` to hide platform action strings and required pro
 ```ts
 import { ExtensionOrchestrator } from '@zkp2p/client-sdk/extension';
 
-const orch = new ExtensionOrchestrator({ debug: false, versionPollMs: 5000 });
+const orch = new ExtensionOrchestrator({ debug: false, versionPollMs: 5000, metadataTimeoutMs: 60000 });
 
 // 1) Request and render payments (internal action strings are abstracted)
 const payments = await orch.requestAndGetPayments('revolut');
