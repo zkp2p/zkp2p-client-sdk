@@ -240,7 +240,7 @@ await client.fulfillIntent({
 
 ### Orchestrated N‑proof flow (optional)
 
-If a platform requires two proofs, or you want a single helper to handle polling/timeout and parsing, use `ExtensionProofFlow` and `assembleProofBytes`:
+If you prefer manual control, but still want a helper to handle polling/timeout and parsing, use `ExtensionProofFlow` directly and `assembleProofBytes` to build the final payload:
 
 ```ts
 const flow = new ExtensionProofFlow();
@@ -270,7 +270,9 @@ const proofs = await flow.generateProofs(
 
 ---
 
-## Transaction Metadata → Selection → Proof (separation)
+## Advanced: Low‑Level Flows
+
+### Transaction Metadata → Selection → Proof (separation)
 
 Surface transaction candidates first, let the user choose, then generate proofs. This gives integrators full control over selection logic.
 
@@ -284,14 +286,14 @@ const unsubscribe = meta.subscribe((platform, record) => {
   // Render `sorted` to your UI and let the user pick one
 });
 
-// Optionally, request metadata via extension action (actionType varies by platform/method)
+// Optionally, request metadata via extension action (advanced; orchestrator handles this internally)
 // meta.requestMetadata('<actionTypeFromPlatformConfig>', 'wise');
 
 // 2) Once user picks a transaction, capture its `originalIndex`
 const chosenOriginalIndex = 0; // from the user’s selection
 
 // 3) Generate proof(s)
-const flow = new ExtensionProofFlow();
+const flow = new ExtensionProofFlow({ debug: false });
 const proofs = await flow.generateProofs('wise', intentHashHexToDecimalString(intentHash), chosenOriginalIndex, { requiredProofs: 1 });
 
 // 4) Submit

@@ -3,6 +3,7 @@
 This folder collects small examples that demonstrate typical SDK usage:
 
 - React (Vite): minimal browser app using `Zkp2pClient` and the extension helper
+- Orchestrator (Browser): end‑to‑end extension flow using the platform‑abstracted orchestrator
 - Node script: fetch quotes from the API via `Zkp2pClient`
 
 Note: these are reference examples. Install peer deps (`viem`) and set your API key to run them.
@@ -65,3 +66,25 @@ npm run dev
 
 See `examples/node-scripts/get-quote.ts` for a minimal script to call `getQuote` without sending transactions.
 
+## Orchestrator (Browser) Demo
+
+This HTML page shows how to request and render Revolut payments (abstracted action), select the first one, and generate a proof via the SDK orchestrator.
+
+1) Build the SDK so `dist/` is available:
+```
+npm run build
+```
+
+2) Serve the repository root with any static server (same‑origin is required for `postMessage`):
+```
+npx http-server -p 5174 .
+# or
+npx serve .
+```
+
+3) Open the page:
+```
+http://localhost:5174/examples/e2e-browser/orchestrator.html
+```
+
+Make sure the peerauth extension is installed and up to date. The console will show debug logs when the page is used.
