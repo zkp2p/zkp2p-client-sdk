@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { apiGetQuote } from '../adapters/api';
+import { apiGetQuote, apiValidatePayeeDetails } from '../adapters/api';
 import { ValidationError } from '../errors';
 
 describe('api adapters', () => {
@@ -53,5 +53,23 @@ describe('api adapters', () => {
     const calledUrl = String(fetchMock.mock.calls[0][0]);
     expect(calledUrl).toContain('/quote/exact-token');
   });
-});
 
+  it('calls /makers/validate and parses response', async () => {
+    const fetchMock = vi.fn(async (url: RequestInfo | URL) =>
+      new Response(
+        JSON.stringify({ message: 'ok', success: true, responseObject: { isValid: true } }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    (globalThis as any).fetch = fetchMock;
+
+    const res = await apiValidatePayeeDetails(
+      { processorName: 'revolut', depositData: { revolutUsername: 'alice' } },
+      'api-key',
+      'https://api.example'
+    );
+    expect(res.responseObject.isValid).toBe(true);
+    const calledUrl = String(fetchMock.mock.calls[0][0]);
+    expect(calledUrl).toContain('/makers/validate');
+  });
+});

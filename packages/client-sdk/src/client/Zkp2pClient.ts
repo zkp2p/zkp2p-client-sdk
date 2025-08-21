@@ -13,6 +13,8 @@ import type {
   QuoteResponse,
   GetPayeeDetailsRequest,
   GetPayeeDetailsResponse,
+  ValidatePayeeDetailsRequest,
+  ValidatePayeeDetailsResponse,
   PostDepositDetailsRequest,
   WithdrawDepositParams,
   CancelIntentParams,
@@ -27,7 +29,7 @@ import { signalIntent as _signalIntent } from '../actions/signalIntent';
 import { createDeposit as _createDeposit } from '../actions/createDeposit';
 import { withdrawDeposit as _withdrawDeposit } from '../actions/withdrawDeposit';
 import { cancelIntent as _cancelIntent } from '../actions/cancelIntent';
-import { apiGetQuote, apiGetPayeeDetails } from '../adapters/api';
+import { apiGetQuote, apiGetPayeeDetails, apiValidatePayeeDetails } from '../adapters/api';
 import { ESCROW_ABI } from '../utils/contracts';
 import { parseEscrowDepositView, parseEscrowIntentView } from '../utils/escrowViewParsers';
 export class Zkp2pClient {
@@ -157,6 +159,10 @@ export class Zkp2pClient {
 
   async getPayeeDetails(_params: GetPayeeDetailsRequest): Promise<GetPayeeDetailsResponse> {
     return apiGetPayeeDetails(_params, this.apiKey, this.baseApiUrl);
+  }
+
+  async validatePayeeDetails(_params: ValidatePayeeDetailsRequest): Promise<ValidatePayeeDetailsResponse> {
+    return apiValidatePayeeDetails(_params, this.apiKey, this.baseApiUrl);
   }
 
   async getAccountDeposits(ownerAddress: Address): Promise<EscrowDepositView[]> {

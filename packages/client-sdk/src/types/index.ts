@@ -147,6 +147,18 @@ export type GetPayeeDetailsResponse = {
   statusCode: number;
 };
 
+export type ValidatePayeeDetailsRequest = {
+  processorName: string;
+  depositData: { [key: string]: string };
+};
+
+export type ValidatePayeeDetailsResponse = {
+  success: boolean;
+  message: string;
+  responseObject: { isValid: boolean; errors?: string[] };
+  statusCode: number;
+};
+
 // Onchain currency and deposit verifier types used in createDeposit action
 export type OnchainCurrency = { code: `0x${string}`; conversionRate: bigint };
 export type DepositVerifierData = {
