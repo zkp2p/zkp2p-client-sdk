@@ -7,7 +7,7 @@ import type {
 } from '../types';
 import { apiSignalIntent } from '../adapters/api';
 import { currencyInfo } from '../utils/currency';
-import { ValidationError, ZKP2PError } from '../errors';
+import { ValidationError, ZKP2PError, ErrorCode } from '../errors';
 import { parseAPIError } from '../errors/utils';
 
 export async function signalIntent(
@@ -17,7 +17,8 @@ export async function signalIntent(
   chainId: number,
   params: SignalIntentParams,
   apiKey: string,
-  baseApiUrl: string
+  baseApiUrl: string,
+  timeoutMs?: number
 ): Promise<SignalIntentResponse & { txHash?: Hash }> {
   try {
     const currencyCodeHash = currencyInfo[params.currency]?.currencyCodeHash;
@@ -36,11 +37,11 @@ export async function signalIntent(
       fiatCurrencyCode: currencyCodeHash,
       chainId: chainId.toString(),
     };
-    const apiResponse = await apiSignalIntent(apiRequest, apiKey, baseApiUrl);
+    const apiResponse = await apiSignalIntent(apiRequest, apiKey, baseApiUrl, timeoutMs);
     if (!apiResponse.success) {
-      throw new ZKP2PError(apiResponse.message || 'Failed to signal intent', { apiResponse } as any);
+      throw new ZKP2PError(apiResponse.message || 'Failed to signal intent', ErrorCode.API, { apiResponse });
     }
-    const intentData = (apiResponse as any).responseObject.intentData;
+    const intentData = apiResponse.responseObject.intentData;
     const { request } = await publicClient.simulateContract({
       address: escrowAddress as `0x${string}`,
       abi: ESCROW_ABI,
@@ -60,13 +61,13 @@ export async function signalIntent(
     if (params.onMined) {
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       if (receipt.status === 'reverted') {
-        throw new ZKP2PError('Transaction reverted', { txHash: hash } as any);
+        throw new ZKP2PError('Transaction reverted', ErrorCode.CONTRACT, { txHash: hash });
       }
       params.onMined({ hash });
     }
     return { ...apiResponse, txHash: hash };
   } catch (error) {
-    const zkp2pError = error instanceof ZKP2PError ? error : new ZKP2PError((error as Error).message || 'Unknown error', { originalError: error } as any);
+    const zkp2pError = error instanceof ZKP2PError ? error : new ZKP2PError((error as Error).message || 'Unknown error', ErrorCode.UNKNOWN, { originalError: error });
     params.onError?.(zkp2pError);
     throw zkp2pError;
   }

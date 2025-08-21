@@ -24,7 +24,8 @@ function createHeadersWithApiKey(apiKey: string) {
 export async function apiSignalIntent(
   req: IntentSignalRequest,
   apiKey: string,
-  baseApiUrl: string
+  baseApiUrl: string,
+  timeoutMs?: number
 ): Promise<SignalIntentResponse> {
   return withRetry(async () => {
     let res: Response;
@@ -47,13 +48,14 @@ export async function apiSignalIntent(
     }
 
     return res.json();
-  });
+  }, 3, 1000, timeoutMs);
 }
 
 export async function apiPostDepositDetails(
   req: PostDepositDetailsRequest,
   apiKey: string,
-  baseApiUrl: string
+  baseApiUrl: string,
+  timeoutMs?: number
 ): Promise<PostDepositDetailsResponse> {
   return withRetry(async () => {
     let res: Response;
@@ -76,12 +78,13 @@ export async function apiPostDepositDetails(
     }
 
     return res.json();
-  });
+  }, 3, 1000, timeoutMs);
 }
 
 export async function apiGetQuote(
   req: QuoteRequest,
-  baseApiUrl: string
+  baseApiUrl: string,
+  timeoutMs?: number
 ): Promise<QuoteResponse> {
   if (req.quotesToReturn !== undefined) {
     if (!Number.isInteger(req.quotesToReturn) || (req.quotesToReturn as number) < 1) {
@@ -93,7 +96,7 @@ export async function apiGetQuote(
   let url = `${baseApiUrl}/quote/${endpoint}`;
   if (req.quotesToReturn) url += `?quotesToReturn=${req.quotesToReturn}`;
 
-  const requestBody: any = {
+  const requestBody: Record<string, unknown> = {
     ...req,
     [isExactFiat ? 'exactFiatAmount' : 'exactTokenAmount']: req.amount,
     amount: undefined,
@@ -114,13 +117,14 @@ export async function apiGetQuote(
       throw parseAPIError(res, errorText);
     }
     return res.json();
-  });
+  }, 3, 1000, timeoutMs);
 }
 
 export async function apiGetPayeeDetails(
   req: GetPayeeDetailsRequest,
   apiKey: string,
-  baseApiUrl: string
+  baseApiUrl: string,
+  timeoutMs?: number
 ): Promise<GetPayeeDetailsResponse> {
   return withRetry(async () => {
     let res: Response;
@@ -138,13 +142,14 @@ export async function apiGetPayeeDetails(
       throw parseAPIError(res, errorText);
     }
     return res.json();
-  });
+  }, 3, 1000, timeoutMs);
 }
 
 export async function apiValidatePayeeDetails(
   req: ValidatePayeeDetailsRequest,
   apiKey: string,
-  baseApiUrl: string
+  baseApiUrl: string,
+  timeoutMs?: number
 ): Promise<ValidatePayeeDetailsResponse> {
   return withRetry(async () => {
     let res: Response;
@@ -163,5 +168,5 @@ export async function apiValidatePayeeDetails(
       throw parseAPIError(res, errorText);
     }
     return res.json();
-  });
+  }, 3, 1000, timeoutMs);
 }

@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep:*)",
+      "Bash(npx tsc:*)",
+      "Bash(find:*)",
+      "Bash(yarn --version)"
+    ],
+    "deny": []
+  }
+}

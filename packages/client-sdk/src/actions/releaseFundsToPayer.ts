@@ -16,10 +16,10 @@ export async function releaseFundsToPayer(
     account: walletClient.account,
   });
   const hash = await walletClient.writeContract(request);
-  if ((params as any).onSuccess) (params as any).onSuccess({ hash });
-  if ((params as any).onMined) {
+  if (params.onSuccess) params.onSuccess({ hash });
+  if (params.onMined) {
     await publicClient.waitForTransactionReceipt({ hash });
-    (params as any).onMined({ hash });
+    params.onMined({ hash });
   }
   return hash;
 }

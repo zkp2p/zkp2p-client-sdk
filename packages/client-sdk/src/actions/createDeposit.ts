@@ -10,7 +10,7 @@ import { apiPostDepositDetails } from '../adapters/api';
 import { DEPLOYED_ADDRESSES } from '../utils/constants';
 import { ethers } from 'ethers';
 import { mapConversionRatesToOnchain } from '../utils/currency';
-import { ValidationError, ZKP2PError, ContractError } from '../errors';
+import { ValidationError, ZKP2PError, ContractError, ErrorCode } from '../errors';
 
 export async function createDeposit(
   walletClient: WalletClient,
@@ -19,7 +19,8 @@ export async function createDeposit(
   chainId: number,
   params: CreateDepositParams,
   apiKey: string,
-  baseApiUrl: string
+  baseApiUrl: string,
+  timeoutMs?: number
 ): Promise<{ depositDetails: PostDepositDetailsRequest[]; hash: Hash }> {
   try {
     if (!walletClient.account) throw new Error('Wallet not connected');
@@ -48,7 +49,8 @@ export async function createDeposit(
         return apiPostDepositDetails(
           { depositData: params.depositData[index] || {}, processorName },
           apiKey,
-          baseApiUrl
+          baseApiUrl,
+          timeoutMs
         );
       })
     );
@@ -58,30 +60,31 @@ export async function createDeposit(
     }
     const hashedOnchainIds = apiResponses.map((r) => r.responseObject.hashedOnchainId);
 
-    const verifierAddresses = (params.processorNames as string[]).map((processorName) => {
-      const addr = (DEPLOYED_ADDRESSES as any)?.[chainId]?.[processorName];
+    const verifierAddresses = params.processorNames.map((processorName) => {
+      const contractAddresses = DEPLOYED_ADDRESSES[chainId];
+      const addr = contractAddresses?.[processorName as keyof typeof contractAddresses];
       if (!addr) throw new ValidationError(`Processor ${processorName} not supported on chain ${chainId}`, 'processorName');
       return addr;
     });
 
-    const depositDetails: PostDepositDetailsRequest[] = (params.depositData as any[]).map((depositData, index) => ({
+    const depositDetails: PostDepositDetailsRequest[] = params.depositData.map((depositData, index) => ({
       depositData: depositData || {},
-      processorName: (params.processorNames as string[])[index]!,
+      processorName: params.processorNames[index]!,
     }));
 
     const witnessData = ethers.utils.defaultAbiCoder.encode(
       ['address[]'],
-      [[(DEPLOYED_ADDRESSES as any)?.[chainId]?.zkp2pWitnessSigner]]
+      [[DEPLOYED_ADDRESSES[chainId]?.zkp2pWitnessSigner]]
     );
 
     const verifierData: DepositVerifierData[] = hashedOnchainIds.map((hid) => ({
       payeeDetails: hid as string,
-      intentGatingService: (DEPLOYED_ADDRESSES as any)?.[chainId]?.gatingService as `0x${string}`,
+      intentGatingService: DEPLOYED_ADDRESSES[chainId]?.gatingService || '0x0' as `0x${string}`,
       data: witnessData as `0x${string}`,
     }));
 
     const currencies: OnchainCurrency[][] = mapConversionRatesToOnchain(
-      params.conversionRates as any,
+      params.conversionRates,
       verifierAddresses.length
     );
 
@@ -104,7 +107,7 @@ export async function createDeposit(
     if (params.onMined) {
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       if (receipt.status === 'reverted') {
-        throw new ContractError('Transaction reverted', { txHash: hash } as any);
+        throw new ContractError('Transaction reverted', { txHash: hash });
       }
       params.onMined({ hash });
     }
@@ -113,7 +116,7 @@ export async function createDeposit(
     const zkp2pError =
       error instanceof ZKP2PError
         ? error
-        : new ZKP2PError((error as Error).message || 'Unknown error occurred', { originalError: error } as any);
+        : new ZKP2PError((error as Error).message || 'Unknown error occurred', ErrorCode.UNKNOWN, { originalError: error });
     params.onError?.(zkp2pError);
     throw zkp2pError;
   }

@@ -12,14 +12,14 @@ export async function withdrawDeposit(
     address: escrowAddress as `0x${string}`,
     abi: ESCROW_ABI,
     functionName: 'withdrawDeposit',
-    args: [BigInt((params as any).depositId)],
+    args: [BigInt(params.depositId)],
     account: walletClient.account,
   });
   const hash = await walletClient.writeContract(request);
-  (params as any).onSuccess?.({ hash });
-  if ((params as any).onMined) {
+  params.onSuccess?.({ hash });
+  if (params.onMined) {
     await publicClient.waitForTransactionReceipt({ hash });
-    (params as any).onMined({ hash });
+    params.onMined({ hash });
   }
   return hash;
 }

@@ -16,10 +16,20 @@ export function parseAPIError(response: Response, responseText?: string): APIErr
   return new APIError(message, response.status, { url: response.url });
 }
 
-export async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3, delayMs = 1000): Promise<T> {
+export async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries = 3,
+  delayMs = 1000,
+  timeoutMs?: number
+): Promise<T> {
   let lastErr: unknown;
   for (let i = 0; i < maxRetries; i++) {
     try {
+      // Apply timeout if specified
+      if (timeoutMs) {
+        const { withTimeout } = await import('../utils/timeout');
+        return await withTimeout(fn(), timeoutMs, `Operation timed out after ${timeoutMs}ms`);
+      }
       return await fn();
     } catch (err) {
       lastErr = err;
