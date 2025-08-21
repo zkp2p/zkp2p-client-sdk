@@ -350,6 +350,8 @@ const proofFlow = new ExtensionProofFlow({ debug: true });
 - getQuote(req): retrieves quotes from API (exact-fiat by default)
 
 - getPayeeDetails({ platform, hashedOnchainId })
+ 
+- validatePayeeDetails({ processorName, depositData }): validates payee details via API
 
 - getAccountDeposits(address): reads deposit views from chain
 
