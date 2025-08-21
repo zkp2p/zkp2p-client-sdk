@@ -266,7 +266,7 @@ export type DepositVerifierData = {
 
 // CreateDeposit refined inputs
 export type Range = { min: bigint; max: bigint };
-export type CreateDepositConversionRate = { currency: string; conversionRate: string };
+export type CreateDepositConversionRate = { currency: CurrencyType; conversionRate: string };
 export type CreateDepositParams = {
   token: Address;
   amount: bigint;
