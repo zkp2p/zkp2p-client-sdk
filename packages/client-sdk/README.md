@@ -359,6 +359,27 @@ const proofFlow = new ExtensionProofFlow({ debug: true });
 
 See TypeScript types exported from the package for full shapes.
 
+## Payee Validation
+
+Use payee validation to pre-check user-provided payee details before creating a deposit or signaling an intent. The API returns a boolean and optional error strings.
+
+```ts
+import { Zkp2pClient } from '@zkp2p/client-sdk';
+
+const client = new Zkp2pClient({ walletClient, apiKey, chainId: 8453 });
+
+// Example: Revolut username
+const res = await client.validatePayeeDetails({
+  processorName: 'revolut',
+  depositData: { revolutUsername: 'alice' },
+});
+
+if (!res.responseObject.isValid) {
+  console.warn('Payee validation failed:', res.responseObject.errors || []);
+  // Show user-friendly error, do not proceed to createDeposit/signalIntent
+}
+```
+
 ## SSR and Extension
 
 - The extension entry `@zkp2p/client-sdk/extension` is browser-only. In SSR environments (Next.js), use dynamic import or guards to avoid referencing `window` during server rendering.
