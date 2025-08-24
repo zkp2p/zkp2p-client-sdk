@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions & Discussions
+    url: https://github.com/zkp2p/zkp2p-client-sdk/discussions
+    about: Ask questions and discuss ideas with the community
+  - name: Documentation
+    url: https://docs.zkp2p.xyz
+    about: Check the official ZKP2P documentation
