@@ -22,6 +22,20 @@ import type {
   EscrowDepositView,
   EscrowIntentView,
   TimeoutConfig,
+  GetOwnerDepositsRequest,
+  GetOwnerDepositsResponse,
+  GetOwnerIntentsRequest,
+  GetOwnerIntentsResponse,
+  GetIntentsByDepositRequest,
+  GetIntentsByDepositResponse,
+  GetIntentsByTakerRequest,
+  GetIntentsByTakerResponse,
+  GetIntentByHashRequest,
+  GetIntentByHashResponse,
+  GetDepositByIdRequest,
+  GetDepositByIdResponse,
+  GetDepositsOrderStatsRequest,
+  GetDepositsOrderStatsResponse,
 } from '../types';
 import { withTimeout, DEFAULT_TIMEOUTS } from '../utils/timeout';
 import { ValidationError } from '../errors';
@@ -31,7 +45,18 @@ import { signalIntent as _signalIntent } from '../actions/signalIntent';
 import { createDeposit as _createDeposit } from '../actions/createDeposit';
 import { withdrawDeposit as _withdrawDeposit } from '../actions/withdrawDeposit';
 import { cancelIntent as _cancelIntent } from '../actions/cancelIntent';
-import { apiGetQuote, apiGetPayeeDetails, apiValidatePayeeDetails } from '../adapters/api';
+import { 
+  apiGetQuote, 
+  apiGetPayeeDetails, 
+  apiValidatePayeeDetails,
+  apiGetOwnerDeposits,
+  apiGetOwnerIntents,
+  apiGetIntentsByDeposit,
+  apiGetIntentsByTaker,
+  apiGetIntentByHash,
+  apiGetDepositById,
+  apiGetDepositsOrderStats
+} from '../adapters/api';
 import { ESCROW_ABI } from '../utils/contracts';
 import { parseEscrowDepositView, parseEscrowIntentView } from '../utils/escrowViewParsers';
 /**
@@ -233,6 +258,69 @@ export class Zkp2pClient {
    */
   async validatePayeeDetails(_params: ValidatePayeeDetailsRequest): Promise<ValidatePayeeDetailsResponse> {
     return apiValidatePayeeDetails(_params, this.apiKey, this.baseApiUrl, this.timeouts.api);
+  }
+
+  /**
+   * Get historical deposits for a given owner address via the API
+   * @param _params - Request parameters with owner address and optional status filter
+   * @returns Historical deposits response
+   */
+  async getAccountDepositsHistory(_params: GetOwnerDepositsRequest): Promise<GetOwnerDepositsResponse> {
+    return apiGetOwnerDeposits(_params, this.apiKey, this.baseApiUrl, this.timeouts.api);
+  }
+
+  /**
+   * Get historical intents for a given owner address
+   * @param _params - Request parameters with owner address
+   * @returns Historical intents response
+   */
+  async getOwnerIntentsHistory(_params: GetOwnerIntentsRequest): Promise<GetOwnerIntentsResponse> {
+    return apiGetOwnerIntents(_params, this.apiKey, this.baseApiUrl, this.timeouts.api);
+  }
+
+  /**
+   * Get historical intents for a given taker address with optional status filter
+   * @param _params - Request parameters with taker address and optional status filter
+   * @returns Historical intents response
+   */
+  async getAccountIntentsHistory(_params: GetIntentsByTakerRequest): Promise<GetIntentsByTakerResponse> {
+    return apiGetIntentsByTaker(_params, this.apiKey, this.baseApiUrl, this.timeouts.api);
+  }
+
+  /**
+   * Get intents by deposit ID with optional status filter
+   * @param _params - Request parameters with deposit ID and optional status filter
+   * @returns Intents for the deposit
+   */
+  async getIntentsByDeposit(_params: GetIntentsByDepositRequest): Promise<GetIntentsByDepositResponse> {
+    return apiGetIntentsByDeposit(_params, this.apiKey, this.baseApiUrl, this.timeouts.api);
+  }
+
+  /**
+   * Get a single intent by its hash
+   * @param _params - Request parameters with intent hash
+   * @returns Intent details
+   */
+  async getIntentByHash(_params: GetIntentByHashRequest): Promise<GetIntentByHashResponse> {
+    return apiGetIntentByHash(_params, this.apiKey, this.baseApiUrl, this.timeouts.api);
+  }
+
+  /**
+   * Get a single deposit by its ID
+   * @param _params - Request parameters with deposit ID
+   * @returns Deposit details
+   */
+  async getDepositById(_params: GetDepositByIdRequest): Promise<GetDepositByIdResponse> {
+    return apiGetDepositById(_params, this.apiKey, this.baseApiUrl, this.timeouts.api);
+  }
+
+  /**
+   * Get order statistics for multiple deposits
+   * @param _params - Request parameters with deposit IDs
+   * @returns Order statistics for the deposits
+   */
+  async getDepositsOrderStats(_params: GetDepositsOrderStatsRequest): Promise<GetDepositsOrderStatsResponse> {
+    return apiGetDepositsOrderStats(_params, this.apiKey, this.baseApiUrl, this.timeouts.api);
   }
 
   /**

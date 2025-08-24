@@ -306,6 +306,157 @@ export interface ProofData {
 // Re-export ReclaimProof for consumers
 export type { ReclaimProof };
 
+// Historical Event Types (for deposits and intents)
+export type DepositStatus = 'ACTIVE' | 'WITHDRAWN' | 'CLOSED';
+
+export type Deposit = {
+  id: string;
+  owner: string;
+  amount: string;
+  minimumIntent: string;
+  maximumIntent: string;
+  status: DepositStatus;
+  updatedAt: Date;
+  createdAt: Date;
+  processorPaymentData: Array<{
+    processor: string;
+    paymentDetailsHash: string;
+    isHashed: boolean;
+    paymentDetails: string;
+    updatedAt: Date;
+    createdAt: Date;
+  }>;
+};
+
+export type GetOwnerDepositsRequest = {
+  ownerAddress: string;
+  status?: DepositStatus;
+};
+
+export type GetOwnerDepositsResponse = {
+  success: boolean;
+  message: string;
+  responseObject: Deposit[];
+  statusCode: number;
+};
+
+export type IntentStatusType =
+  | 'CREATED'
+  | 'FULFILLED'
+  | 'CANCELLED'
+  | 'RELEASED'
+  | 'EXPIRED';
+
+export type Intent = {
+  id: number;
+  intentHash: string;
+  depositId: number;
+  owner: string;
+  toAddress: string;
+  amount: string;
+  status: IntentStatusType;
+  signalTxHash: string;
+  signalTimestamp: Date;
+  fulfillTxHash: string | null;
+  fulfillTimestamp: Date | null;
+  pruneTxHash: string | null;
+  prunedTimestamp: Date | null;
+  chainId?: number;
+  fiatCurrency: string;
+  conversionRate: string;
+  verifier: string;
+  sustainabilityFee: string | null;
+  verifierFee: string | null;
+  updatedAt: Date;
+  createdAt: Date;
+};
+
+export type GetOwnerIntentsRequest = {
+  ownerAddress: string;
+};
+
+export type GetOwnerIntentsResponse = {
+  success: boolean;
+  message: string;
+  responseObject: Intent[];
+  statusCode: number;
+};
+
+// Orders API types
+export type GetIntentsByDepositRequest = {
+  depositId: string;
+  status?: IntentStatusType | IntentStatusType[];
+};
+
+export type GetIntentsByDepositResponse = {
+  success: boolean;
+  message: string;
+  responseObject: Intent[];
+  statusCode: number;
+};
+
+export type GetIntentsByTakerRequest = {
+  takerAddress: string;
+  status?: IntentStatusType | IntentStatusType[];
+};
+
+export type GetIntentsByTakerResponse = {
+  success: boolean;
+  message: string;
+  responseObject: Intent[];
+  statusCode: number;
+};
+
+export type GetIntentByHashRequest = {
+  intentHash: string;
+};
+
+export type GetIntentByHashResponse = {
+  success: boolean;
+  message: string;
+  responseObject: Intent;
+  statusCode: number;
+};
+
+// Deposits API types
+export type GetDepositByIdRequest = {
+  depositId: string;
+};
+
+export type GetDepositByIdResponse = {
+  success: boolean;
+  message: string;
+  responseObject: Deposit;
+  statusCode: number;
+};
+
+export type OrderStats = {
+  depositId: string;
+  totalOrderCount: number;
+  totalOrderAmount: string;
+  fulfilledOrderCount: number;
+  fulfilledOrderAmount: string;
+  cancelledOrderCount: number;
+  cancelledOrderAmount: string;
+  releasedOrderCount: number;
+  releasedOrderAmount: string;
+  expiredOrderCount: number;
+  expiredOrderAmount: string;
+  createdOrderCount: number;
+  createdOrderAmount: string;
+};
+
+export type GetDepositsOrderStatsRequest = {
+  depositIds: number[];
+};
+
+export type GetDepositsOrderStatsResponse = {
+  success: boolean;
+  message: string;
+  responseObject: OrderStats[];
+  statusCode: number;
+};
+
 // Currency domain (ISO) and on-chain currency mapping
 export { Currency } from '../utils/currency';
 export type { CurrencyType } from '../utils/currency';
