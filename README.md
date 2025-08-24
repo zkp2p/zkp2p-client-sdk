@@ -6,7 +6,7 @@
 
 Browser-first TypeScript SDK for integrating ZKP2P into web applications. ZKP2P enables trustless peer-to-peer fiat-to-crypto exchanges using zero-knowledge proofs, allowing users to on-ramp from traditional payment platforms directly to cryptocurrency without intermediaries.
 
-## 🚀 Features
+## Features
 
 - **Multi-Platform Support**: Integrate with Wise, Venmo, Revolut, PayPal, and more
 - **35+ Fiat Currencies**: Support for USD, EUR, GBP, and many other currencies
@@ -15,13 +15,13 @@ Browser-first TypeScript SDK for integrating ZKP2P into web applications. ZKP2P 
 - **Chain Agnostic**: Support for Base and other EVM-compatible chains
 - **Proven Architecture**: Built on the battle-tested core from the React Native SDK
 
-## 📦 Installation
+## Installation
 
 ```bash
 npm install @zkp2p/client-sdk viem
 ```
 
-## 🎯 Quick Start
+## Quick Start
 
 ```typescript
 import { Zkp2pClient } from '@zkp2p/client-sdk';
@@ -52,7 +52,7 @@ const quotes = await client.getQuote({
 });
 ```
 
-## 📚 Documentation
+## Documentation
 
 - **Primary Package**: See [`packages/client-sdk/README.md`](packages/client-sdk/README.md) for comprehensive integration documentation
 - **Examples**: Check the [`examples/`](examples/) directory for:
@@ -61,7 +61,7 @@ const quotes = await client.getQuote({
   - Browser E2E demo with extension integration
   - Orchestrator pattern implementation
 
-## 🛠️ Supported Platforms and Currencies
+## Supported Platforms and Currencies
 
 ### Payment Platforms
 `wise`, `venmo`, `revolut`, `cashapp`, `mercadopago`, `zelle`, `paypal`, `monzo`
@@ -69,7 +69,7 @@ const quotes = await client.getQuote({
 ### Fiat Currencies
 AED, ARS, AUD, CAD, CHF, CNY, CZK, DKK, EUR, GBP, HKD, HUF, IDR, ILS, INR, JPY, KES, MXN, MYR, NOK, NZD, PHP, PLN, RON, SAR, SEK, SGD, THB, TRY, UGX, USD, VND, ZAR
 
-## 🔌 Browser Extension Integration
+## Browser Extension Integration
 
 The SDK includes a browser-only extension helper for Peerauth integration:
 
@@ -83,15 +83,15 @@ const ext = new PeerauthExtension({
 
 **Note**: For SSR frameworks, import dynamically or guard usage with `typeof window !== 'undefined'`.
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🔗 Links
+## Links
 
 - [npm Package](https://www.npmjs.com/package/@zkp2p/client-sdk)
 - [GitHub Repository](https://github.com/zkp2p/zkp2p-client-sdk)

@@ -2,7 +2,7 @@
 
 Thank you for your interest in contributing to the ZKP2P Client SDK! We welcome contributions from the community and are grateful for any help you can provide.
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Code of Conduct](#code-of-conduct)
 - [Getting Started](#getting-started)
@@ -270,4 +270,4 @@ By contributing to ZKP2P Client SDK, you agree that your contributions will be l
 
 ---
 
-Thank you for contributing to ZKP2P Client SDK! 🚀
+Thank you for contributing to ZKP2P Client SDK!
