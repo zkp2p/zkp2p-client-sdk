@@ -39,6 +39,7 @@ import type {
 } from '../types';
 import { withTimeout, DEFAULT_TIMEOUTS } from '../utils/timeout';
 import { ValidationError } from '../errors';
+import { logger } from '../utils/logger';
 import { fulfillIntent } from '../actions/fulfillIntent';
 import { releaseFundsToPayer } from '../actions/releaseFundsToPayer';
 import { signalIntent as _signalIntent } from '../actions/signalIntent';
@@ -93,6 +94,12 @@ export class Zkp2pClient {
   readonly timeouts: Required<TimeoutConfig>;
 
   constructor(opts: Zkp2pClientOptions) {
+    logger.debug('[Zkp2pClient] Initializing with options:', { 
+      chainId: opts.chainId,
+      baseApiUrl: opts.baseApiUrl || DEFAULT_BASE_API_URL,
+      witnessUrl: opts.witnessUrl || DEFAULT_WITNESS_URL
+    });
+    
     this.walletClient = opts.walletClient;
     this.apiKey = opts.apiKey;
     this.chainId = opts.chainId;
@@ -167,6 +174,7 @@ export class Zkp2pClient {
    * @returns Transaction hash
    */
   async fulfillIntent(_params: FulfillIntentParams): Promise<Hash> {
+    logger.debug('[Zkp2pClient] Fulfilling intent:', { intentHash: _params.intentHash });
     return fulfillIntent(this.walletClient, this.publicClient, this.addresses.escrow, _params);
   }
 
@@ -176,6 +184,7 @@ export class Zkp2pClient {
    * @returns API response with transaction hash
    */
   async signalIntent(_params: SignalIntentParams): Promise<SignalIntentResponse & { txHash?: Hash }> {
+    logger.debug('[Zkp2pClient] Signaling intent:', { depositId: _params.depositId });
     return _signalIntent(
       this.walletClient,
       this.publicClient,
@@ -194,6 +203,7 @@ export class Zkp2pClient {
    * @returns Deposit details and transaction hash
    */
   async createDeposit(_params: CreateDepositParams): Promise<{ depositDetails: PostDepositDetailsRequest[]; hash: Hash }> {
+    logger.debug('[Zkp2pClient] Creating deposit:', { amount: _params.amount, processorNames: _params.processorNames });
     return _createDeposit(
       this.walletClient,
       this.publicClient,
@@ -212,6 +222,7 @@ export class Zkp2pClient {
    * @returns Transaction hash
    */
   async withdrawDeposit(_params: WithdrawDepositParams): Promise<Hash> {
+    logger.debug('[Zkp2pClient] Withdrawing deposit:', { depositId: _params.depositId });
     return _withdrawDeposit(this.walletClient, this.publicClient, this.addresses.escrow, _params);
   }
 
@@ -221,6 +232,7 @@ export class Zkp2pClient {
    * @returns Transaction hash
    */
   async cancelIntent(_params: CancelIntentParams): Promise<Hash> {
+    logger.debug('[Zkp2pClient] Canceling intent:', { intentHash: _params.intentHash });
     return _cancelIntent(this.walletClient, this.publicClient, this.addresses.escrow, _params);
   }
 
@@ -230,6 +242,7 @@ export class Zkp2pClient {
    * @returns Transaction hash
    */
   async releaseFundsToPayer(_params: ReleaseFundsToPayerParams): Promise<Hash> {
+    logger.debug('[Zkp2pClient] Releasing funds to payer:', { intentHash: _params.intentHash });
     return releaseFundsToPayer(this.walletClient, this.publicClient, this.addresses.escrow, _params);
   }
 
@@ -239,6 +252,7 @@ export class Zkp2pClient {
    * @returns Quote response with available quotes
    */
   async getQuote(_params: QuoteRequest): Promise<QuoteResponse> {
+    logger.debug('[Zkp2pClient] Getting quote:', _params);
     return apiGetQuote(_params, this.baseApiUrl, this.timeouts.api);
   }
 
@@ -248,6 +262,7 @@ export class Zkp2pClient {
    * @returns Payee details response
    */
   async getPayeeDetails(_params: GetPayeeDetailsRequest): Promise<GetPayeeDetailsResponse> {
+    logger.debug('[Zkp2pClient] Getting payee details:', { hashedOnchainId: _params.hashedOnchainId, platform: _params.platform });
     return apiGetPayeeDetails(_params, this.apiKey, this.baseApiUrl, this.timeouts.api);
   }
 
@@ -257,6 +272,7 @@ export class Zkp2pClient {
    * @returns Validation response
    */
   async validatePayeeDetails(_params: ValidatePayeeDetailsRequest): Promise<ValidatePayeeDetailsResponse> {
+    logger.debug('[Zkp2pClient] Validating payee details:', { processorName: _params.processorName });
     return apiValidatePayeeDetails(_params, this.apiKey, this.baseApiUrl, this.timeouts.api);
   }
 
@@ -266,6 +282,7 @@ export class Zkp2pClient {
    * @returns Historical deposits response
    */
   async getAccountDepositsHistory(_params: GetOwnerDepositsRequest): Promise<GetOwnerDepositsResponse> {
+    logger.debug('[Zkp2pClient] Getting account deposits history:', { owner: _params.ownerAddress });
     return apiGetOwnerDeposits(_params, this.apiKey, this.baseApiUrl, this.timeouts.api);
   }
 
@@ -275,6 +292,7 @@ export class Zkp2pClient {
    * @returns Historical intents response
    */
   async getOwnerIntentsHistory(_params: GetOwnerIntentsRequest): Promise<GetOwnerIntentsResponse> {
+    logger.debug('[Zkp2pClient] Getting owner intents history:', { owner: _params.ownerAddress });
     return apiGetOwnerIntents(_params, this.apiKey, this.baseApiUrl, this.timeouts.api);
   }
 
@@ -284,6 +302,7 @@ export class Zkp2pClient {
    * @returns Historical intents response
    */
   async getAccountIntentsHistory(_params: GetIntentsByTakerRequest): Promise<GetIntentsByTakerResponse> {
+    logger.debug('[Zkp2pClient] Getting account intents history:', { taker: _params.takerAddress });
     return apiGetIntentsByTaker(_params, this.apiKey, this.baseApiUrl, this.timeouts.api);
   }
 
@@ -293,6 +312,7 @@ export class Zkp2pClient {
    * @returns Intents for the deposit
    */
   async getIntentsByDeposit(_params: GetIntentsByDepositRequest): Promise<GetIntentsByDepositResponse> {
+    logger.debug('[Zkp2pClient] Getting intents by deposit:', { depositId: _params.depositId });
     return apiGetIntentsByDeposit(_params, this.apiKey, this.baseApiUrl, this.timeouts.api);
   }
 
@@ -302,6 +322,7 @@ export class Zkp2pClient {
    * @returns Intent details
    */
   async getIntentByHash(_params: GetIntentByHashRequest): Promise<GetIntentByHashResponse> {
+    logger.debug('[Zkp2pClient] Getting intent by hash:', { hash: _params.intentHash });
     return apiGetIntentByHash(_params, this.apiKey, this.baseApiUrl, this.timeouts.api);
   }
 
@@ -311,6 +332,7 @@ export class Zkp2pClient {
    * @returns Deposit details
    */
   async getDepositById(_params: GetDepositByIdRequest): Promise<GetDepositByIdResponse> {
+    logger.debug('[Zkp2pClient] Getting deposit by ID:', { depositId: _params.depositId });
     return apiGetDepositById(_params, this.apiKey, this.baseApiUrl, this.timeouts.api);
   }
 
@@ -320,6 +342,7 @@ export class Zkp2pClient {
    * @returns Order statistics for the deposits
    */
   async getDepositsOrderStats(_params: GetDepositsOrderStatsRequest): Promise<GetDepositsOrderStatsResponse> {
+    logger.debug('[Zkp2pClient] Getting deposits order stats:', _params);
     return apiGetDepositsOrderStats(_params, this.apiKey, this.baseApiUrl, this.timeouts.api);
   }
 
@@ -329,6 +352,7 @@ export class Zkp2pClient {
    * @returns Array of deposit views
    */
   async getAccountDeposits(ownerAddress: Address): Promise<EscrowDepositView[]> {
+    logger.debug('[Zkp2pClient] Getting account deposits:', { ownerAddress });
     const raw = await this.publicClient.readContract({
       address: this.addresses.escrow,
       abi: ESCROW_ABI,
@@ -345,6 +369,7 @@ export class Zkp2pClient {
    * @returns Intent view or null if no active intent
    */
   async getAccountIntent(ownerAddress: Address): Promise<EscrowIntentView | null> {
+    logger.debug('[Zkp2pClient] Getting account intent:', { ownerAddress });
     const raw = await this.publicClient.readContract({
       address: this.addresses.escrow,
       abi: ESCROW_ABI,

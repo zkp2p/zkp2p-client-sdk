@@ -1,5 +1,6 @@
 import { PeerauthExtension } from './peerauth';
 import type { ExtensionRequestMetadata, PaymentPlatformType } from '../types';
+import { logger } from '../utils/logger';
 
 export type MetadataRecord = {
   metadata: ExtensionRequestMetadata[];
@@ -69,7 +70,7 @@ export class ExtensionMetadataFlow {
 
   // Convenience: request metadata by opening the appropriate extension tab/action
   requestMetadata(actionType: string, platform: PaymentPlatformType) {
-    if (this.ext && (this.ext as any)._debug) console.debug('[ExtensionMetadataFlow] requestMetadata', actionType, platform);
+    if (this.ext && (this.ext as any)._debug) logger.debug('[ExtensionMetadataFlow] requestMetadata', actionType, platform);
     this.ext.openNewTab(actionType, platform);
   }
 

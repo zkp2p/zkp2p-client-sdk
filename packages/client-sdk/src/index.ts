@@ -13,3 +13,4 @@ export {
   intentHashHexToDecimalString,
   type ReclaimProof,
 } from './utils/proofEncoding';
+export { logger, setLogLevel, type LogLevel } from './utils/logger';

@@ -1,4 +1,5 @@
 import type { ExtensionEventMessage, ExtensionEventVersionMessage, ExtensionRequestMetadataMessage, ExtensionNotaryProofRequest, PaymentPlatformType } from '../types';
+import { logger } from '../utils/logger';
 
 export enum ExtensionPostMessage {
   OPEN_NEW_TAB = 'open_new_tab',
@@ -49,7 +50,7 @@ export class PeerauthExtension {
   fetchVersion() {
     if (!this.isBrowser()) return;
     const msg = { type: ExtensionPostMessage.FETCH_EXTENSION_VERSION };
-    if (this._debug) console.debug('[PeerauthExtension] postMessage', msg);
+    if (this._debug) logger.debug('[PeerauthExtension] postMessage', msg);
     window.postMessage(msg, '*');
   }
 
@@ -64,7 +65,7 @@ export class PeerauthExtension {
   openNewTab(actionType: string, platform: string) {
     if (!this.isBrowser()) return;
     const msg = { type: ExtensionPostMessage.OPEN_NEW_TAB, actionType, platform };
-    if (this._debug) console.debug('[PeerauthExtension] postMessage', msg);
+    if (this._debug) logger.debug('[PeerauthExtension] postMessage', msg);
     window.postMessage(msg, '*');
   }
 
@@ -78,14 +79,14 @@ export class PeerauthExtension {
       originalIndex,
       proofIndex,
     } as const;
-    if (this._debug) console.debug('[PeerauthExtension] postMessage', msg);
+    if (this._debug) logger.debug('[PeerauthExtension] postMessage', msg);
     window.postMessage(msg, '*');
   }
 
   fetchProofById() {
     if (!this.isBrowser() || !this._proofId) return;
     const msg = { type: ExtensionPostMessage.FETCH_PROOF_BY_ID, proofId: this._proofId };
-    if (this._debug) console.debug('[PeerauthExtension] postMessage', msg);
+    if (this._debug) logger.debug('[PeerauthExtension] postMessage', msg);
     window.postMessage(msg, '*');
   }
 
@@ -94,7 +95,7 @@ export class PeerauthExtension {
       if (!this.isBrowser()) return;
       if (event.origin !== window.location.origin) return;
       const data: any = (event as any).data || {};
-      if (this._debug) console.debug('[PeerauthExtension] onMessage', data);
+      if (this._debug) logger.debug('[PeerauthExtension] onMessage', data);
       if (!data || typeof data.type !== 'string') return;
 
       switch (data.type) {

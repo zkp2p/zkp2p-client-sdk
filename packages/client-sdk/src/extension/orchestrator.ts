@@ -3,6 +3,7 @@ import { ExtensionProofFlow } from './flow';
 import { resolvePlatformMethod } from './platformConfig';
 import { intentHashHexToDecimalString, assembleProofBytes, type ReclaimProof } from '../utils/proofEncoding';
 import type { PaymentPlatformType } from '../types';
+import { logger } from '../utils/logger';
 
 export type OrchestratorOptions = {
   debug?: boolean;
@@ -38,7 +39,7 @@ export class ExtensionOrchestrator {
     const rec = await this.waitForMetadata(platform, this.metadataTimeoutMs);
     const visible = metadataUtils.filterVisible(rec.metadata);
     const sorted = metadataUtils.sortByDateDesc(visible);
-    if (this.debug) console.debug('[ExtensionOrchestrator] received payments', { count: sorted.length });
+    if (this.debug) logger.debug('[ExtensionOrchestrator] received payments', { count: sorted.length });
     return sorted;
   }
 
@@ -54,7 +55,7 @@ export class ExtensionOrchestrator {
     const flow = new ExtensionProofFlow();
     try {
       const proofs = await flow.generateProofs(platform, dec, originalIndex, { requiredProofs: total }, (p) => {
-        if (this.debug) console.debug('[ExtensionOrchestrator] progress', p);
+        if (this.debug) logger.debug('[ExtensionOrchestrator] progress', p);
       });
       return proofs;
     } finally {
