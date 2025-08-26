@@ -2,11 +2,21 @@
 
 Browser-first TypeScript SDK for integrating ZKP2P into web apps. Built on the proven core from the React Native SDK and extended with peerauth browser extension integration.
 
+## Features
+
+- **Unified Authentication**: Single method for authentication and proof generation
+- **React Hooks**: Built-in hooks for seamless React integration
+- **Enhanced Callbacks**: Granular progress tracking and error handling
+- **Comprehensive Constants**: Easy access to platforms, currencies, and chain data
+- **TypeScript First**: Full type safety and IntelliSense support
+
 ## Install
 
 `npm install @zkp2p/client-sdk viem`
 
 ## Quickstart
+
+### Basic Usage
 
 ```ts
 import { Zkp2pClient } from '@zkp2p/client-sdk';
@@ -27,19 +37,103 @@ const quotes = await client.getQuote({
   destinationToken: client.getUsdcAddress(),
   amount: '100', // exact fiat by default
 });
+```
 
-// Use the extension (optional)
-import { PeerauthExtension } from '@zkp2p/client-sdk/extension';
-const ext = new PeerauthExtension({ onVersion: v => console.log('Extension version', v) });
-ext.fetchVersion();
+### React Hooks Usage
 
-// After generating proof via extension, fulfill intent (see Extension Flow section)
-// await client.fulfillIntent({ intentHash, paymentProofs: [{ proof }], paymentMethod: 1 });
+```tsx
+import { useZkp2pClient, useQuote, useExtensionOrchestrator } from '@zkp2p/client-sdk';
+
+function App() {
+  // Initialize client
+  const { client, isInitialized } = useZkp2pClient({
+    walletClient,
+    apiKey: 'YOUR_API_KEY',
+    chainId: 8453,
+  });
+
+  // Use quote hook
+  const { fetchQuote, quote, isLoading } = useQuote({ client });
+
+  // Use extension orchestrator with unified authentication
+  const { authenticate, payments, proofs } = useExtensionOrchestrator({
+    debug: true,
+    autoDispose: true,
+  });
+
+  const handleAuthenticate = async () => {
+    await authenticate('venmo', {
+      autoGenerateProof: {
+        intentHashHex: '0x123...',
+        itemIndex: 0,
+        onProofGenerated: (proofs) => console.log('Proofs:', proofs),
+        onProgress: (progress) => console.log('Progress:', progress),
+      },
+      onPaymentsReceived: (payments) => console.log('Payments:', payments),
+    });
+  };
+
+  return (
+    <button onClick={handleAuthenticate}>Authenticate & Generate Proof</button>
+  );
+}
+```
+
+### Extension Orchestrator (Unified Authentication)
+
+```ts
+import { ExtensionOrchestrator } from '@zkp2p/client-sdk';
+
+const orchestrator = new ExtensionOrchestrator({ debug: true });
+
+// Unified authentication with optional proof generation
+const result = await orchestrator.authenticateAndGenerateProof('venmo', {
+  paymentMethod: 1,
+  autoGenerateProof: {
+    intentHashHex: '0x123...',
+    itemIndex: 0,
+    onProofGenerated: (proofs) => console.log('Proofs generated:', proofs),
+    onProofError: (error) => console.error('Proof error:', error),
+    onProgress: (progress) => console.log('Progress:', progress),
+  },
+  onPaymentsReceived: (payments) => console.log('Payments received:', payments),
+});
+
+// Access results
+console.log('Payments:', result.payments);
+console.log('Proofs:', result.proofs);
+console.log('Proof bytes:', result.proofBytes);
+```
+
+## API Reference
+
+### React Hooks
+
+- **`useZkp2pClient`**: Initialize and manage the ZKP2P client
+- **`useQuote`**: Fetch and manage quotes
+- **`useSignalIntent`**: Signal intents to deposits
+- **`useCreateDeposit`**: Create deposits on-chain
+- **`useFulfillIntent`**: Fulfill intents with proofs
+- **`useExtensionOrchestrator`**: Manage extension authentication and proof generation
+
+### Constants
+
+```ts
+import { 
+  PAYMENT_PLATFORMS,     // Supported payment platforms
+  Currency,              // Currency codes
+  currencyInfo,         // Detailed currency information
+  SUPPORTED_CHAIN_IDS,  // Supported blockchain networks
+  PLATFORM_METADATA,    // Platform display information
+  TOKEN_METADATA,       // Token information
+  DEPLOYED_ADDRESSES,   // Contract addresses per chain
+} from '@zkp2p/client-sdk';
 ```
 
 ## Notes
 - Core APIs mirror the React Native SDK where applicable.
 - The extension module is browser-only and exposed via subpath import `@zkp2p/client-sdk/extension`.
+- React hooks are optional - the SDK works with any JavaScript framework.
 - Ensure you validate extension availability and version before relying on it.
 
 ## Supported Platforms and Currencies

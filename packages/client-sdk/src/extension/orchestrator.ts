@@ -12,6 +12,24 @@ export type OrchestratorOptions = {
   metadataTimeoutMs?: number; // default 60000
 };
 
+export type AuthenticateOptions = {
+  paymentMethod?: number;
+  autoGenerateProof?: {
+    intentHashHex: `0x${string}`;
+    itemIndex?: number;
+    onProofGenerated?: (proofs: ReclaimProof[]) => void;
+    onProofError?: (error: Error) => void;
+    onProgress?: (progress: ExtensionProofFlowProgress) => void;
+  };
+  onPaymentsReceived?: (payments: ReturnType<typeof metadataUtils.sortByDateDesc>) => void;
+};
+
+export type ExtensionProofFlowProgress = {
+  stage: 'waiting_proof_id' | 'polling_proof' | 'proof_success' | 'proof_error';
+  proofIndex: number;
+  message?: string;
+};
+
 export class ExtensionOrchestrator {
   private meta: ExtensionMetadataFlow;
   private debug: boolean;
@@ -65,6 +83,99 @@ export class ExtensionOrchestrator {
 
   buildProofBytes(proofs: ReclaimProof[], paymentMethod?: number): `0x${string}` {
     return assembleProofBytes(proofs, { paymentMethod });
+  }
+
+  /**
+   * Unified authentication method that combines metadata request and optional proof generation
+   * @param platform - Payment platform type
+   * @param options - Authentication options including auto proof generation
+   * @returns Object containing payments and optionally proofs
+   */
+  async authenticateAndGenerateProof(
+    platform: PaymentPlatformType,
+    options: AuthenticateOptions = {}
+  ): Promise<{
+    payments: ReturnType<typeof metadataUtils.sortByDateDesc>;
+    proofs?: ReclaimProof[];
+    proofBytes?: `0x${string}`;
+  }> {
+    try {
+      // Step 1: Request and get payments
+      const payments = await this.requestAndGetPayments(platform, options.paymentMethod);
+      
+      // Callback for payments received
+      options.onPaymentsReceived?.(payments);
+
+      // If no auto-proof generation requested, return just payments
+      if (!options.autoGenerateProof) {
+        return { payments };
+      }
+
+      // Step 2: Generate proofs if requested
+      const { intentHashHex, itemIndex = 0, onProofGenerated, onProofError, onProgress } = options.autoGenerateProof;
+      
+      try {
+        const proofs = await this.generateProofsWithProgress(
+          platform,
+          intentHashHex,
+          itemIndex,
+          options.paymentMethod,
+          onProgress
+        );
+        
+        const proofBytes = this.buildProofBytes(proofs, options.paymentMethod);
+        
+        // Success callback
+        onProofGenerated?.(proofs);
+        
+        return { payments, proofs, proofBytes };
+      } catch (error) {
+        // Error callback
+        onProofError?.(error as Error);
+        throw error;
+      }
+    } catch (error) {
+      if (this.debug) logger.error('[ExtensionOrchestrator] authenticateAndGenerateProof error', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate proofs with enhanced progress callbacks
+   */
+  private async generateProofsWithProgress(
+    platform: PaymentPlatformType,
+    intentHashHex: `0x${string}`,
+    originalIndex: number,
+    paymentMethod?: number,
+    onProgress?: (progress: ExtensionProofFlowProgress) => void
+  ): Promise<ReclaimProof[]> {
+    const method = resolvePlatformMethod(platform, paymentMethod);
+    const total = method.requiredProofs;
+    const dec = intentHashHexToDecimalString(intentHashHex);
+    const flow = new ExtensionProofFlow();
+    
+    try {
+      const proofs = await flow.generateProofs(
+        platform, 
+        dec, 
+        originalIndex, 
+        { requiredProofs: total }, 
+        (p) => {
+          if (this.debug) logger.debug('[ExtensionOrchestrator] progress', p);
+          // Convert internal progress to our exposed format
+          const progress: ExtensionProofFlowProgress = {
+            stage: p.stage,
+            proofIndex: p.proofIndex,
+            message: 'message' in p ? p.message : undefined
+          };
+          onProgress?.(progress);
+        }
+      );
+      return proofs;
+    } finally {
+      flow.dispose();
+    }
   }
 
   private async waitForMetadata(platform: PaymentPlatformType, timeoutMs: number) {

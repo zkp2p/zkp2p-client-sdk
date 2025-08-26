@@ -1,9 +1,14 @@
+// Core exports
 export { Zkp2pClient } from './client/Zkp2pClient';
 
+// Types and errors
 export * from './types';
 export * from './errors';
-export { DEPLOYED_ADDRESSES, DEFAULT_BASE_API_URL, DEFAULT_WITNESS_URL } from './utils/constants';
-export { currencyInfo } from './utils/currency';
+
+// Constants - comprehensive export for easy access
+export * from './constants';
+
+// Utilities
 export {
   encodeProofAsBytes,
   encodeTwoProofs,
@@ -14,3 +19,6 @@ export {
   type ReclaimProof,
 } from './utils/proofEncoding';
 export { logger, setLogLevel, type LogLevel } from './utils/logger';
+
+// React hooks (only available in browser environments with React)
+export * from './react';
