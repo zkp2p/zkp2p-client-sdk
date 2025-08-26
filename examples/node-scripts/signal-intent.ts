@@ -24,7 +24,7 @@ async function main() {
   if (!apiKey) throw new Error('Set ZKP2P_API_KEY');
   if (!privateKey) throw new Error('Set PRIVATE_KEY to signal intent');
 
-  console.log('🚀 ZKP2P Client SDK v1.0.0 - Signal Intent Example\n');
+  console.log('ZKP2P Client SDK v1.0.0 - Signal Intent Example\n');
 
   // Setup wallet client
   const account = privateKeyToAccount(privateKey);
@@ -34,7 +34,7 @@ async function main() {
     transport: http(rpcUrl) 
   });
 
-  console.log(`🔑 Account: ${account.address}`);
+  console.log(`Account: ${account.address}`);
 
   // Initialize client with error handling
   const client = new Zkp2pClient({ 
@@ -49,13 +49,13 @@ async function main() {
   const currency: CurrencyType = Currency.USD;
   const platformMeta = PLATFORM_METADATA[platform];
 
-  console.log(`\n🎯 Intent Configuration:`);
-  console.log(`  Platform: ${platformMeta.logo} ${platformMeta.displayName}`);
+  console.log(`\nIntent Configuration:`);
+  console.log(`  Platform: ${platformMeta.displayName}`);
   console.log(`  Currency: ${currency}`);
 
   try {
     // Step 1: Get available quotes to find a deposit
-    console.log('\n📊 Fetching available deposits...');
+    console.log('\nFetching available deposits...');
     const quotes = await client.getQuote({
       paymentPlatforms: [platform],
       fiatCurrency: currency,
@@ -67,13 +67,13 @@ async function main() {
     });
 
     if (quotes.quotes.length === 0) {
-      console.log('❌ No deposits available for this platform and amount');
+      console.log('No deposits available for this platform and amount');
       return;
     }
 
     // Select the first available quote
     const selectedQuote = quotes.quotes[0];
-    console.log('\n✅ Found deposit:');
+    console.log('\nFound deposit:');
     console.log(`  Deposit ID: ${selectedQuote.depositId}`);
     console.log(`  Depositor: ${selectedQuote.depositor}`);
     console.log(`  Available Amount: ${selectedQuote.amount}`);
@@ -86,17 +86,17 @@ async function main() {
       email: 'buyer@example.com',
     };
 
-    console.log('\n🔍 Validating payee details...');
+    console.log('\nValidating payee details...');
     const validation = await client.validatePayeeDetails({
       processorName: platform,
       depositData: payeeDetails,
     });
 
     if (!validation.responseObject.isValid) {
-      console.error('❌ Invalid payee details:', validation.responseObject.errors);
+      console.error('Invalid payee details:', validation.responseObject.errors);
       return;
     }
-    console.log('✅ Payee details validated');
+    console.log('Payee details validated');
 
     // Step 3: Signal the intent
     const intentParams: SignalIntentParams = {
@@ -108,20 +108,20 @@ async function main() {
       currency: currency,
       // Optional callbacks
       onSuccess: ({ hash }) => {
-        console.log(`\n✅ Intent signaled! Transaction: ${hash}`);
+        console.log(`\nIntent signaled! Transaction: ${hash}`);
       },
       onMined: ({ hash }) => {
-        console.log(`⛏️ Transaction confirmed! Hash: ${hash}`);
+        console.log(`Transaction confirmed! Hash: ${hash}`);
       },
       onError: (error) => {
-        console.error(`❌ Intent failed:`, error);
+        console.error(`Intent failed:`, error);
       },
     };
 
-    console.log('\n📤 Signaling intent...');
+    console.log('\nSignaling intent...');
     const intentResponse = await client.signalIntent(intentParams);
 
-    console.log('\n✅ Intent Signaled Successfully!');
+    console.log('\nIntent Signaled Successfully!');
     console.log(`  Intent Hash: ${intentResponse.intentHash}`);
     console.log(`  Timestamp: ${new Date(intentResponse.timestamp * 1000).toLocaleString()}`);
     
@@ -131,7 +131,7 @@ async function main() {
     }
 
     // Step 4: Read the intent details
-    console.log('\n📖 Reading intent details...');
+    console.log('\nReading intent details...');
     const accountIntent = await client.getAccountIntent(account.address);
     
     if (accountIntent.intent.intentHash !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
@@ -146,11 +146,11 @@ async function main() {
     }
 
     // Step 5: Demonstrate cancellation (commented out to preserve intent)
-    console.log('\n💡 To cancel this intent, you can call:');
+    console.log('\nTo cancel this intent, you can call:');
     console.log(`  await client.cancelIntent({ intentHash: '${intentResponse.intentHash}' })`);
 
   } catch (error) {
-    console.error('\n❌ Error:', error);
+    console.error('\nError:', error);
     
     // Handle specific error types
     if (error instanceof ValidationError) {
@@ -158,9 +158,9 @@ async function main() {
       console.error('Error Code:', error.code);
     } else if (error instanceof Error) {
       if (error.message.includes('insufficient funds')) {
-        console.error('💡 Make sure you have enough ETH for gas');
+        console.error('Make sure you have enough ETH for gas');
       } else if (error.message.includes('Intent already exists')) {
-        console.error('💡 You already have an active intent. Cancel it first or wait for it to complete.');
+        console.error('You already have an active intent. Cancel it first or wait for it to complete.');
       }
     }
   }

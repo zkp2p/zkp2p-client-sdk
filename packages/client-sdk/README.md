@@ -6,17 +6,17 @@
 
 Browser-first TypeScript SDK for integrating ZKP2P into web applications. Built with React hooks, unified authentication, and comprehensive type safety.
 
-## 🚀 Features
+## Features
 
-- ⚡ **Unified Authentication**: Single method for authentication and proof generation
-- ⚛️ **React Hooks**: Complete set of hooks for seamless React integration
-- 🔄 **Enhanced Callbacks**: Granular progress tracking and error handling
-- 📦 **Comprehensive Constants**: All platforms, currencies, and chain data exported
-- 🔒 **TypeScript First**: Full type safety and IntelliSense support
-- 🌐 **Multi-Chain Support**: Base, Base Sepolia, Scroll, and Hardhat networks
-- 🧩 **Extension Integration**: Built-in support for peerauth browser extension
+- **Unified Authentication**: Single method for authentication and proof generation
+- **React Hooks**: Complete set of hooks for seamless React integration
+- **Enhanced Callbacks**: Granular progress tracking and error handling
+- **Comprehensive Constants**: All platforms, currencies, and chain data exported
+- **TypeScript First**: Full type safety and IntelliSense support
+- **Multi-Chain Support**: Base, Base Sepolia, Scroll, and Hardhat networks
+- **Extension Integration**: Built-in support for peerauth browser extension
 
-## 📦 Installation
+## Installation
 
 ```bash
 npm install @zkp2p/client-sdk viem
@@ -26,7 +26,7 @@ yarn add @zkp2p/client-sdk viem
 pnpm add @zkp2p/client-sdk viem
 ```
 
-## 🎯 Quick Start
+## Quick Start
 
 ### Basic Client Setup
 
@@ -68,7 +68,7 @@ const quotes = await client.getQuote({
 console.log('Available quotes:', quotes);
 ```
 
-## ⚛️ React Integration
+## React Integration
 
 ### Complete React Example
 
@@ -391,7 +391,7 @@ function IntentSignaler() {
 }
 ```
 
-## 🔧 Extension Integration
+## Extension Integration
 
 ### Unified Authentication Flow (Recommended)
 
@@ -507,7 +507,7 @@ async function manualProofFlow() {
 }
 ```
 
-## 📊 Working with Constants
+## Working with Constants
 
 ### Platform Information
 
@@ -588,7 +588,7 @@ console.log('API URL:', DEFAULT_BASE_API_URL);
 console.log('Witness URL:', DEFAULT_WITNESS_URL);
 ```
 
-## 🔍 Advanced Usage
+## Advanced Usage
 
 ### Custom Timeout Configuration
 
@@ -687,7 +687,7 @@ const taggedBytes = encodeProofAndPaymentMethodAsBytes(singleBytes, 1);
 const assembled = assembleProofBytes([proof1, proof2], { paymentMethod: 1 });
 ```
 
-## 🌐 Environment Configuration
+## Environment Configuration
 
 ### Vite
 
@@ -753,7 +753,7 @@ const client = new Zkp2pClient({
 });
 ```
 
-## 📚 Complete API Reference
+## Complete API Reference
 
 ### Client Methods
 
@@ -781,7 +781,7 @@ const client = new Zkp2pClient({
 | `useFulfillIntent` | Fulfill intents | `{ fulfillIntent, txHash, isLoading }` |
 | `useExtensionOrchestrator` | Extension integration | `{ authenticate, payments, proofs }` |
 
-## 🧪 Testing
+## Testing
 
 ```typescript
 // Example test setup
@@ -799,27 +799,23 @@ const testClient = new Zkp2pClient({
 });
 ```
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
-## 📄 License
+## License
 
 MIT License - see [LICENSE](LICENSE) for details.
 
-## 🔗 Links
+## Links
 
 - [NPM Package](https://www.npmjs.com/package/@zkp2p/client-sdk)
 - [GitHub Repository](https://github.com/zkp2p/zkp2p-client-sdk)
 - [Documentation](https://docs.zkp2p.xyz)
 - [Discord Community](https://discord.gg/zkp2p)
 
-## 💬 Support
+## Support
 
 - GitHub Issues: [Create an issue](https://github.com/zkp2p/zkp2p-client-sdk/issues)
 - Discord: [Join our community](https://discord.gg/zkp2p)
 - Email: support@zkp2p.xyz
-
----
-
-Built with ❤️ by the ZKP2P team

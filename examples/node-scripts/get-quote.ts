@@ -25,17 +25,17 @@ async function main() {
 
   if (!apiKey) throw new Error('Set ZKP2P_API_KEY');
 
-  console.log('🚀 ZKP2P Client SDK v1.0.0 - Get Quote Enhanced Example\n');
+  console.log('ZKP2P Client SDK v1.0.0 - Get Quote Enhanced Example\n');
 
   // Display supported platforms using new constants
-  console.log('📱 Supported Payment Platforms:');
+  console.log('Supported Payment Platforms:');
   PAYMENT_PLATFORMS.forEach(platform => {
     const meta = PLATFORM_METADATA[platform];
-    console.log(`  ${meta.logo} ${meta.displayName} - Requires ${meta.requiredProofs} proof(s)`);
+    console.log(`  ${meta.displayName} - Requires ${meta.requiredProofs} proof(s)`);
   });
 
   // Display some supported currencies
-  console.log('\n💱 Sample Supported Currencies:');
+  console.log('\nSample Supported Currencies:');
   const sampleCurrencies: CurrencyType[] = [Currency.USD, Currency.EUR, Currency.GBP, Currency.JPY];
   sampleCurrencies.forEach(code => {
     const info = currencyInfo[code];
@@ -51,13 +51,13 @@ async function main() {
       chain: base, 
       transport: http(rpcUrl) 
     });
-    console.log(`\n🔑 Using account: ${account.address}`);
+    console.log(`\nUsing account: ${account.address}`);
   } else {
     walletClient = createWalletClient({ 
       chain: base, 
       transport: http(rpcUrl) 
     });
-    console.log('\n⚠️  No private key provided - using read-only mode');
+    console.log('\nNo private key provided - using read-only mode');
   }
 
   // Initialize client with v1.0.0 features
@@ -72,16 +72,16 @@ async function main() {
     }
   });
 
-  console.log(`\n🌐 Connected to chain: Base Mainnet (${SUPPORTED_CHAIN_IDS.BASE_MAINNET})`);
-  console.log(`📍 USDC Address: ${client.getUsdcAddress()}`);
+  console.log(`\nConnected to chain: Base Mainnet (${SUPPORTED_CHAIN_IDS.BASE_MAINNET})`);
+  console.log(`USDC Address: ${client.getUsdcAddress()}`);
 
   // Get quotes for multiple platforms
   const platforms: PaymentPlatformType[] = ['wise', 'revolut', 'venmo'];
   const selectedCurrency: CurrencyType = Currency.USD;
   const amount = '100';
 
-  console.log(`\n💰 Fetching quotes for ${amount} ${selectedCurrency}...`);
-  console.log(`🔍 Platforms: ${platforms.join(', ')}`);
+  console.log(`\nFetching quotes for ${amount} ${selectedCurrency}...`);
+  console.log(`Platforms: ${platforms.join(', ')}`);
 
   try {
     const quoteRequest: QuoteRequest = {
@@ -98,15 +98,15 @@ async function main() {
 
     const quote = await client.getQuote(quoteRequest);
 
-    console.log('\n✅ Quote Response:');
+    console.log('\nQuote Response:');
     console.log(`Total quotes found: ${quote.quotes.length}`);
     console.log(`Response time: ${Date.now()}ms`);
 
     // Display each quote with platform metadata
     quote.quotes.forEach((q, idx) => {
       const platformMeta = PLATFORM_METADATA[q.paymentPlatform as PaymentPlatformType];
-      console.log(`\n📊 Quote #${idx + 1}:`);
-      console.log(`  Platform: ${platformMeta.logo} ${platformMeta.displayName}`);
+      console.log(`\nQuote #${idx + 1}:`);
+      console.log(`  Platform: ${platformMeta.displayName}`);
       console.log(`  Amount: ${q.amount} ${selectedCurrency}`);
       console.log(`  Conversion Rate: ${q.conversionRate}`);
       console.log(`  Deposit ID: ${q.depositId}`);
@@ -121,19 +121,19 @@ async function main() {
 
     // Display fees
     if (quote.fees) {
-      console.log('\n💸 Fees:');
+      console.log('\nFees:');
       console.log(`  Platform Fee: ${quote.fees.platformFee || 0}%`);
       console.log(`  Gas Fee: ${quote.fees.gasFee || 0}`);
     }
 
     // Full raw response for debugging
     if (process.env.DEBUG) {
-      console.log('\n🔍 Full Response (Debug Mode):');
+      console.log('\nFull Response (Debug Mode):');
       console.log(JSON.stringify(quote, null, 2));
     }
 
   } catch (error) {
-    console.error('\n❌ Error fetching quote:', error);
+    console.error('\nError fetching quote:', error);
     if (error instanceof Error) {
       console.error('Error message:', error.message);
       console.error('Stack:', error.stack);
@@ -141,7 +141,7 @@ async function main() {
   }
 
   // Demonstrate other API methods (read-only)
-  console.log('\n📚 Additional SDK Capabilities:');
+  console.log('\nAdditional SDK Capabilities:');
   console.log('  - createDeposit(): Create liquidity deposits');
   console.log('  - signalIntent(): Signal trading intent');
   console.log('  - fulfillIntent(): Submit payment proofs');

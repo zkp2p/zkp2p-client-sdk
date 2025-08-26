@@ -25,7 +25,7 @@ async function main() {
   if (!apiKey) throw new Error('Set ZKP2P_API_KEY');
   if (!privateKey) throw new Error('Set PRIVATE_KEY to create deposits');
 
-  console.log('🚀 ZKP2P Client SDK v1.0.0 - Create Deposit Example\n');
+  console.log('ZKP2P Client SDK v1.0.0 - Create Deposit Example\n');
 
   // Setup wallet client with account
   const account = privateKeyToAccount(privateKey);
@@ -35,7 +35,7 @@ async function main() {
     transport: http(rpcUrl) 
   });
 
-  console.log(`🔑 Account: ${account.address}`);
+  console.log(`Account: ${account.address}`);
 
   // Initialize client
   const client = new Zkp2pClient({ 
@@ -52,8 +52,8 @@ async function main() {
   const platformMeta = PLATFORM_METADATA[platform];
   const currencyMeta = currencyInfo[currency];
 
-  console.log(`\n💵 Creating Deposit:`);
-  console.log(`  Platform: ${platformMeta.logo} ${platformMeta.displayName}`);
+  console.log(`\nCreating Deposit:`);
+  console.log(`  Platform: ${platformMeta.displayName}`);
   console.log(`  Currency: ${currencyMeta.currencySymbol} ${currency}`);
   console.log(`  Amount: ${depositAmount} USDC`);
   console.log(`  Required Proofs: ${platformMeta.requiredProofs}`);
@@ -88,24 +88,24 @@ async function main() {
       }],
       // Optional callbacks
       onSuccess: ({ hash }) => {
-        console.log(`✅ Transaction broadcast! Hash: ${hash}`);
+        console.log(`Transaction broadcast! Hash: ${hash}`);
       },
       onMined: ({ hash }) => {
-        console.log(`⛏️ Transaction mined! Hash: ${hash}`);
+        console.log(`Transaction mined! Hash: ${hash}`);
       },
       onError: (error) => {
-        console.error(`❌ Transaction failed:`, error);
+        console.error(`Transaction failed:`, error);
       },
     };
 
-    console.log('\n📤 Submitting deposit transaction...');
+    console.log('\nSubmitting deposit transaction...');
     const result = await client.createDeposit(depositParams);
 
-    console.log('\n✅ Deposit Created Successfully!');
+    console.log('\nDeposit Created Successfully!');
     console.log(`  Transaction Hash: ${result.hash}`);
     console.log(`  Block Explorer: https://basescan.org/tx/${result.hash}`);
     
-    console.log('\n📝 Deposit Details:');
+    console.log('\nDeposit Details:');
     result.depositDetails.forEach((detail, idx) => {
       console.log(`  Deposit #${idx + 1}:`);
       console.log(`    Processor: ${detail.processor}`);
@@ -113,7 +113,7 @@ async function main() {
     });
 
     // Demonstrate reading deposits
-    console.log('\n📖 Reading account deposits...');
+    console.log('\nReading account deposits...');
     const deposits = await client.getAccountDeposits(account.address);
     console.log(`  Total deposits: ${deposits.length}`);
     
@@ -127,16 +127,16 @@ async function main() {
     });
 
   } catch (error) {
-    console.error('\n❌ Error creating deposit:', error);
+    console.error('\nError creating deposit:', error);
     if (error instanceof Error) {
       console.error('Message:', error.message);
       
       // Check for common errors
       if (error.message.includes('insufficient funds')) {
-        console.error('💡 Make sure you have enough USDC and ETH for gas');
+        console.error('Make sure you have enough USDC and ETH for gas');
       }
       if (error.message.includes('user rejected')) {
-        console.error('💡 Transaction was rejected by the wallet');
+        console.error('Transaction was rejected by the wallet');
       }
     }
   }
