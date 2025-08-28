@@ -1,0 +1,71 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    # Optional: Only run on specific file changes
+    # paths:
+    #   - "packages/**/*.ts"
+    #   - "packages/**/*.tsx"
+    #   - "packages/**/*.js"
+    #   - "packages/**/*.jsx"
+
+jobs:
+  claude-review:
+    # Optional: Filter by PR author
+    # if: |
+    #   github.event.pull_request.user.login == 'external-contributor' ||
+    #   github.event.pull_request.user.login == 'new-developer' ||
+    #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
+    
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      id-token: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code Review
+        id: claude-review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          
+          # Use Claude Opus 4 for comprehensive code reviews
+          claude_args: "--model claude-opus-4-1-20250805 --max-turns 10"
+          
+          # Automated review prompt for ZKP2P Client SDK (TypeScript SDK)
+          prompt: |
+            Please review this pull request for the ZKP2P Client SDK.
+            
+            This is a TypeScript SDK for integrating ZKP2P functionality into applications.
+            It's structured as a monorepo with packages for different platforms.
+            
+            Focus on:
+            - SDK design patterns and API ergonomics
+            - TypeScript type safety and proper typing
+            - Browser and Node.js compatibility
+            - Error handling and developer experience
+            - Documentation completeness and clarity
+            - Package structure and exports configuration
+            - Semantic versioning considerations
+            - Test coverage for SDK methods
+            - Bundle size and tree-shaking support
+            - Cross-platform compatibility (web, mobile, node)
+            - Smart contract interaction abstractions
+            - Proper async/await patterns and promise handling
+            
+            The project uses npm as its package manager. Be constructive and helpful in your feedback.
+            After this initial review, you'll respond to any @claude mentions for follow-up questions.
+
+          # Optional: Use sticky comments to make Claude reuse the same comment on subsequent pushes to the same PR
+          # use_sticky_comment: true
+          
+          # Optional: Add specific tools for running tests or linting
+          # claude_args: "--model claude-opus-4-1-20250805 --max-turns 10 --allowed-tools Bash(npm test),Bash(npm run lint),Bash(npm run build)"
