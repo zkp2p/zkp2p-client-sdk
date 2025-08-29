@@ -30,13 +30,12 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          use_sticky_comment: true
-          
-          # Use Claude Opus 4 for comprehensive code reviews
-          claude_args: "--model claude-opus-4-1-20250805 --max-turns 10"
           
           # Automated review prompt for ZKP2P Client SDK (TypeScript SDK)
           prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.issue.number }}
+            
             Please review this pull request for the ZKP2P Client SDK.
             
             This is a TypeScript SDK for integrating ZKP2P functionality into applications.
@@ -57,8 +56,13 @@ jobs:
             - Proper async/await patterns and promise handling
             
             The project uses npm as its package manager. Be constructive and helpful in your feedback.
-            After this initial review, you'll respond to any @claude mentions for follow-up questions.
-
+            
+            IMPORTANT: Post your review as a GitHub comment using `gh pr comment` or the MCP GitHub comment tools.
+            Only your GitHub comments that you post will be seen, so don't submit your review as a normal message, just as comments.
+            If you want to use sticky comments to update the same comment on subsequent reviews, use the MCP tool: mcp__github_comment__update_claude_comment
           
-          # Optional: Add specific tools for running tests or linting
-          # claude_args: "--model claude-opus-4-1-20250805 --max-turns 10 --allowed-tools Bash(npm test),Bash(npm run lint),Bash(npm run build)"
+          # Use Claude Opus 4 for comprehensive code reviews with ability to post comments
+          claude_args: |
+            --model claude-opus-4-1-20250805
+            --max-turns 10
+            --allowedTools "mcp__github_comment__update_claude_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(npm test),Bash(npm run lint),Bash(npm run build)"
