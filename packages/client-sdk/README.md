@@ -68,6 +68,89 @@ const quotes = await client.getQuote({
 console.log('Available quotes:', quotes);
 ```
 
+### Register Payee Details (payeeHash)
+
+```typescript
+// 1) Validate platform-specific details
+const validation = await client.validatePayeeDetails({
+  processorName: 'mercadopago',
+  depositData: { identifier: 'user@example.com', accountHolderName: 'Alice Doe' },
+});
+
+if (!validation.responseObject.isValid) {
+  console.error('Invalid payee details:', validation.responseObject.errors);
+  throw new Error('Please correct payee details');
+}
+
+// 2) Register details to obtain a payeeHash (hashedOnchainId)
+const created = await client.registerPayeeDetails({
+  processorName: 'mercadopago',
+  depositData: { identifier: 'user@example.com', accountHolderName: 'Alice Doe' },
+});
+
+const payeeHash = created.responseObject.hashedOnchainId; // aka payeeHash
+```
+
+### Validate and Register (one call)
+
+```typescript
+const { isValid, validation, registration } = await client.validateAndRegisterPayeeDetails({
+  processorName: 'mercadopago',
+  depositData: { identifier: 'user@example.com', accountHolderName: 'Alice Doe' },
+});
+if (!isValid) {
+  console.error('Invalid details', validation.responseObject);
+}
+const payeeHash = registration?.responseObject.hashedOnchainId;
+```
+
+### Listing Registered Payees
+
+```typescript
+const { responseObject: makers } = await client.listPayees('mercadopago');
+makers.forEach(m => console.log(m.processorName, m.hashedOnchainId));
+```
+
+### Intents by Recipient
+
+```typescript
+const intents = await client.getIntentsByRecipient({ recipientAddress: '0xRecipient', status: ['SIGNALED','FULFILLED'] });
+```
+
+### Deposit Spreads (Maker dashboards)
+
+```typescript
+// Read
+await client.getDepositSpread(123);
+await client.listDepositSpreads();
+await client.getSpreadsByDepositIds([1,2,3]);
+
+// Write
+await client.createSpread({ depositId: 123, spread: 0.01, minPrice: null, maxPrice: null });
+await client.updateSpread(123, { spread: 0.0125 });
+await client.upsertSpread(123, { spread: 0.01 });
+await client.deleteSpread(123);
+```
+
+### Auth Options
+
+Client supports both `x-api-key` and optional `Authorization: Bearer <token>` for hybrid auth.
+
+```typescript
+const client = new Zkp2pClient({
+  walletClient,
+  apiKey: 'YOUR_API_KEY',
+  authorizationToken: 'JWT_OR_OAUTH_TOKEN',
+  chainId: 8453,
+});
+```
+
+### Statuses and Types
+
+- Orders API statuses: `SIGNALED | FULFILLED | PRUNED`. SDK returns these for API history calls.
+- On-chain views remain exposed via `getAccountDeposits`/`getAccountIntent` parsers.
+- Historical responses automatically convert ISO timestamps into `Date` objects.
+
 ## React Integration
 
 ### Complete React Example
@@ -767,6 +850,17 @@ const client = new Zkp2pClient({
 | `cancelIntent(params)` | Cancel a pending intent | `Hash` |
 | `releaseFundsToPayer(params)` | Release escrowed funds | `Hash` |
 | `validatePayeeDetails(params)` | Validate payee information | `ValidatePayeeDetailsResponse` |
+| `registerPayeeDetails(params)` | Register payee and get `hashedOnchainId` | `RegisterPayeeDetailsResponse` |
+| `validateAndRegisterPayeeDetails(params)` | Validate then register; returns both | `{ isValid, validation, registration? }` |
+| `listPayees(processorName?)` | List registered payees (makers) | `PresentedMaker[]` |
+| `getIntentsByRecipient(params)` | Intents for a recipient address | `Intent[]` |
+| `getDepositSpread(id)` | Get spread for deposit | API response |
+| `listDepositSpreads()` | List all spreads | API response |
+| `getSpreadsByDepositIds(ids)` | Bulk spreads | API response |
+| `createSpread(body)` | Create spread | API response |
+| `updateSpread(id, body)` | Update spread | API response |
+| `upsertSpread(id, body)` | Upsert spread | API response |
+| `deleteSpread(id)` | Delete spread | API response |
 | `getAccountDeposits(address)` | Get account's deposits | `EscrowDepositView[]` |
 | `getAccountIntent(address)` | Get account's current intent | `EscrowIntentView` |
 
@@ -778,6 +872,9 @@ const client = new Zkp2pClient({
 | `useQuote` | Manage quotes | `{ fetchQuote, quote, isLoading, error }` |
 | `useSignalIntent` | Signal intents | `{ signalIntent, response, isLoading }` |
 | `useCreateDeposit` | Create deposits | `{ createDeposit, txHash, depositDetails }` |
+| `useRegisterPayeeDetails` | Register payee and get payeeHash | `{ registerPayeeDetails, response, isLoading }` |
+| `useValidatePayeeDetails` | Validate payee details | `{ validatePayeeDetails, response, isLoading }` |
+| `usePayeeRegistration` | Validate then register flow | `{ validateAndRegister, result, isLoading }` |
 | `useFulfillIntent` | Fulfill intents | `{ fulfillIntent, txHash, isLoading }` |
 | `useExtensionOrchestrator` | Extension integration | `{ authenticate, payments, proofs }` |
 

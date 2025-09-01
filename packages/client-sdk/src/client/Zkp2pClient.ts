@@ -30,12 +30,17 @@ import type {
   GetIntentsByDepositResponse,
   GetIntentsByTakerRequest,
   GetIntentsByTakerResponse,
+  GetIntentsByRecipientRequest,
+  GetIntentsByRecipientResponse,
   GetIntentByHashRequest,
   GetIntentByHashResponse,
   GetDepositByIdRequest,
   GetDepositByIdResponse,
   GetDepositsOrderStatsRequest,
   GetDepositsOrderStatsResponse,
+  ListPayeesResponse,
+  RegisterPayeeDetailsRequest,
+  RegisterPayeeDetailsResponse,
 } from '../types';
 import { withTimeout, DEFAULT_TIMEOUTS } from '../utils/timeout';
 import { ValidationError } from '../errors';
@@ -58,6 +63,7 @@ import {
   apiGetDepositById,
   apiGetDepositsOrderStats
 } from '../adapters/api';
+import { apiPostDepositDetails } from '../adapters/api';
 import { ESCROW_ABI } from '../utils/contracts';
 import { parseEscrowDepositView, parseEscrowIntentView } from '../utils/escrowViewParsers';
 /**
@@ -92,6 +98,7 @@ export class Zkp2pClient {
   };
   readonly publicClient: PublicClient;
   readonly timeouts: Required<TimeoutConfig>;
+  readonly authorizationToken?: string;
 
   constructor(opts: Zkp2pClientOptions) {
     logger.debug('[Zkp2pClient] Initializing with options:', { 
@@ -105,6 +112,7 @@ export class Zkp2pClient {
     this.chainId = opts.chainId;
     this.baseApiUrl = opts.baseApiUrl || DEFAULT_BASE_API_URL;
     this.witnessUrl = opts.witnessUrl || DEFAULT_WITNESS_URL;
+    this.authorizationToken = opts.authorizationToken;
 
     const contractAddresses = DEPLOYED_ADDRESSES[this.chainId];
     if (!contractAddresses) {
@@ -262,8 +270,8 @@ export class Zkp2pClient {
    * @returns Payee details response
    */
   async getPayeeDetails(_params: GetPayeeDetailsRequest): Promise<GetPayeeDetailsResponse> {
-    logger.debug('[Zkp2pClient] Getting payee details:', { hashedOnchainId: _params.hashedOnchainId, platform: _params.platform });
-    return apiGetPayeeDetails(_params, this.apiKey, this.baseApiUrl, this.timeouts.api);
+    logger.debug('[Zkp2pClient] Getting payee details:', { hashedOnchainId: _params.hashedOnchainId, processorName: _params.processorName });
+    return apiGetPayeeDetails(_params, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
   }
 
   /**
@@ -273,7 +281,7 @@ export class Zkp2pClient {
    */
   async validatePayeeDetails(_params: ValidatePayeeDetailsRequest): Promise<ValidatePayeeDetailsResponse> {
     logger.debug('[Zkp2pClient] Validating payee details:', { processorName: _params.processorName });
-    return apiValidatePayeeDetails(_params, this.apiKey, this.baseApiUrl, this.timeouts.api);
+    return apiValidatePayeeDetails(_params, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
   }
 
   /**
@@ -283,7 +291,7 @@ export class Zkp2pClient {
    */
   async getAccountDepositsHistory(_params: GetOwnerDepositsRequest): Promise<GetOwnerDepositsResponse> {
     logger.debug('[Zkp2pClient] Getting account deposits history:', { owner: _params.ownerAddress });
-    return apiGetOwnerDeposits(_params, this.apiKey, this.baseApiUrl, this.timeouts.api);
+    return apiGetOwnerDeposits(_params, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
   }
 
   /**
@@ -293,7 +301,7 @@ export class Zkp2pClient {
    */
   async getOwnerIntentsHistory(_params: GetOwnerIntentsRequest): Promise<GetOwnerIntentsResponse> {
     logger.debug('[Zkp2pClient] Getting owner intents history:', { owner: _params.ownerAddress });
-    return apiGetOwnerIntents(_params, this.apiKey, this.baseApiUrl, this.timeouts.api);
+    return apiGetOwnerIntents(_params, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
   }
 
   /**
@@ -303,7 +311,7 @@ export class Zkp2pClient {
    */
   async getAccountIntentsHistory(_params: GetIntentsByTakerRequest): Promise<GetIntentsByTakerResponse> {
     logger.debug('[Zkp2pClient] Getting account intents history:', { taker: _params.takerAddress });
-    return apiGetIntentsByTaker(_params, this.apiKey, this.baseApiUrl, this.timeouts.api);
+    return apiGetIntentsByTaker(_params, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
   }
 
   /**
@@ -313,7 +321,7 @@ export class Zkp2pClient {
    */
   async getIntentsByDeposit(_params: GetIntentsByDepositRequest): Promise<GetIntentsByDepositResponse> {
     logger.debug('[Zkp2pClient] Getting intents by deposit:', { depositId: _params.depositId });
-    return apiGetIntentsByDeposit(_params, this.apiKey, this.baseApiUrl, this.timeouts.api);
+    return apiGetIntentsByDeposit(_params, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
   }
 
   /**
@@ -323,7 +331,7 @@ export class Zkp2pClient {
    */
   async getIntentByHash(_params: GetIntentByHashRequest): Promise<GetIntentByHashResponse> {
     logger.debug('[Zkp2pClient] Getting intent by hash:', { hash: _params.intentHash });
-    return apiGetIntentByHash(_params, this.apiKey, this.baseApiUrl, this.timeouts.api);
+    return apiGetIntentByHash(_params, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
   }
 
   /**
@@ -333,7 +341,7 @@ export class Zkp2pClient {
    */
   async getDepositById(_params: GetDepositByIdRequest): Promise<GetDepositByIdResponse> {
     logger.debug('[Zkp2pClient] Getting deposit by ID:', { depositId: _params.depositId });
-    return apiGetDepositById(_params, this.apiKey, this.baseApiUrl, this.timeouts.api);
+    return apiGetDepositById(_params, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
   }
 
   /**
@@ -343,7 +351,85 @@ export class Zkp2pClient {
    */
   async getDepositsOrderStats(_params: GetDepositsOrderStatsRequest): Promise<GetDepositsOrderStatsResponse> {
     logger.debug('[Zkp2pClient] Getting deposits order stats:', _params);
-    return apiGetDepositsOrderStats(_params, this.apiKey, this.baseApiUrl, this.timeouts.api);
+    return apiGetDepositsOrderStats(_params, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
+  }
+
+  /**
+   * Get intents by recipient address with optional status filter
+   */
+  async getIntentsByRecipient(_params: GetIntentsByRecipientRequest): Promise<GetIntentsByRecipientResponse> {
+    logger.debug('[Zkp2pClient] Getting intents by recipient:', { recipient: _params.recipientAddress });
+    const { apiGetIntentsByRecipient } = await import('../adapters/api');
+    return apiGetIntentsByRecipient(_params, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
+  }
+
+  /**
+   * List registered payees (makers) with optional processor filter
+   */
+  async listPayees(processorName?: string): Promise<ListPayeesResponse> {
+    logger.debug('[Zkp2pClient] Listing payees:', { processorName });
+    const { apiListPayees } = await import('../adapters/api');
+    return apiListPayees(processorName, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
+  }
+
+  /**
+   * Validate and then register payee details. Returns validation and optional registration result.
+   */
+  async validateAndRegisterPayeeDetails(_params: RegisterPayeeDetailsRequest): Promise<{
+    isValid: boolean;
+    validation: ValidatePayeeDetailsResponse;
+    registration?: RegisterPayeeDetailsResponse;
+  }> {
+    const validation = await this.validatePayeeDetails({ processorName: _params.processorName, depositData: _params.depositData });
+    if (!validation.responseObject?.isValid) {
+      return { isValid: false, validation };
+    }
+    const registration = await this.registerPayeeDetails(_params);
+    return { isValid: true, validation, registration };
+  }
+
+  /**
+   * Deposit spread management helpers (maker dashboards)
+   */
+  async getDepositSpread(depositId: number) {
+    const { apiGetDepositSpread } = await import('../adapters/api');
+    return apiGetDepositSpread(depositId, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
+  }
+  async listDepositSpreads() {
+    const { apiListDepositSpreads } = await import('../adapters/api');
+    return apiListDepositSpreads(this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
+  }
+  async getSpreadsByDepositIds(depositIds: number[]) {
+    const { apiGetSpreadsByDepositIds } = await import('../adapters/api');
+    return apiGetSpreadsByDepositIds(depositIds, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
+  }
+  async createSpread(body: { depositId: number; spread: number; minPrice?: number | null; maxPrice?: number | null }) {
+    const { apiCreateSpread } = await import('../adapters/api');
+    return apiCreateSpread(body, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
+  }
+  async updateSpread(depositId: number, body: { spread?: number; minPrice?: number | null; maxPrice?: number | null }) {
+    const { apiUpdateSpread } = await import('../adapters/api');
+    return apiUpdateSpread(depositId, body, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
+  }
+  async upsertSpread(depositId: number, body: { spread?: number; minPrice?: number | null; maxPrice?: number | null }) {
+    const { apiUpsertSpread } = await import('../adapters/api');
+    return apiUpsertSpread(depositId, body, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
+  }
+  async deleteSpread(depositId: number) {
+    const { apiDeleteSpread } = await import('../adapters/api');
+    return apiDeleteSpread(depositId, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
+  }
+
+  /**
+   * Register payee details and receive a hashedOnchainId (payeeHash)
+   * @param _params - Processor name and platform-specific payee details
+   * @returns Response including `hashedOnchainId` (aka payeeHash)
+   */
+  async registerPayeeDetails(
+    _params: RegisterPayeeDetailsRequest
+  ): Promise<RegisterPayeeDetailsResponse> {
+    logger.debug('[Zkp2pClient] Registering payee details:', { processorName: _params.processorName });
+    return apiPostDepositDetails(_params, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
   }
 
   /**

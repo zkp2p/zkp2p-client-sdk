@@ -37,10 +37,10 @@ export async function withRetry<T>(
       const isRateLimit = err instanceof APIError && err.status === 429;
       const retryable = isNetwork || isRateLimit;
       if (!retryable || i === maxRetries - 1) throw err;
-      const wait = isRateLimit ? delayMs * Math.pow(2, i) : delayMs;
-      await new Promise((r) => setTimeout(r, wait));
+      const base = isRateLimit ? delayMs * Math.pow(2, i) : delayMs;
+      const jitter = Math.floor(Math.random() * Math.min(1000, base));
+      await new Promise((r) => setTimeout(r, base + jitter));
     }
   }
   throw lastErr as Error;
 }
-

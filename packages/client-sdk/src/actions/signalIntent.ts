@@ -37,7 +37,7 @@ export async function signalIntent(
       fiatCurrencyCode: currencyCodeHash,
       chainId: chainId.toString(),
     };
-    const apiResponse = await apiSignalIntent(apiRequest, apiKey, baseApiUrl, timeoutMs);
+    const apiResponse = await apiSignalIntent(apiRequest, apiKey, baseApiUrl, undefined, timeoutMs);
     if (!apiResponse.success) {
       throw new ZKP2PError(apiResponse.message || 'Failed to signal intent', ErrorCode.API, { apiResponse });
     }

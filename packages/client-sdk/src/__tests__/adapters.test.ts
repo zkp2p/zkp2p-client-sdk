@@ -2,13 +2,17 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { 
   apiGetQuote, 
   apiValidatePayeeDetails,
+  apiPostDepositDetails,
   apiGetOwnerDeposits,
   apiGetOwnerIntents,
   apiGetIntentsByDeposit,
   apiGetIntentsByTaker,
   apiGetIntentByHash,
   apiGetDepositById,
-  apiGetDepositsOrderStats
+  apiGetDepositsOrderStats,
+  apiGetIntentsByRecipient,
+  apiListPayees,
+  apiGetDepositSpread
 } from '../adapters/api';
 import { ValidationError } from '../errors';
 
@@ -83,6 +87,37 @@ describe('api adapters', () => {
     expect(calledUrl).toContain('/makers/validate');
   });
 
+  it('calls /makers/create and returns hashedOnchainId', async () => {
+    const mockHid = '0x' + 'ab'.repeat(32);
+    const fetchMock = vi.fn(async (url: RequestInfo | URL) =>
+      new Response(
+        JSON.stringify({
+          message: 'ok',
+          success: true,
+          statusCode: 200,
+          responseObject: {
+            id: 1,
+            processorName: 'mercadopago',
+            depositData: { identifier: 'alice' },
+            hashedOnchainId: mockHid,
+            createdAt: new Date().toISOString(),
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    (globalThis as any).fetch = fetchMock;
+
+    const res = await apiPostDepositDetails(
+      { processorName: 'mercadopago', depositData: { identifier: 'alice' } },
+      'api-key',
+      'https://api.example'
+    );
+    expect(res.responseObject.hashedOnchainId).toBe(mockHid);
+    const calledUrl = String(fetchMock.mock.calls[0][0]);
+    expect(calledUrl).toContain('/makers/create');
+  });
+
   describe('historical endpoints', () => {
     it('fetches owner deposits with optional status filter', async () => {
       const mockResponse = {
@@ -108,14 +143,14 @@ describe('api adapters', () => {
       (globalThis as any).fetch = fetchMock;
 
       const res = await apiGetOwnerDeposits(
-        { ownerAddress: '0x123', status: 'ACTIVE' },
+        { ownerAddress: '0x123' },
         'api-key',
         'https://api.example'
       );
 
       expect(res.responseObject[0].createdAt).toBeInstanceOf(Date);
       expect(fetchMock).toHaveBeenCalledWith(
-        'https://api.example/deposits/maker/0x123?status=ACTIVE',
+        'https://api.example/deposits/maker/0x123',
         expect.objectContaining({ method: 'GET' })
       );
     });
@@ -181,13 +216,13 @@ describe('api adapters', () => {
       (globalThis as any).fetch = fetchMock;
 
       await apiGetIntentsByTaker(
-        { takerAddress: '0x456', status: ['CREATED', 'FULFILLED'] },
+        { takerAddress: '0x456', status: ['SIGNALED', 'FULFILLED'] },
         'api-key',
         'https://api.example'
       );
 
       expect(fetchMock).toHaveBeenCalledWith(
-        'https://api.example/orders/taker/0x456?status=CREATED,FULFILLED',
+        'https://api.example/orders/taker/0x456?status=SIGNALED,FULFILLED',
         expect.objectContaining({ method: 'GET' })
       );
     });
@@ -282,7 +317,7 @@ describe('api adapters', () => {
         statusCode: 200,
         responseObject: [{
           depositId: '1',
-          totalOrderCount: 10,
+          totalIntents: 10,
           totalOrderAmount: '1000',
           fulfilledOrderCount: 5,
           fulfilledOrderAmount: '500',
@@ -308,13 +343,52 @@ describe('api adapters', () => {
         'https://api.example'
       );
 
-      expect(res.responseObject[0].totalOrderCount).toBe(10);
+      expect(res.responseObject[0].totalIntents).toBe(10);
       expect(fetchMock).toHaveBeenCalledWith(
         'https://api.example/deposits/order-stats',
         expect.objectContaining({ 
           method: 'POST',
           body: JSON.stringify({ depositIds: [1, 2, 3] })
         })
+      );
+    });
+
+    it('fetches intents by recipient with status filter', async () => {
+      const mockResponse = { success: true, message: 'ok', statusCode: 200, responseObject: [] };
+      const fetchMock = vi.fn(async () => new Response(JSON.stringify(mockResponse), { status: 200 }));
+      (globalThis as any).fetch = fetchMock;
+
+      await apiGetIntentsByRecipient(
+        { recipientAddress: '0x999', status: 'SIGNALED' },
+        'api-key',
+        'https://api.example'
+      );
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://api.example/orders/recipient/0x999?status=SIGNALED',
+        expect.objectContaining({ method: 'GET' })
+      );
+    });
+
+    it('lists payees with optional processor filter', async () => {
+      const mockResponse = { success: true, message: 'ok', statusCode: 200, responseObject: [] };
+      const fetchMock = vi.fn(async () => new Response(JSON.stringify(mockResponse), { status: 200 }));
+      (globalThis as any).fetch = fetchMock;
+
+      await apiListPayees('venmo', 'api-key', 'https://api.example');
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://api.example/makers?processorName=venmo',
+        expect.objectContaining({ method: 'GET' })
+      );
+    });
+
+    it('gets a deposit spread', async () => {
+      const mockResponse = { success: true, message: 'ok', statusCode: 200, data: { id: 1, depositId: 1, spread: 0.01, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() } };
+      const fetchMock = vi.fn(async () => new Response(JSON.stringify(mockResponse), { status: 200 }));
+      (globalThis as any).fetch = fetchMock;
+      await apiGetDepositSpread(1, 'api-key', 'https://api.example');
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://api.example/deposits/1/spread',
+        expect.objectContaining({ method: 'GET' })
       );
     });
   });

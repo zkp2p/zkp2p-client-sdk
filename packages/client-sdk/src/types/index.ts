@@ -24,6 +24,8 @@ export type Zkp2pClientOptions = {
   baseApiUrl?: string;
   witnessUrl?: string;
   rpcUrl?: string;
+  /** Optional bearer token for hybrid auth */
+  authorizationToken?: string;
   /** Optional timeout configuration */
   timeouts?: TimeoutConfig;
 };
@@ -175,6 +177,12 @@ export type PostDepositDetailsResponse = {
   statusCode: number;
 };
 
+/**
+ * Alias types for clarity when registering payee details (makers/create)
+ */
+export type RegisterPayeeDetailsRequest = PostDepositDetailsRequest;
+export type RegisterPayeeDetailsResponse = PostDepositDetailsResponse;
+
 export type QuoteRequest = {
   paymentPlatforms: string[];
   fiatCurrency: string;
@@ -230,7 +238,11 @@ export type QuoteResponse = {
   statusCode: number;
 };
 
-export type GetPayeeDetailsRequest = { hashedOnchainId: string; platform: string };
+/**
+ * Request to fetch payee details
+ * Prefer `processorName`; `platform` kept for backward compatibility.
+ */
+export type GetPayeeDetailsRequest = { hashedOnchainId: string; processorName: string };
 export type GetPayeeDetailsResponse = {
   success: boolean;
   message: string;
@@ -243,6 +255,11 @@ export type GetPayeeDetailsResponse = {
 };
   statusCode: number;
 };
+
+// Makers list (presented)
+export type ListPayeesRequest = { processorName?: string };
+export type PresentedMaker = { id?: number; processorName: string; hashedOnchainId: string; createdAt: string };
+export type ListPayeesResponse = { success: boolean; message: string; responseObject: PresentedMaker[]; statusCode: number };
 
 export type ValidatePayeeDetailsRequest = {
   processorName: string;
@@ -328,51 +345,35 @@ export type Deposit = {
   }>;
 };
 
-export type GetOwnerDepositsRequest = {
-  ownerAddress: string;
-  status?: DepositStatus;
-};
-
-export type GetOwnerDepositsResponse = {
-  success: boolean;
-  message: string;
-  responseObject: Deposit[];
-  statusCode: number;
-};
-
-export type IntentStatusType =
-  | 'CREATED'
-  | 'FULFILLED'
-  | 'CANCELLED'
-  | 'RELEASED'
-  | 'EXPIRED';
+// API Intent status per v1 Orders API
+export type ApiIntentStatus = 'SIGNALED' | 'FULFILLED' | 'PRUNED';
 
 export type Intent = {
   id: number;
   intentHash: string;
-  depositId: number;
+  depositId: string;
+  verifier: string;
   owner: string;
   toAddress: string;
   amount: string;
-  status: IntentStatusType;
+  fiatCurrency: string;
+  conversionRate: string;
+  sustainabilityFee: string | null;
+  verifierFee: string | null;
+  status: ApiIntentStatus;
   signalTxHash: string;
   signalTimestamp: Date;
   fulfillTxHash: string | null;
   fulfillTimestamp: Date | null;
   pruneTxHash: string | null;
   prunedTimestamp: Date | null;
-  chainId?: number;
-  fiatCurrency: string;
-  conversionRate: string;
-  verifier: string;
-  sustainabilityFee: string | null;
-  verifierFee: string | null;
-  updatedAt: Date;
   createdAt: Date;
+  updatedAt: Date;
 };
 
 export type GetOwnerIntentsRequest = {
   ownerAddress: string;
+  status?: ApiIntentStatus | ApiIntentStatus[];
 };
 
 export type GetOwnerIntentsResponse = {
@@ -385,7 +386,7 @@ export type GetOwnerIntentsResponse = {
 // Orders API types
 export type GetIntentsByDepositRequest = {
   depositId: string;
-  status?: IntentStatusType | IntentStatusType[];
+  status?: ApiIntentStatus | ApiIntentStatus[];
 };
 
 export type GetIntentsByDepositResponse = {
@@ -397,10 +398,22 @@ export type GetIntentsByDepositResponse = {
 
 export type GetIntentsByTakerRequest = {
   takerAddress: string;
-  status?: IntentStatusType | IntentStatusType[];
+  status?: ApiIntentStatus | ApiIntentStatus[];
 };
 
 export type GetIntentsByTakerResponse = {
+  success: boolean;
+  message: string;
+  responseObject: Intent[];
+  statusCode: number;
+};
+
+export type GetIntentsByRecipientRequest = {
+  recipientAddress: string;
+  status?: ApiIntentStatus | ApiIntentStatus[];
+};
+
+export type GetIntentsByRecipientResponse = {
   success: boolean;
   message: string;
   responseObject: Intent[];
@@ -418,44 +431,47 @@ export type GetIntentByHashResponse = {
   statusCode: number;
 };
 
-// Deposits API types
-export type GetDepositByIdRequest = {
-  depositId: string;
+// Deposits API types aligned with v1
+export type DepositVerifierCurrency = { id?: number; depositVerifierId?: number; currencyCode: string; conversionRate: string; createdAt?: Date; updatedAt?: Date };
+export type DepositVerifier = { id?: number; depositId: number; verifier: string; intentGatingService: string; payeeDetailsHash: string; data: string; createdAt?: Date; updatedAt?: Date; currencies: DepositVerifierCurrency[] };
+export type ApiDeposit = {
+  id: number;
+  depositor: string;
+  token: string;
+  amount: string;
+  remainingDeposits: string;
+  intentAmountMin: string;
+  intentAmountMax: string;
+  acceptingIntents: boolean;
+  outstandingIntentAmount: string;
+  availableLiquidity: string;
+  status: 'ACTIVE' | 'WITHDRAWN' | 'CLOSED';
+  totalIntents: number;
+  signaledIntents: number;
+  fulfilledIntents: number;
+  prunedIntents: number;
+  createdAt?: Date;
+  updatedAt?: Date;
+  verifiers: DepositVerifier[];
 };
 
-export type GetDepositByIdResponse = {
+export type GetOwnerDepositsRequest = {
+  ownerAddress: string;
+};
+
+export type GetOwnerDepositsResponse = {
   success: boolean;
   message: string;
-  responseObject: Deposit;
+  responseObject: ApiDeposit[];
   statusCode: number;
 };
 
-export type OrderStats = {
-  depositId: string;
-  totalOrderCount: number;
-  totalOrderAmount: string;
-  fulfilledOrderCount: number;
-  fulfilledOrderAmount: string;
-  cancelledOrderCount: number;
-  cancelledOrderAmount: string;
-  releasedOrderCount: number;
-  releasedOrderAmount: string;
-  expiredOrderCount: number;
-  expiredOrderAmount: string;
-  createdOrderCount: number;
-  createdOrderAmount: string;
-};
+export type GetDepositByIdRequest = { depositId: string };
+export type GetDepositByIdResponse = { success: boolean; message: string; responseObject: ApiDeposit; statusCode: number };
 
-export type GetDepositsOrderStatsRequest = {
-  depositIds: number[];
-};
-
-export type GetDepositsOrderStatsResponse = {
-  success: boolean;
-  message: string;
-  responseObject: OrderStats[];
-  statusCode: number;
-};
+export type DepositIntentStatistics = { id: number; totalIntents: number; signaledIntents: number; fulfilledIntents: number; prunedIntents: number };
+export type GetDepositsOrderStatsRequest = { depositIds: number[] };
+export type GetDepositsOrderStatsResponse = { success: boolean; message: string; responseObject: DepositIntentStatistics[]; statusCode: number };
 
 // Currency domain (ISO) and on-chain currency mapping
 export { Currency } from '../utils/currency';

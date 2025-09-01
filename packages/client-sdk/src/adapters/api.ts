@@ -28,19 +28,27 @@ import type {
 } from '../types';
 import { NetworkError, ValidationError } from '../errors';
 import { parseAPIError, withRetry } from '../errors/utils';
+import type { 
+  GetIntentsByRecipientRequest, 
+  GetIntentsByRecipientResponse,
+  DepositIntentStatistics
+} from '../types';
 
 function headers() {
   return { 'Content-Type': 'application/json' } as const;
 }
 
-function createHeadersWithApiKey(apiKey: string) {
-  return { 'Content-Type': 'application/json', 'x-api-key': apiKey } as const;
+function createHeadersWithAuth(apiKey: string, token?: string): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', 'x-api-key': apiKey };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return headers;
 }
 
 export async function apiSignalIntent(
   req: IntentSignalRequest,
   apiKey: string,
   baseApiUrl: string,
+  authToken?: string,
   timeoutMs?: number
 ): Promise<SignalIntentResponse> {
   return withRetry(async () => {
@@ -48,7 +56,7 @@ export async function apiSignalIntent(
     try {
       res = await fetch(`${baseApiUrl}/verify/intent`, {
         method: 'POST',
-        headers: createHeadersWithApiKey(apiKey),
+        headers: createHeadersWithAuth(apiKey, authToken),
         body: JSON.stringify(req),
       });
     } catch (error) {
@@ -67,10 +75,280 @@ export async function apiSignalIntent(
   }, 3, 1000, timeoutMs);
 }
 
+/**
+ * Get intents by recipient address with optional status filter
+ */
+export async function apiGetIntentsByRecipient(
+  req: GetIntentsByRecipientRequest,
+  apiKey: string,
+  baseApiUrl: string,
+  authToken?: string,
+  timeoutMs?: number
+): Promise<GetIntentsByRecipientResponse> {
+  return withRetry(async () => {
+    let res: Response;
+    let endpoint = `/orders/recipient/${req.recipientAddress}`;
+
+    if (req.status) {
+      const statusParam = Array.isArray(req.status)
+        ? req.status.join(',')
+        : req.status;
+      endpoint += `?status=${statusParam}`;
+    }
+
+    try {
+      res = await fetch(`${baseApiUrl}${endpoint}`, {
+        method: 'GET',
+        headers: createHeadersWithAuth(apiKey, authToken),
+      });
+    } catch (error) {
+      throw new NetworkError('Failed to connect to API server', {
+        endpoint,
+        error,
+      });
+    }
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw parseAPIError(res, errorText);
+    }
+
+    const data = await res.json();
+
+    // Transform date strings to Date objects for all intents
+    if (data.responseObject && Array.isArray(data.responseObject)) {
+      data.responseObject = data.responseObject.map((intent: Intent) =>
+        transformDatesToObjects(intent)
+      );
+    }
+
+    return data;
+  }, 3, 1000, timeoutMs);
+}
+
+// Makers list
+export async function apiListPayees(
+  processorName: string | undefined,
+  apiKey: string,
+  baseApiUrl: string,
+  authToken?: string,
+  timeoutMs?: number
+) {
+  return withRetry(async () => {
+    let res: Response;
+    let endpoint = '/makers';
+    if (processorName) endpoint += `?processorName=${encodeURIComponent(processorName)}`;
+    try {
+      res = await fetch(`${baseApiUrl}${endpoint}`, {
+        method: 'GET',
+        headers: createHeadersWithAuth(apiKey, authToken),
+      });
+    } catch (error) {
+      throw new NetworkError('Failed to connect to API server', { endpoint, error });
+    }
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw parseAPIError(res, errorText);
+    }
+    const data = await res.json();
+    if (data.responseObject && Array.isArray(data.responseObject)) {
+      data.responseObject = data.responseObject.map((m: any) => transformDatesToObjects(m));
+    }
+    return data;
+  }, 3, 1000, timeoutMs);
+}
+
+// Deposit spreads
+export async function apiGetDepositSpread(
+  depositId: number,
+  apiKey: string,
+  baseApiUrl: string,
+  authToken?: string,
+  timeoutMs?: number
+) {
+  return withRetry(async () => {
+    const endpoint = `/deposits/${depositId}/spread`;
+    try {
+      const res = await fetch(`${baseApiUrl}${endpoint}`, {
+        method: 'GET',
+        headers: createHeadersWithAuth(apiKey, authToken),
+      });
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw parseAPIError(res, errorText);
+      }
+      const data = await res.json();
+      return transformDatesToObjects(data);
+    } catch (error) {
+      throw new NetworkError('Failed to connect to API server', { endpoint, error });
+    }
+  }, 3, 1000, timeoutMs);
+}
+
+export async function apiListDepositSpreads(
+  apiKey: string,
+  baseApiUrl: string,
+  authToken?: string,
+  timeoutMs?: number
+) {
+  return withRetry(async () => {
+    const endpoint = `/deposits/spreads`;
+    try {
+      const res = await fetch(`${baseApiUrl}${endpoint}`, {
+        method: 'GET',
+        headers: createHeadersWithAuth(apiKey, authToken),
+      });
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw parseAPIError(res, errorText);
+      }
+      const data = await res.json();
+      return transformDatesToObjects(data);
+    } catch (error) {
+      throw new NetworkError('Failed to connect to API server', { endpoint, error });
+    }
+  }, 3, 1000, timeoutMs);
+}
+
+export async function apiGetSpreadsByDepositIds(
+  depositIds: number[],
+  apiKey: string,
+  baseApiUrl: string,
+  authToken?: string,
+  timeoutMs?: number
+) {
+  return withRetry(async () => {
+    const endpoint = `/deposits/spreads/bulk`;
+    try {
+      const res = await fetch(`${baseApiUrl}${endpoint}`, {
+        method: 'POST',
+        headers: createHeadersWithAuth(apiKey, authToken),
+        body: JSON.stringify({ depositIds }),
+      });
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw parseAPIError(res, errorText);
+      }
+      const data = await res.json();
+      return transformDatesToObjects(data);
+    } catch (error) {
+      throw new NetworkError('Failed to connect to API server', { endpoint, error });
+    }
+  }, 3, 1000, timeoutMs);
+}
+
+export async function apiCreateSpread(
+  body: { depositId: number; spread: number; minPrice?: number | null; maxPrice?: number | null },
+  apiKey: string,
+  baseApiUrl: string,
+  authToken?: string,
+  timeoutMs?: number
+) {
+  return withRetry(async () => {
+    const endpoint = `/deposits/spreads`;
+    try {
+      const res = await fetch(`${baseApiUrl}${endpoint}`, {
+        method: 'POST',
+        headers: createHeadersWithAuth(apiKey, authToken),
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw parseAPIError(res, errorText);
+      }
+      const data = await res.json();
+      return transformDatesToObjects(data);
+    } catch (error) {
+      throw new NetworkError('Failed to connect to API server', { endpoint, error });
+    }
+  }, 3, 1000, timeoutMs);
+}
+
+export async function apiUpdateSpread(
+  depositId: number,
+  body: { spread?: number; minPrice?: number | null; maxPrice?: number | null },
+  apiKey: string,
+  baseApiUrl: string,
+  authToken?: string,
+  timeoutMs?: number
+) {
+  return withRetry(async () => {
+    const endpoint = `/deposits/${depositId}/spread`;
+    try {
+      const res = await fetch(`${baseApiUrl}${endpoint}`, {
+        method: 'PUT',
+        headers: createHeadersWithAuth(apiKey, authToken),
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw parseAPIError(res, errorText);
+      }
+      const data = await res.json();
+      return transformDatesToObjects(data);
+    } catch (error) {
+      throw new NetworkError('Failed to connect to API server', { endpoint, error });
+    }
+  }, 3, 1000, timeoutMs);
+}
+
+export async function apiUpsertSpread(
+  depositId: number,
+  body: { spread?: number; minPrice?: number | null; maxPrice?: number | null },
+  apiKey: string,
+  baseApiUrl: string,
+  authToken?: string,
+  timeoutMs?: number
+) {
+  return withRetry(async () => {
+    const endpoint = `/deposits/${depositId}/spread`;
+    try {
+      const res = await fetch(`${baseApiUrl}${endpoint}`, {
+        method: 'POST',
+        headers: createHeadersWithAuth(apiKey, authToken),
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw parseAPIError(res, errorText);
+      }
+      const data = await res.json();
+      return transformDatesToObjects(data);
+    } catch (error) {
+      throw new NetworkError('Failed to connect to API server', { endpoint, error });
+    }
+  }, 3, 1000, timeoutMs);
+}
+
+export async function apiDeleteSpread(
+  depositId: number,
+  apiKey: string,
+  baseApiUrl: string,
+  authToken?: string,
+  timeoutMs?: number
+) {
+  return withRetry(async () => {
+    const endpoint = `/deposits/${depositId}/spread`;
+    try {
+      const res = await fetch(`${baseApiUrl}${endpoint}`, {
+        method: 'DELETE',
+        headers: createHeadersWithAuth(apiKey, authToken),
+      });
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw parseAPIError(res, errorText);
+      }
+      return res.json();
+    } catch (error) {
+      throw new NetworkError('Failed to connect to API server', { endpoint, error });
+    }
+  }, 3, 1000, timeoutMs);
+}
 export async function apiPostDepositDetails(
   req: PostDepositDetailsRequest,
   apiKey: string,
   baseApiUrl: string,
+  authToken?: string,
   timeoutMs?: number
 ): Promise<PostDepositDetailsResponse> {
   return withRetry(async () => {
@@ -78,7 +356,7 @@ export async function apiPostDepositDetails(
     try {
       res = await fetch(`${baseApiUrl}/makers/create`, {
         method: 'POST',
-        headers: createHeadersWithApiKey(apiKey),
+        headers: createHeadersWithAuth(apiKey, authToken),
         body: JSON.stringify(req),
       });
     } catch (error) {
@@ -140,15 +418,16 @@ export async function apiGetPayeeDetails(
   req: GetPayeeDetailsRequest,
   apiKey: string,
   baseApiUrl: string,
+  authToken?: string,
   timeoutMs?: number
 ): Promise<GetPayeeDetailsResponse> {
   return withRetry(async () => {
     let res: Response;
-    const endpoint = `/makers/${req.platform}/${req.hashedOnchainId}`;
+    const endpoint = `/makers/${req.processorName}/${req.hashedOnchainId}`;
     try {
       res = await fetch(`${baseApiUrl}${endpoint}`, {
         method: 'GET',
-        headers: createHeadersWithApiKey(apiKey),
+        headers: createHeadersWithAuth(apiKey, authToken),
       });
     } catch (error) {
       throw new NetworkError('Failed to connect to API server', { endpoint, error });
@@ -165,6 +444,7 @@ export async function apiValidatePayeeDetails(
   req: ValidatePayeeDetailsRequest,
   apiKey: string,
   baseApiUrl: string,
+  authToken?: string,
   timeoutMs?: number
 ): Promise<ValidatePayeeDetailsResponse> {
   return withRetry(async () => {
@@ -173,7 +453,7 @@ export async function apiValidatePayeeDetails(
     try {
       res = await fetch(`${baseApiUrl}${endpoint}`, {
         method: 'POST',
-        headers: createHeadersWithApiKey(apiKey),
+        headers: createHeadersWithAuth(apiKey, authToken),
         body: JSON.stringify(req),
       });
     } catch (error) {
@@ -183,7 +463,15 @@ export async function apiValidatePayeeDetails(
       const errorText = await res.text();
       throw parseAPIError(res, errorText);
     }
-    return res.json();
+    const data = await res.json();
+    // Back-compat: some APIs may return boolean in responseObject. Normalize to { isValid }.
+    if (typeof data?.responseObject === 'boolean') {
+      return {
+        ...data,
+        responseObject: { isValid: data.responseObject },
+      } as ValidatePayeeDetailsResponse;
+    }
+    return data;
   }, 3, 1000, timeoutMs);
 }
 
@@ -216,21 +504,19 @@ export async function apiGetOwnerDeposits(
   req: GetOwnerDepositsRequest,
   apiKey: string,
   baseApiUrl: string,
+  authToken?: string,
   timeoutMs?: number
 ): Promise<GetOwnerDepositsResponse> {
   return withRetry(async () => {
     let res: Response;
     let endpoint = `/deposits/maker/${req.ownerAddress}`;
 
-    // Add status query parameter if provided
-    if (req.status) {
-      endpoint += `?status=${req.status}`;
-    }
+    // (No status filter for this endpoint)
 
     try {
       res = await fetch(`${baseApiUrl}${endpoint}`, {
         method: 'GET',
-        headers: createHeadersWithApiKey(apiKey),
+        headers: createHeadersWithAuth(apiKey, authToken),
       });
     } catch (error) {
       throw new NetworkError('Failed to connect to API server', {
@@ -261,6 +547,7 @@ export async function apiGetOwnerIntents(
   req: GetOwnerIntentsRequest,
   apiKey: string,
   baseApiUrl: string,
+  authToken?: string,
   timeoutMs?: number
 ): Promise<GetOwnerIntentsResponse> {
   return withRetry(async () => {
@@ -270,7 +557,7 @@ export async function apiGetOwnerIntents(
     try {
       res = await fetch(`${baseApiUrl}${endpoint}`, {
         method: 'GET',
-        headers: createHeadersWithApiKey(apiKey),
+        headers: createHeadersWithAuth(apiKey, authToken),
       });
     } catch (error) {
       throw new NetworkError('Failed to connect to API server', {
@@ -304,6 +591,7 @@ export async function apiGetIntentsByDeposit(
   req: GetIntentsByDepositRequest,
   apiKey: string,
   baseApiUrl: string,
+  authToken?: string,
   timeoutMs?: number
 ): Promise<GetIntentsByDepositResponse> {
   return withRetry(async () => {
@@ -321,7 +609,7 @@ export async function apiGetIntentsByDeposit(
     try {
       res = await fetch(`${baseApiUrl}${endpoint}`, {
         method: 'GET',
-        headers: createHeadersWithApiKey(apiKey),
+        headers: createHeadersWithAuth(apiKey, authToken),
       });
     } catch (error) {
       throw new NetworkError('Failed to connect to API server', {
@@ -355,6 +643,7 @@ export async function apiGetIntentsByTaker(
   req: GetIntentsByTakerRequest,
   apiKey: string,
   baseApiUrl: string,
+  authToken?: string,
   timeoutMs?: number
 ): Promise<GetIntentsByTakerResponse> {
   return withRetry(async () => {
@@ -372,7 +661,7 @@ export async function apiGetIntentsByTaker(
     try {
       res = await fetch(`${baseApiUrl}${endpoint}`, {
         method: 'GET',
-        headers: createHeadersWithApiKey(apiKey),
+        headers: createHeadersWithAuth(apiKey, authToken),
       });
     } catch (error) {
       throw new NetworkError('Failed to connect to API server', {
@@ -406,6 +695,7 @@ export async function apiGetIntentByHash(
   req: GetIntentByHashRequest,
   apiKey: string,
   baseApiUrl: string,
+  authToken?: string,
   timeoutMs?: number
 ): Promise<GetIntentByHashResponse> {
   return withRetry(async () => {
@@ -415,7 +705,7 @@ export async function apiGetIntentByHash(
     try {
       res = await fetch(`${baseApiUrl}${endpoint}`, {
         method: 'GET',
-        headers: createHeadersWithApiKey(apiKey),
+        headers: createHeadersWithAuth(apiKey, authToken),
       });
     } catch (error) {
       throw new NetworkError('Failed to connect to API server', {
@@ -449,6 +739,7 @@ export async function apiGetDepositById(
   req: GetDepositByIdRequest,
   apiKey: string,
   baseApiUrl: string,
+  authToken?: string,
   timeoutMs?: number
 ): Promise<GetDepositByIdResponse> {
   return withRetry(async () => {
@@ -458,7 +749,7 @@ export async function apiGetDepositById(
     try {
       res = await fetch(`${baseApiUrl}${endpoint}`, {
         method: 'GET',
-        headers: createHeadersWithApiKey(apiKey),
+        headers: createHeadersWithAuth(apiKey, authToken),
       });
     } catch (error) {
       throw new NetworkError('Failed to connect to API server', {
@@ -490,6 +781,7 @@ export async function apiGetDepositsOrderStats(
   req: GetDepositsOrderStatsRequest,
   apiKey: string,
   baseApiUrl: string,
+  authToken?: string,
   timeoutMs?: number
 ): Promise<GetDepositsOrderStatsResponse> {
   return withRetry(async () => {
@@ -499,7 +791,7 @@ export async function apiGetDepositsOrderStats(
     try {
       res = await fetch(`${baseApiUrl}${endpoint}`, {
         method: 'POST',
-        headers: createHeadersWithApiKey(apiKey),
+        headers: createHeadersWithAuth(apiKey, authToken),
         body: JSON.stringify({ depositIds: req.depositIds }),
       });
     } catch (error) {
