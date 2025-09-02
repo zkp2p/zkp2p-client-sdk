@@ -24,7 +24,7 @@ npm install @zkp2p/client-sdk viem
 ## Quick Start
 
 ```typescript
-import { Zkp2pClient } from '@zkp2p/client-sdk';
+import { Zkp2pClient } from '@zkp2p/client-sdk/v1';
 import { createWalletClient, custom } from 'viem';
 import { base } from 'viem/chains';
 

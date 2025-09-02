@@ -12,7 +12,8 @@ import {
   type CreateDepositConversionRate,
   type PaymentPlatformType,
   type CurrencyType
-} from '@zkp2p/client-sdk';
+} from '@zkp2p/client-sdk/v1';
+// Note: extension helpers are available under '@zkp2p/client-sdk/extension'
 import { createWalletClient, http, parseUnits } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { base } from 'viem/chains';

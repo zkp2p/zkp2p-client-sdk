@@ -28,10 +28,24 @@ pnpm add @zkp2p/client-sdk viem
 
 ## Quick Start
 
+### Versioned Imports (Recommended)
+
+Google-style subpath imports provide compile-time isolation between API versions and better tree-shaking:
+
+```ts
+// Explicitly target v1 (current stable)
+import { Zkp2pClient } from '@zkp2p/client-sdk/v1';
+
+// v2 scaffold exists but is not yet implemented in this package version
+// import { createClient } from '@zkp2p/client-sdk/v2';
+```
+
+The root import `@zkp2p/client-sdk` continues to expose the current default (v1) for backward compatibility.
+
 ### Basic Client Setup
 
 ```typescript
-import { Zkp2pClient, SUPPORTED_CHAIN_IDS } from '@zkp2p/client-sdk';
+import { Zkp2pClient, SUPPORTED_CHAIN_IDS } from '@zkp2p/client-sdk/v1';
 import { createWalletClient, custom } from 'viem';
 import { base } from 'viem/chains';
 
@@ -52,7 +66,7 @@ const client = new Zkp2pClient({
 ### Fetching Quotes
 
 ```typescript
-import { Currency, PAYMENT_PLATFORMS } from '@zkp2p/client-sdk';
+import { Currency, PAYMENT_PLATFORMS } from '@zkp2p/client-sdk/v1';
 
 // Get quotes for multiple platforms
 const quotes = await client.getQuote({
@@ -167,7 +181,7 @@ import {
   PLATFORM_METADATA,
   Currency,
   type PaymentPlatformType 
-} from '@zkp2p/client-sdk';
+} from '@zkp2p/client-sdk/v1';
 
 function ZKP2PApp() {
   const [selectedPlatform, setSelectedPlatform] = useState<PaymentPlatformType>('venmo');
@@ -385,7 +399,7 @@ export default ZKP2PApp;
 #### `useCreateDeposit` - Create Liquidity Deposits
 
 ```tsx
-import { useCreateDeposit, Currency, type CreateDepositConversionRate } from '@zkp2p/client-sdk';
+import { useCreateDeposit, Currency, type CreateDepositConversionRate } from '@zkp2p/client-sdk/v1';
 
 function DepositCreator() {
   const { client } = useZkp2pClient({ /* ... */ });
@@ -435,7 +449,7 @@ function DepositCreator() {
 #### `useSignalIntent` - Signal Trading Intent
 
 ```tsx
-import { useSignalIntent, Currency } from '@zkp2p/client-sdk';
+import { useSignalIntent, Currency } from '@zkp2p/client-sdk/v1';
 
 function IntentSignaler() {
   const { client } = useZkp2pClient({ /* ... */ });
@@ -479,7 +493,8 @@ function IntentSignaler() {
 ### Unified Authentication Flow (Recommended)
 
 ```typescript
-import { ExtensionOrchestrator, PLATFORM_METADATA } from '@zkp2p/client-sdk';
+import { PLATFORM_METADATA } from '@zkp2p/client-sdk/v1';
+import { ExtensionOrchestrator } from '@zkp2p/client-sdk/extension';
 
 async function authenticateAndGenerateProof() {
   const orchestrator = new ExtensionOrchestrator({ 
@@ -536,7 +551,7 @@ import {
   metadataUtils,
   intentHashHexToDecimalString,
   assembleProofBytes 
-} from '@zkp2p/client-sdk';
+} from '@zkp2p/client-sdk/extension';
 
 async function manualProofFlow() {
   // Step 1: Get payment metadata
@@ -599,7 +614,7 @@ import {
   PAYMENT_PLATFORMS, 
   PLATFORM_METADATA,
   type PaymentPlatformType 
-} from '@zkp2p/client-sdk';
+} from '@zkp2p/client-sdk/v1';
 
 // List all supported platforms
 console.log('Supported platforms:', PAYMENT_PLATFORMS);
@@ -626,7 +641,7 @@ import {
   currencyInfo,
   type CurrencyType,
   type CurrencyData 
-} from '@zkp2p/client-sdk';
+} from '@zkp2p/client-sdk/v1';
 
 // Use currency constants
 const usdCurrency: CurrencyType = Currency.USD;
@@ -725,7 +740,7 @@ try {
 ### Logging Configuration
 
 ```typescript
-import { logger, setLogLevel } from '@zkp2p/client-sdk';
+import { logger, setLogLevel } from '@zkp2p/client-sdk/v1';
 
 // Set log level
 setLogLevel('debug'); // 'debug' | 'info' | 'warn' | 'error' | 'none'
@@ -746,9 +761,9 @@ import {
   encodeManyProofs,
   encodeProofAndPaymentMethodAsBytes,
   assembleProofBytes,
-  parseExtensionProof,
   type ReclaimProof
-} from '@zkp2p/client-sdk';
+} from '@zkp2p/client-sdk/v1';
+import { parseExtensionProof } from '@zkp2p/client-sdk/extension';
 
 // Parse proof from extension
 const extensionPayload = '...'; // From extension
@@ -784,7 +799,7 @@ VITE_ZKP2P_WITNESS_URL=https://witness-proxy.zkp2p.xyz
 
 ```typescript
 // main.tsx
-import { Zkp2pClient } from '@zkp2p/client-sdk';
+import { Zkp2pClient } from '@zkp2p/client-sdk/v1';
 
 const client = new Zkp2pClient({
   walletClient,
@@ -808,7 +823,7 @@ NEXT_PUBLIC_ZKP2P_RPC_URL=https://base-mainnet.g.alchemy.com/v2/your_key
 // app/providers.tsx
 'use client';
 
-import { Zkp2pClient } from '@zkp2p/client-sdk';
+import { Zkp2pClient } from '@zkp2p/client-sdk/v1';
 
 const client = new Zkp2pClient({
   walletClient,
@@ -882,7 +897,7 @@ const client = new Zkp2pClient({
 
 ```typescript
 // Example test setup
-import { Zkp2pClient } from '@zkp2p/client-sdk';
+import { Zkp2pClient } from '@zkp2p/client-sdk/v1';
 import { createWalletClient, http } from 'viem';
 import { hardhat } from 'viem/chains';
 
