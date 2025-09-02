@@ -924,10 +924,9 @@ MIT License - see [LICENSE](LICENSE) for details.
 - [NPM Package](https://www.npmjs.com/package/@zkp2p/client-sdk)
 - [GitHub Repository](https://github.com/zkp2p/zkp2p-client-sdk)
 - [Documentation](https://docs.zkp2p.xyz)
-- [Discord Community](https://discord.gg/zkp2p)
 
 ## Support
 
 - GitHub Issues: [Create an issue](https://github.com/zkp2p/zkp2p-client-sdk/issues)
-- Discord: [Join our community](https://discord.gg/zkp2p)
+ 
 - Email: support@zkp2p.xyz
