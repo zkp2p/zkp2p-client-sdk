@@ -1,6 +1,6 @@
 {
   "name": "@zkp2p/client-sdk",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "Browser-first TypeScript SDK for ZKP2P with React hooks, unified authentication, and peerauth extension integration",
   "license": "MIT",
   "main": "dist/index.cjs",

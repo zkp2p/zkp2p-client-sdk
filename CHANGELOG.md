@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.1] - 2025-01-03
+
+### Fixed
+- Fixed TypeScript compilation errors in test files
+- Fixed test file to use `walletClient` instead of `publicClient`  
+- Added missing fields to mock data (FiatResponse and TokenResponse)
+- Converted Date objects to ISO strings in test data
+- Added explicit type annotations to `apiFetch` calls in API functions
+- Fixed test expectations for empty API key when using authorization token
+
 ## [2.2.0] - 2025-01-03
 
 ### Added
