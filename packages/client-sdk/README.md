@@ -1,6 +1,7 @@
 # @zkp2p/client-sdk
 
 [![npm version](https://img.shields.io/npm/v/@zkp2p/client-sdk.svg)](https://www.npmjs.com/package/@zkp2p/client-sdk)
+[![GitHub Release](https://img.shields.io/github/v/release/zkp2p/zkp2p-client-sdk?display_name=tag)](https://github.com/zkp2p/zkp2p-client-sdk/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0%2B-blue)](https://www.typescriptlang.org/)
 
@@ -25,6 +26,11 @@ yarn add @zkp2p/client-sdk viem
 # or
 pnpm add @zkp2p/client-sdk viem
 ```
+
+## Releases
+
+- GitHub Releases: https://github.com/zkp2p/zkp2p-client-sdk/releases
+- Changelog (package): ./CHANGELOG.md
 
 ## Quick Start
 
