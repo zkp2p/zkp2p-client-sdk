@@ -229,6 +229,7 @@ export type QuoteSingleResponse = {
   payeeAddress: string;
   conversionRate: string;
   intent: QuoteIntentResponse;
+  payeeData?: Record<string, string>;
 };
 export type QuoteFeesResponse = { zkp2pFee: string; zkp2pFeeFormatted: string; swapFee: string; swapFeeFormatted: string };
 export type QuoteResponse = {

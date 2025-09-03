@@ -261,7 +261,47 @@ export class Zkp2pClient {
    */
   async getQuote(_params: QuoteRequest): Promise<QuoteResponse> {
     logger.debug('[Zkp2pClient] Getting quote:', _params);
-    return apiGetQuote(_params, this.baseApiUrl, this.timeouts.api);
+    const quoteResponse = await apiGetQuote(_params, this.baseApiUrl, this.timeouts.api);
+
+    // If we have quotes and an API key or authorization token, enrich them with payee details
+    if (quoteResponse.responseObject?.quotes && (this.apiKey || this.authorizationToken)) {
+      try {
+        // Create promises for all payee details fetches
+        const payeeDetailsPromises = quoteResponse.responseObject.quotes.map(
+          async (quote) => {
+            try {
+              const hashedOnchainId = quote.intent.payeeDetails;
+              const processorName = quote.intent.processorName;
+
+              if (hashedOnchainId && processorName) {
+                const payeeDetailsResponse = await apiGetPayeeDetails(
+                  { hashedOnchainId, processorName },
+                  this.apiKey,
+                  this.baseApiUrl,
+                  this.authorizationToken,
+                  this.timeouts.api
+                );
+
+                if (payeeDetailsResponse?.responseObject?.depositData) {
+                  quote.payeeData = payeeDetailsResponse.responseObject.depositData;
+                }
+              }
+            } catch (error) {
+              // Log error but don't fail the entire quote request
+              logger.warn('[Zkp2pClient] Failed to fetch payee details for quote:', error);
+            }
+          }
+        );
+
+        // Wait for all payee details to be fetched (or fail gracefully)
+        await Promise.all(payeeDetailsPromises);
+      } catch (error) {
+        // Log error but return quotes without payee data
+        logger.warn('[Zkp2pClient] Error enriching quotes with payee details:', error);
+      }
+    }
+
+    return quoteResponse;
   }
 
   /**
