@@ -168,7 +168,7 @@ export async function apiListPayees(
   timeoutMs?: number
 ): Promise<ListPayeesResponse> {
   const endpoint = processorName ? `/makers?processorName=${encodeURIComponent(processorName)}` : '/makers';
-  const data = await apiFetch({
+  const data = await apiFetch<ListPayeesResponse>({
     url: `${baseApiUrl}${endpoint}`,
     method: 'GET',
     apiKey,
@@ -186,7 +186,7 @@ export async function apiGetDepositSpread(
   authToken?: string,
   timeoutMs?: number
 ) {
-  const data = await apiFetch({
+  const data = await apiFetch<any>({
     url: `${baseApiUrl}/deposits/${depositId}/spread`,
     method: 'GET',
     apiKey,
@@ -202,7 +202,7 @@ export async function apiListDepositSpreads(
   authToken?: string,
   timeoutMs?: number
 ) {
-  const data = await apiFetch({
+  const data = await apiFetch<any>({
     url: `${baseApiUrl}/deposits/spreads`,
     method: 'GET',
     apiKey,
@@ -219,7 +219,7 @@ export async function apiGetSpreadsByDepositIds(
   authToken?: string,
   timeoutMs?: number
 ) {
-  const data = await apiFetch({
+  const data = await apiFetch<any>({
     url: `${baseApiUrl}/deposits/spreads/bulk`,
     method: 'POST',
     body: { depositIds },
@@ -237,7 +237,7 @@ export async function apiCreateSpread(
   authToken?: string,
   timeoutMs?: number
 ) {
-  const data = await apiFetch({
+  const data = await apiFetch<any>({
     url: `${baseApiUrl}/deposits/spreads`,
     method: 'POST',
     body,
@@ -256,7 +256,7 @@ export async function apiUpdateSpread(
   authToken?: string,
   timeoutMs?: number
 ) {
-  const data = await apiFetch({
+  const data = await apiFetch<any>({
     url: `${baseApiUrl}/deposits/${depositId}/spread`,
     method: 'PUT',
     body,
@@ -275,7 +275,7 @@ export async function apiUpsertSpread(
   authToken?: string,
   timeoutMs?: number
 ) {
-  const data = await apiFetch({
+  const data = await apiFetch<any>({
     url: `${baseApiUrl}/deposits/${depositId}/spread`,
     method: 'POST',
     body,

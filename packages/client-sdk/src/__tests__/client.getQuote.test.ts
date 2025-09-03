@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createPublicClient, http } from 'viem';
+import { createWalletClient, http } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
 import { base } from 'viem/chains';
 import { Zkp2pClient } from '../client/Zkp2pClient';
 import * as api from '../adapters/api';
@@ -15,15 +16,18 @@ describe('Zkp2pClient.getQuote', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Setup public client
-    const publicClient = createPublicClient({
+    // Setup wallet client with a test private key
+    const testPrivateKey = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' as const;
+    const account = privateKeyToAccount(testPrivateKey);
+    const walletClient = createWalletClient({
+      account,
       chain: base,
       transport: http(),
     });
 
     // Create client with API key
     client = new Zkp2pClient({
-      publicClient,
+      walletClient,
       apiKey: mockApiKey,
       chainId: 8453,
     });
@@ -34,8 +38,8 @@ describe('Zkp2pClient.getQuote', () => {
       success: true,
       message: 'Success',
       responseObject: {
-        fiat: { currencyCode: 'USD' },
-        token: { symbol: 'USDC' },
+        fiat: { currencyCode: 'USD', currencyName: 'US Dollar', currencySymbol: '$', countryCode: 'US' },
+        token: { token: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', symbol: 'USDC', name: 'USD Coin', decimals: 6, chainId: 8453 },
         quotes: [
           {
             fiatAmount: '100',
@@ -92,8 +96,8 @@ describe('Zkp2pClient.getQuote', () => {
           email: 'alice@example.com',
         },
         hashedOnchainId: 'hashed-id-1',
-        createdAt: new Date('2024-01-01'),
-        updatedAt: new Date('2024-01-01'),
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
       },
       statusCode: 200,
     };
@@ -109,8 +113,8 @@ describe('Zkp2pClient.getQuote', () => {
           phone: '+1234567890',
         },
         hashedOnchainId: 'hashed-id-2',
-        createdAt: new Date('2024-01-01'),
-        updatedAt: new Date('2024-01-01'),
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
       },
       statusCode: 200,
     };
@@ -168,8 +172,8 @@ describe('Zkp2pClient.getQuote', () => {
       success: true,
       message: 'Success',
       responseObject: {
-        fiat: { currencyCode: 'USD' },
-        token: { symbol: 'USDC' },
+        fiat: { currencyCode: 'USD', currencyName: 'US Dollar', currencySymbol: '$', countryCode: 'US' },
+        token: { token: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', symbol: 'USDC', name: 'USD Coin', decimals: 6, chainId: 8453 },
         quotes: [
           {
             fiatAmount: '100',
@@ -220,13 +224,17 @@ describe('Zkp2pClient.getQuote', () => {
 
   it('should work with authorization token instead of API key', async () => {
     // Create client with authorization token
-    const publicClient = createPublicClient({
+    const testPrivateKey = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' as const;
+    const account = privateKeyToAccount(testPrivateKey);
+    const walletClient = createWalletClient({
+      account,
       chain: base,
       transport: http(),
     });
 
     const clientWithAuthToken = new Zkp2pClient({
-      publicClient,
+      walletClient,
+      apiKey: '', // Empty API key, using authToken instead
       authorizationToken: mockAuthToken,
       chainId: 8453,
     });
@@ -235,8 +243,8 @@ describe('Zkp2pClient.getQuote', () => {
       success: true,
       message: 'Success',
       responseObject: {
-        fiat: { currencyCode: 'USD' },
-        token: { symbol: 'USDC' },
+        fiat: { currencyCode: 'USD', currencyName: 'US Dollar', currencySymbol: '$', countryCode: 'US' },
+        token: { token: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', symbol: 'USDC', name: 'USD Coin', decimals: 6, chainId: 8453 },
         quotes: [
           {
             fiatAmount: '100',
@@ -274,8 +282,8 @@ describe('Zkp2pClient.getQuote', () => {
           email: 'alice@example.com',
         },
         hashedOnchainId: 'hashed-id-1',
-        createdAt: new Date('2024-01-01'),
-        updatedAt: new Date('2024-01-01'),
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
       },
       statusCode: 200,
     };
@@ -298,7 +306,7 @@ describe('Zkp2pClient.getQuote', () => {
     // Verify apiGetPayeeDetails was called with authorization token
     expect(api.apiGetPayeeDetails).toHaveBeenCalledWith(
       { hashedOnchainId: 'hashed-id-1', processorName: 'venmo' },
-      undefined,
+      '', // Empty API key since we're using authorization token
       expect.any(String),
       mockAuthToken,
       expect.any(Number)
@@ -313,13 +321,17 @@ describe('Zkp2pClient.getQuote', () => {
 
   it('should not fetch payee details when neither API key nor authorization token is available', async () => {
     // Create client without API key or authorization token
-    const publicClient = createPublicClient({
+    const testPrivateKey = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' as const;
+    const account = privateKeyToAccount(testPrivateKey);
+    const walletClient = createWalletClient({
+      account,
       chain: base,
       transport: http(),
     });
 
     const clientWithoutAuth = new Zkp2pClient({
-      publicClient,
+      walletClient,
+      apiKey: '', // Empty API key
       chainId: 8453,
     });
 
@@ -327,8 +339,8 @@ describe('Zkp2pClient.getQuote', () => {
       success: true,
       message: 'Success',
       responseObject: {
-        fiat: { currencyCode: 'USD' },
-        token: { symbol: 'USDC' },
+        fiat: { currencyCode: 'USD', currencyName: 'US Dollar', currencySymbol: '$', countryCode: 'US' },
+        token: { token: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', symbol: 'USDC', name: 'USD Coin', decimals: 6, chainId: 8453 },
         quotes: [
           {
             fiatAmount: '100',
@@ -381,8 +393,8 @@ describe('Zkp2pClient.getQuote', () => {
       success: true,
       message: 'Success',
       responseObject: {
-        fiat: { currencyCode: 'USD' },
-        token: { symbol: 'USDC' },
+        fiat: { currencyCode: 'USD', currencyName: 'US Dollar', currencySymbol: '$', countryCode: 'US' },
+        token: { token: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', symbol: 'USDC', name: 'USD Coin', decimals: 6, chainId: 8453 },
         quotes: [
           {
             fiatAmount: '100',
@@ -423,8 +435,8 @@ describe('Zkp2pClient.getQuote', () => {
           additionalInfo: 'Some extra data',
         },
         hashedOnchainId: 'hashed-id-1',
-        createdAt: new Date('2024-01-01'),
-        updatedAt: new Date('2024-01-01'),
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
       },
       statusCode: 200,
     };
@@ -459,8 +471,8 @@ describe('Zkp2pClient.getQuote', () => {
       success: true,
       message: 'Success',
       responseObject: {
-        fiat: { currencyCode: 'USD' },
-        token: { symbol: 'USDC' },
+        fiat: { currencyCode: 'USD', currencyName: 'US Dollar', currencySymbol: '$', countryCode: 'US' },
+        token: { token: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', symbol: 'USDC', name: 'USD Coin', decimals: 6, chainId: 8453 },
         quotes: [
           {
             fiatAmount: '100',
@@ -495,8 +507,8 @@ describe('Zkp2pClient.getQuote', () => {
         processorName: 'venmo',
         depositData: {},
         hashedOnchainId: 'hashed-id-1',
-        createdAt: new Date('2024-01-01'),
-        updatedAt: new Date('2024-01-01'),
+        createdAt: '2024-01-01T00:00:00.000Z',
+        updatedAt: '2024-01-01T00:00:00.000Z',
       },
       statusCode: 200,
     };
@@ -525,8 +537,8 @@ describe('Zkp2pClient.getQuote', () => {
       success: true,
       message: 'Success',
       responseObject: {
-        fiat: { currencyCode: 'USD' },
-        token: { symbol: 'USDC' },
+        fiat: { currencyCode: 'USD', currencyName: 'US Dollar', currencySymbol: '$', countryCode: 'US' },
+        token: { token: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', symbol: 'USDC', name: 'USD Coin', decimals: 6, chainId: 8453 },
         quotes: [
           {
             fiatAmount: '100',
@@ -579,8 +591,8 @@ describe('Zkp2pClient.getQuote', () => {
       success: true,
       message: 'Success',
       responseObject: {
-        fiat: { currencyCode: 'USD' },
-        token: { symbol: 'USDC' },
+        fiat: { currencyCode: 'USD', currencyName: 'US Dollar', currencySymbol: '$', countryCode: 'US' },
+        token: { token: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', symbol: 'USDC', name: 'USD Coin', decimals: 6, chainId: 8453 },
         quotes: [
           {
             fiatAmount: '100',
