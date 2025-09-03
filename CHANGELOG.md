@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.2] - 2025-09-03
+
+### Changed
+- ci: refine release workflow to set version from tag, prevent re-publish of existing versions, and auto-promote dist-tags when applicable.
+- chore: sync root publish metadata from workspace during CI for accurate provenance.
+
 ## [2.2.1] - 2025-01-03
 
 ### Fixed

@@ -43,17 +43,51 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          set -euo pipefail
           TAG="${GITHUB_REF##*/}"
           echo "Publishing for tag: $TAG"
+
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "ERROR: Tag must be semantic version prefixed with 'v', e.g. v2.2.2 or v2.2.2-dev.0"
+            exit 1
+          fi
+
+          VERSION_FROM_TAG="${TAG#v}"
+          echo "Setting workspace version from tag: ${VERSION_FROM_TAG}"
+          npm --prefix packages/client-sdk pkg set version="${VERSION_FROM_TAG}"
+
+          # Read back name/version from workspace after enforcing tag version
+          PKG_NAME=$(node -p "require('./packages/client-sdk/package.json').name")
+          PKG_VERSION=$(node -p "require('./packages/client-sdk/package.json').version")
+          echo "Package resolved from workspace: ${PKG_NAME}@${PKG_VERSION}"
+
+          # Sync root manifest to workspace manifest to ensure correct name/version during publish
+          npm pkg set name="$PKG_NAME"
+          npm pkg set version="$PKG_VERSION"
+
+          # Dev prerelease flow (e.g., tags like v2.2.2-dev.0)
           if [[ "$TAG" == *"-dev."* ]]; then
             echo "Detected dev pre-release tag. Publishing under temporary UNscoped name zkp2p-client-sdk-dev with dist-tag 'dev' (no provenance)"
-            # Sync root package version with workspace version for consistency
-            ROOT_VERSION=$(node -p "require('./packages/client-sdk/package.json').version")
-            npm pkg set version="$ROOT_VERSION"
-            # Rewrite package name for dev publishes to an unscoped temporary name (no org scope permissions required)
             npm pkg set name=zkp2p-client-sdk-dev
-            # Disable provenance because this repository is private
             npm publish --access public --tag dev --no-provenance
-          else
-            npm publish --access public --provenance
+            exit 0
           fi
+
+          # Validate that stable tag matches workspace version (e.g., v2.2.2)
+          EXPECTED_TAG="v${PKG_VERSION}"
+          if [[ "$TAG" != "$EXPECTED_TAG" ]]; then
+            echo "ERROR: Tag ($TAG) does not match workspace version ($PKG_VERSION)."
+            echo "Push tag $EXPECTED_TAG or update packages/client-sdk/package.json."
+            exit 1
+          fi
+
+          # If this version already exists on npm, skip publishing and ensure 'latest' points to it
+          if npm view "${PKG_NAME}@${PKG_VERSION}" version >/dev/null 2>&1; then
+            echo "Version ${PKG_NAME}@${PKG_VERSION} already exists on npm. Skipping publish."
+            echo "Promoting existing version to 'latest' dist-tag (idempotent)."
+            npm dist-tag add "${PKG_NAME}@${PKG_VERSION}" latest || true
+            exit 0
+          fi
+
+          # Stable publish with provenance
+          npm publish --access public --provenance

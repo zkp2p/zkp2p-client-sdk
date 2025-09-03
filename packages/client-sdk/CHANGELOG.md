@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [Conventional Commits](https://www.conventionalcommits.org/).
 
+## [2.2.2] - 2025-09-03
+
+### Changed
+- CI: Safer publish workflow that syncs workspace version from tag, avoids republishing existing versions, and promotes dist-tags idempotently.
+- CI: Dev prereleases publish to `zkp2p-client-sdk-dev` under `--tag dev` (no provenance) for easier testing.
+
 ## [2.1.0] - 2025-09-02
 
 ### Added
