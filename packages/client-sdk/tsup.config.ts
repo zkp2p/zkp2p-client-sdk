@@ -8,6 +8,7 @@ export default defineConfig({
     'v2/index': 'src/v2/index.ts',
   },
   format: ['esm', 'cjs'],
+  outExtension: ({ format }) => ({ js: format === 'cjs' ? '.cjs' : '.mjs' }),
   dts: true,
   sourcemap: true,
   clean: true,

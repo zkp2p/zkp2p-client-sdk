@@ -8,7 +8,7 @@ import type {
 } from '../types';
 import { apiPostDepositDetails } from '../adapters/api';
 import { DEPLOYED_ADDRESSES } from '../utils/constants';
-import { ethers } from 'ethers';
+import { encodeAbiParameters } from 'viem';
 import { mapConversionRatesToOnchain } from '../utils/currency';
 import { ValidationError, ZKP2PError, ContractError, ErrorCode } from '../errors';
 
@@ -73,8 +73,8 @@ export async function createDeposit(
       processorName: params.processorNames[index]!,
     }));
 
-    const witnessData = ethers.utils.defaultAbiCoder.encode(
-      ['address[]'],
+    const witnessData = encodeAbiParameters(
+      [{ type: 'address[]' }],
       [[DEPLOYED_ADDRESSES[chainId]?.zkp2pWitnessSigner]]
     );
 

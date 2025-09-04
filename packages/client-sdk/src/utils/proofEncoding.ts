@@ -1,4 +1,4 @@
-import { ethers, utils } from 'ethers';
+import { encodeAbiParameters, encodePacked, keccak256, stringToHex } from 'viem';
 import canonicalize from 'canonicalize';
 
 /*
@@ -55,8 +55,36 @@ export const parseReclaimProxyProof = (proofObject: any) => {
   } as ReclaimProof;
 };
 
-const PROOF_ENCODING_STRING =
-  '(tuple(string provider, string parameters, string context) claimInfo, tuple(tuple(bytes32 identifier, address owner, uint32 timestampS, uint32 epoch) claim, bytes[] signatures) signedClaim, bool isAppclipProof)';
+// ABI parameter for the ReclaimProof tuple
+const PROOF_PARAM = {
+  type: 'tuple',
+  components: [
+    {
+      type: 'tuple',
+      components: [
+        { type: 'string', name: 'provider' },
+        { type: 'string', name: 'parameters' },
+        { type: 'string', name: 'context' },
+      ],
+    },
+    {
+      type: 'tuple',
+      components: [
+        {
+          type: 'tuple',
+          components: [
+            { type: 'bytes32', name: 'identifier' },
+            { type: 'address', name: 'owner' },
+            { type: 'uint32', name: 'timestampS' },
+            { type: 'uint32', name: 'epoch' },
+          ],
+        },
+        { type: 'bytes[]', name: 'signatures' },
+      ],
+    },
+    { type: 'bool', name: 'isAppclipProof' },
+  ],
+} as const;
 
 // Convert proof into ABI-encodable structure with uint32-safe numbers
 function toEncodableProof(proof: ReclaimProof) {
@@ -84,18 +112,23 @@ function toEncodableProof(proof: ReclaimProof) {
   };
 }
 
+function toTupleValue(enc: ReturnType<typeof toEncodableProof>) {
+  return [
+    [enc.claimInfo.provider, enc.claimInfo.parameters, enc.claimInfo.context],
+    [[enc.signedClaim.claim.identifier, enc.signedClaim.claim.owner, enc.signedClaim.claim.timestampS, enc.signedClaim.claim.epoch], enc.signedClaim.signatures],
+    enc.isAppclipProof,
+  ];
+}
+
 export const encodeProofAsBytes = (proof: ReclaimProof) => {
   const enc = toEncodableProof(proof);
-  return ethers.utils.defaultAbiCoder.encode([PROOF_ENCODING_STRING], [enc]);
+  return encodeAbiParameters([PROOF_PARAM as any], [toTupleValue(enc)]);
 };
 
 export const encodeTwoProofs = (proof1: ReclaimProof, proof2: ReclaimProof) => {
-  const p1 = toEncodableProof(proof1);
-  const p2 = toEncodableProof(proof2);
-  return ethers.utils.defaultAbiCoder.encode(
-    [PROOF_ENCODING_STRING, PROOF_ENCODING_STRING],
-    [p1, p2]
-  );
+  const p1 = toTupleValue(toEncodableProof(proof1));
+  const p2 = toTupleValue(toEncodableProof(proof2));
+  return encodeAbiParameters([PROOF_PARAM as any, PROOF_PARAM as any], [p1, p2]);
 };
 
 // Encodes an arbitrary number of proofs as separate top-level tuple params
@@ -103,16 +136,16 @@ export const encodeManyProofs = (proofs: ReclaimProof[]) => {
   if (!Array.isArray(proofs) || proofs.length === 0) {
     throw new Error('encodeManyProofs requires at least one proof');
   }
-  const types = proofs.map(() => PROOF_ENCODING_STRING);
-  const values = proofs.map(toEncodableProof) as any;
-  return ethers.utils.defaultAbiCoder.encode(types, values);
+  const types = proofs.map(() => PROOF_PARAM as any);
+  const values = proofs.map((p) => toTupleValue(toEncodableProof(p)));
+  return encodeAbiParameters(types as any, values as any);
 };
 
 export const encodeProofAndPaymentMethodAsBytes = (
   proof: `0x${string}`,
   paymentMethod: number
 ) => {
-  return ethers.utils.solidityPack(['uint8', 'bytes'], [paymentMethod, proof]);
+  return encodePacked(['uint8', 'bytes'], [paymentMethod, proof]);
 };
 
 export function createSignDataForClaim(data: CompleteClaimData) {
@@ -137,7 +170,7 @@ export function getIdentifierFromClaimInfo(info: ClaimInfo): string {
     }
   }
   const str = `${info.provider}\n${info.parameters}\n${info.context || ''}`;
-  return utils.keccak256(new TextEncoder().encode(str)).toLowerCase();
+  return keccak256(stringToHex(str)).toLowerCase();
 }
 
 // High-level helper to assemble proof bytes from one or more proofs and optional payment method

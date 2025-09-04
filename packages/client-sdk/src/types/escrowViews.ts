@@ -1,24 +1,22 @@
-import { BigNumber } from 'ethers';
-
 export interface EscrowRange {
-  min: BigNumber;
-  max: BigNumber;
+  min: bigint;
+  max: bigint;
 }
 
 export interface EscrowDeposit {
   depositor: string;
   token: string;
-  depositAmount: BigNumber;
+  depositAmount: bigint;
   intentAmountRange: EscrowRange;
   acceptingIntents: boolean;
-  remainingDepositAmount: BigNumber;
-  outstandingIntentAmount: BigNumber;
+  remainingDepositAmount: bigint;
+  outstandingIntentAmount: bigint;
   intentHashes: string[];
 }
 
 export interface EscrowCurrency {
   code: string;
-  conversionRate: BigNumber;
+  conversionRate: bigint;
 }
 
 export interface EscrowDepositVerifierData {
@@ -34,21 +32,21 @@ export interface EscrowVerifierDataView {
 }
 
 export interface EscrowDepositView {
-  depositId: BigNumber;
+  depositId: bigint;
   deposit: EscrowDeposit;
-  availableLiquidity: BigNumber;
+  availableLiquidity: bigint;
   verifiers: EscrowVerifierDataView[];
 }
 
 export interface EscrowIntent {
   owner: string;
   to: string;
-  depositId: BigNumber;
-  amount: BigNumber;
-  timestamp: BigNumber;
+  depositId: bigint;
+  amount: bigint;
+  timestamp: bigint;
   paymentVerifier: string;
   fiatCurrency: string;
-  conversionRate: BigNumber;
+  conversionRate: bigint;
 }
 
 export interface EscrowIntentView {
@@ -56,4 +54,3 @@ export interface EscrowIntentView {
   intent: EscrowIntent;
   deposit: EscrowDepositView;
 }
-

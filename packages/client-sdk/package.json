@@ -1,6 +1,6 @@
 {
   "name": "@zkp2p/client-sdk",
-  "version": "2.2.2",
+  "version": "3.0.0",
   "description": "Browser-first TypeScript SDK for ZKP2P with React hooks, unified authentication, and peerauth extension integration",
   "license": "MIT",
   "main": "dist/index.cjs",
@@ -86,12 +86,11 @@
     "vitest": "^1.5.0"
   },
   "dependencies": {
-    "canonicalize": "^1.0.8",
-    "ethers": "^5.7.2"
+    "canonicalize": "^1.0.8"
   },
   "peerDependencies": {
     "react": ">=16.8.0",
-    "viem": ">=2.9.0"
+    "viem": "^2.37.3"
   },
   "peerDependenciesMeta": {
     "react": {

@@ -353,6 +353,8 @@ describe('api adapters', () => {
       );
     });
 
+    
+
     it('fetches intents by recipient with status filter', async () => {
       const mockResponse = { success: true, message: 'ok', statusCode: 200, responseObject: [] };
       const fetchMock = vi.fn(async () => new Response(JSON.stringify(mockResponse), { status: 200 }));

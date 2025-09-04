@@ -6,18 +6,27 @@ import {
   type EscrowIntent,
   type EscrowIntentView,
 } from '../types/escrowViews';
-import { BigNumber } from 'ethers';
+// Convert numeric-like values to bigint consistently
+function toBigInt(v: any): bigint {
+  if (typeof v === 'bigint') return v;
+  if (typeof v === 'number') return BigInt(v);
+  if (typeof v === 'string') return BigInt(v);
+  // viem may return hex strings for bytes32[], but for uints it returns bigint
+  // For unknown objects (e.g., BN), try valueOf/toString
+  if (v && typeof v.toString === 'function') return BigInt(v.toString());
+  throw new Error('Unsupported numeric type for bigint conversion');
+}
 
 export function parseEscrowDeposit(depositData: any): EscrowDeposit {
   return {
     depositor: depositData.depositor,
-    depositAmount: BigNumber.from(depositData.amount),
-    remainingDepositAmount: BigNumber.from(depositData.remainingDeposits),
-    outstandingIntentAmount: BigNumber.from(depositData.outstandingIntentAmount),
+    depositAmount: toBigInt(depositData.amount),
+    remainingDepositAmount: toBigInt(depositData.remainingDeposits),
+    outstandingIntentAmount: toBigInt(depositData.outstandingIntentAmount),
     intentHashes: depositData.intentHashes,
     intentAmountRange: {
-      min: BigNumber.from(depositData.intentAmountRange.min),
-      max: BigNumber.from(depositData.intentAmountRange.max),
+      min: toBigInt(depositData.intentAmountRange.min),
+      max: toBigInt(depositData.intentAmountRange.max),
     },
     token: depositData.token,
     acceptingIntents: depositData.acceptingIntents,
@@ -34,7 +43,7 @@ export function parseEscrowVerifiers(verifiersRaw: any[]): EscrowVerifierDataVie
     },
     currencies: v.currencies.map((c: EscrowCurrency) => ({
       code: c.code,
-      conversionRate: BigNumber.from(c.conversionRate),
+      conversionRate: toBigInt(c.conversionRate),
     })),
   }));
 }
@@ -42,8 +51,8 @@ export function parseEscrowVerifiers(verifiersRaw: any[]): EscrowVerifierDataVie
 export function parseEscrowDepositView(depositViewRaw: any): EscrowDepositView {
   return {
     deposit: parseEscrowDeposit(depositViewRaw.deposit),
-    availableLiquidity: BigNumber.from(depositViewRaw.availableLiquidity),
-    depositId: BigNumber.from(depositViewRaw.depositId),
+    availableLiquidity: toBigInt(depositViewRaw.availableLiquidity),
+    depositId: toBigInt(depositViewRaw.depositId),
     verifiers: parseEscrowVerifiers(depositViewRaw.verifiers),
   };
 }
@@ -55,12 +64,12 @@ export function parseEscrowIntentView(intentWithDepositRaw: any): EscrowIntentVi
   const intent: EscrowIntent = {
     owner: intentData.owner,
     to: intentData.to,
-    depositId: BigNumber.from(intentData.depositId),
-    amount: BigNumber.from(intentData.amount),
-    timestamp: BigNumber.from(intentData.timestamp),
+    depositId: toBigInt(intentData.depositId),
+    amount: toBigInt(intentData.amount),
+    timestamp: toBigInt(intentData.timestamp),
     paymentVerifier: intentData.paymentVerifier,
     fiatCurrency: intentData.fiatCurrency,
-    conversionRate: BigNumber.from(intentData.conversionRate),
+    conversionRate: toBigInt(intentData.conversionRate),
   };
 
   const depositView: EscrowDepositView = parseEscrowDepositView(depositViewData);
@@ -71,4 +80,3 @@ export function parseEscrowIntentView(intentWithDepositRaw: any): EscrowIntentVi
     intentHash: intentWithDepositRaw.intentHash,
   };
 }
-

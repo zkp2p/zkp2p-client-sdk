@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [Conventional Commits](https://www.conventionalcommits.org/).
 
+## [3.0.0] - 2025-09-04
+
+### Added
+- Full migration to viem (no ethers dependency). Proof encoding and hashing implemented via `viem`.
+
+### Changed
+- Breaking: on-chain numeric types in `EscrowDepositView`/`EscrowIntentView` moved from `BigNumber` to `bigint`.
+- Build now emits `.cjs` for CommonJS; `exports.require` points to `dist/index.cjs` to ensure Node/CJS compatibility.
+
+### Fixed
+- Package CJS export mismatch that caused `index.cjs` resolution errors in some environments.
+
 ## [2.2.2] - 2025-09-03
 
 ### Changed
