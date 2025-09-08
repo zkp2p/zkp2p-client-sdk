@@ -21,6 +21,7 @@ export type Zkp2pClientOptions = {
   walletClient: WalletClient;
   apiKey: string;
   chainId: number;
+  environment?: 'production' | 'staging';
   baseApiUrl?: string;
   witnessUrl?: string;
   rpcUrl?: string;
@@ -470,9 +471,19 @@ export type GetOwnerDepositsResponse = {
 export type GetDepositByIdRequest = { depositId: string };
 export type GetDepositByIdResponse = { success: boolean; message: string; responseObject: ApiDeposit; statusCode: number };
 
-export type DepositIntentStatistics = { id: number; totalIntents: number; signaledIntents: number; fulfilledIntents: number; prunedIntents: number };
+// Intent/order statistics returned by `/deposits/order-stats`
+export type OrderStats = {
+  id: number;
+  totalIntents: number;
+  signaledIntents: number;
+  fulfilledIntents: number;
+  prunedIntents: number;
+};
+
+// Kept for backward compatibility
+export type DepositIntentStatistics = OrderStats;
 export type GetDepositsOrderStatsRequest = { depositIds: number[] };
-export type GetDepositsOrderStatsResponse = { success: boolean; message: string; responseObject: DepositIntentStatistics[]; statusCode: number };
+export type GetDepositsOrderStatsResponse = { success: boolean; message: string; responseObject: OrderStats[]; statusCode: number };
 
 // Currency domain (ISO) and on-chain currency mapping
 export { Currency } from '../utils/currency';

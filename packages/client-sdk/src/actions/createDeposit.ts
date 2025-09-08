@@ -1,4 +1,4 @@
-import type { Hash, PublicClient, WalletClient } from 'viem';
+import type { Address, Hash, PublicClient, WalletClient } from 'viem';
 import { ESCROW_ABI, ERC20_ABI } from '../utils/contracts';
 import type {
   CreateDepositParams,
@@ -7,7 +7,8 @@ import type {
   OnchainCurrency,
 } from '../types';
 import { apiPostDepositDetails } from '../adapters/api';
-import { DEPLOYED_ADDRESSES } from '../utils/constants';
+import type { EnabledPlatform, ContractSet } from '../utils/constants';
+import { ENABLED_PLATFORMS, getPlatformAddressMap } from '../utils/constants';
 import { encodeAbiParameters } from 'viem';
 import { mapConversionRatesToOnchain } from '../utils/currency';
 import { ValidationError, ZKP2PError, ContractError, ErrorCode } from '../errors';
@@ -20,6 +21,7 @@ export async function createDeposit(
   params: CreateDepositParams,
   apiKey: string,
   baseApiUrl: string,
+  addresses: ContractSet,
   timeoutMs?: number
 ): Promise<{ depositDetails: PostDepositDetailsRequest[]; hash: Hash }> {
   try {
@@ -61,11 +63,18 @@ export async function createDeposit(
     }
     const hashedOnchainIds = apiResponses.map((r) => r.responseObject.hashedOnchainId);
 
+    const isEnabledPlatform = (p: string): p is EnabledPlatform =>
+      (ENABLED_PLATFORMS as readonly string[]).includes(p);
+    
+    const processorAddresses = getPlatformAddressMap(addresses);
     const verifierAddresses = params.processorNames.map((processorName) => {
-      const contractAddresses = DEPLOYED_ADDRESSES[chainId];
-      const addr = contractAddresses?.[processorName as keyof typeof contractAddresses];
-      if (!addr) throw new ValidationError(`Processor ${processorName} not supported on chain ${chainId}`, 'processorName');
-      return addr;
+      if (!isEnabledPlatform(processorName) || !processorAddresses[processorName]) {
+        throw new ValidationError(
+          `Processor ${processorName} not supported on chain ${chainId}`,
+          'processorName'
+        );
+      }
+      return processorAddresses[processorName] as `0x${string}`;
     });
 
     const depositDetails: PostDepositDetailsRequest[] = params.depositData.map((depositData, index) => ({
@@ -75,12 +84,12 @@ export async function createDeposit(
 
     const witnessData = encodeAbiParameters(
       [{ type: 'address[]' }],
-      [[DEPLOYED_ADDRESSES[chainId]?.zkp2pWitnessSigner]]
+      [[addresses.zkp2pWitnessSigner]]
     );
 
     const verifierData: DepositVerifierData[] = hashedOnchainIds.map((hid) => ({
       payeeDetails: hid as string,
-      intentGatingService: DEPLOYED_ADDRESSES[chainId]?.gatingService || '0x0' as `0x${string}`,
+      intentGatingService: addresses.gatingService as `0x${string}`,
       data: witnessData as `0x${string}`,
     }));
 

@@ -139,7 +139,21 @@ describe('actions: createDeposit', () => {
         conversionRates: [[{ currency: 'USD', conversionRate: '1000000' }]],
       } as any,
       'apikey',
-      'https://api.example'
+      'https://api.example',
+      {
+        usdc: '0x5FbDB2315678afecb367f032d93F642f64180aa3' as const,
+        escrow: '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512' as const,
+        venmo: '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9' as const,
+        revolut: '0xa513E6E4b8f2a923D98304ec87F64353C4D5C853' as const,
+        cashapp: '0x610178dA211FEF7D417bC0e6FeD39F05609AD788' as const,
+        wise: '0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82' as const,
+        mercadopago: '0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1' as const,
+        zelle: '0x3Aa5ebB10DC797CAC828524e59A333d0A371443c' as const,
+        paypal: '0xE6E340D132b5f46d1e472DebcD681B2aBc16e57E' as const,
+        monzo: '0x9E545E3C0baAB3E08CdfD552C960A1050f373042' as const,
+        gatingService: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266' as const,
+        zkp2pWitnessSigner: '0x0636c417755E3ae25C6c166D181c0607F4C572A3' as const,
+      }
     );
     expect(res.hash).toMatch(/^0x/);
     // approve + createDeposit writes
