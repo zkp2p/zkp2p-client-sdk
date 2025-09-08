@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [Conventional Commits](https://www.conventionalcommits.org/).
 
+## [3.1.0] - 2025-09-08
+
+### Added
+- **Staging Environment Support**: Added `environment` parameter to `Zkp2pClient` for selecting between production and staging contract addresses on Base mainnet
+- **New Payment Platforms**: Added support for PayPal and Monzo payment platforms across all supported chains
+- **Intent and Deposit Enrichment**: Automatic enrichment of on-chain views with payment metadata:
+  - `paymentMethod` field indicates the platform (e.g., 'venmo', 'paypal', 'monzo')
+  - `paymentData` field contains platform-specific metadata when API key is available
+  - Enrichment is best-effort and non-blocking
+- **Helper Functions**: New utility functions for platform address management:
+  - `getPlatformAddressMap()` - Get mapping of platform names to addresses
+  - `platformFromVerifierAddress()` - Resolve platform name from verifier address
+- **OrderStats Type**: Added proper `OrderStats` type with intent statistics fields
+
+### Changed
+- **Breaking**: `createDeposit` action now requires `addresses` parameter (ContractSet type)
+- Contract constants restructured to support environment-specific addresses
+- Updated `GetDepositsOrderStatsResponse` to use `OrderStats[]` type
+- Removed Scroll chain support (534352) to match React Native SDK
+
+### Fixed
+- Test suite updated to pass new `addresses` parameter to `createDeposit`
+
 ## [3.0.0] - 2025-09-04
 
 ### Added

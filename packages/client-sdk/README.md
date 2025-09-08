@@ -14,8 +14,10 @@ Browser-first TypeScript SDK for integrating ZKP2P into web applications. Built 
 - **Enhanced Callbacks**: Granular progress tracking and error handling
 - **Comprehensive Constants**: All platforms, currencies, and chain data exported
 - **TypeScript First**: Full type safety and IntelliSense support
-- **Multi-Chain Support**: Base, Base Sepolia, Scroll, and Hardhat networks
+- **Multi-Chain Support**: Base (Production & Staging), Base Sepolia, and Hardhat networks
 - **Extension Integration**: Built-in support for peerauth browser extension
+- **Payment Platforms**: Support for Venmo, Revolut, CashApp, Wise, MercadoPago, Zelle, PayPal, and Monzo
+- **Data Enrichment**: Automatic enrichment of intents and deposits with payment metadata
 
 ## Installation
 
@@ -61,11 +63,20 @@ const walletClient = createWalletClient({
   transport: custom(window.ethereum),
 });
 
-// Initialize ZKP2P client
+// Initialize ZKP2P client (Production)
 const client = new Zkp2pClient({
   walletClient,
   apiKey: 'YOUR_API_KEY',
   chainId: SUPPORTED_CHAIN_IDS.BASE_MAINNET, // 8453
+  environment: 'production', // optional, defaults to 'production'
+});
+
+// Or use staging environment for Base mainnet
+const stagingClient = new Zkp2pClient({
+  walletClient,
+  apiKey: 'YOUR_API_KEY',
+  chainId: SUPPORTED_CHAIN_IDS.BASE_MAINNET, // 8453
+  environment: 'staging', // Use staging contract addresses
 });
 ```
 
@@ -693,6 +704,46 @@ console.log('Witness URL:', DEFAULT_WITNESS_URL);
 ```
 
 ## Advanced Usage
+
+### On-chain Views Enrichment
+
+When fetching on-chain deposits and intents, the SDK automatically enriches the data with payment metadata when an API key is provided:
+
+```typescript
+// Fetch deposits with automatic enrichment
+const deposits = await client.getAccountDeposits('0xYourAddress');
+
+// Each deposit's verifiers will include:
+// - paymentMethod: Platform key (e.g., 'venmo', 'revolut', 'paypal')
+// - paymentData: Platform-specific metadata from API (when available)
+deposits.forEach(deposit => {
+  deposit.verifiers.forEach(verifier => {
+    console.log('Platform:', verifier.verificationData.paymentMethod);
+    console.log('Payment Data:', verifier.verificationData.paymentData);
+  });
+});
+
+// Fetch intent with automatic enrichment
+const intent = await client.getAccountIntent('0xYourAddress');
+
+if (intent) {
+  // Top-level intent includes enriched data
+  console.log('Payment Platform:', intent.intent.paymentMethod);
+  console.log('Payment Data:', intent.intent.paymentData);
+  
+  // Verifiers also include enriched data
+  intent.deposit.verifiers.forEach(verifier => {
+    console.log('Verifier Platform:', verifier.verificationData.paymentMethod);
+    console.log('Verifier Data:', verifier.verificationData.paymentData);
+  });
+}
+```
+
+**Notes:**
+- Enrichment is best-effort and won't throw errors if it fails
+- `paymentMethod` is always set when the verifier is a recognized platform
+- `paymentData` requires a valid API key and may not always be available
+- The enrichment happens automatically - no additional configuration needed
 
 ### Custom Timeout Configuration
 
