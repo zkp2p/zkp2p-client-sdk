@@ -6,6 +6,9 @@ import {
   type EscrowIntent,
   type EscrowIntentView,
 } from '../types/escrowViews';
+import { platformFromVerifierAddress, type ContractSet } from './constants';
+import { apiGetPayeeDetails } from '../adapters/api';
+import { logger } from './logger';
 // Convert numeric-like values to bigint consistently
 function toBigInt(v: any): bigint {
   if (typeof v === 'bigint') return v;
@@ -79,4 +82,66 @@ export function parseEscrowIntentView(intentWithDepositRaw: any): EscrowIntentVi
     deposit: depositView,
     intentHash: intentWithDepositRaw.intentHash,
   };
+}
+
+/**
+ * Enrich verifier views with paymentMethod and optional paymentData via API.
+ * Best-effort enrichment: logs and continues on failures.
+ */
+export async function enrichVerifiers(
+  verifiers: EscrowVerifierDataView[],
+  addresses: ContractSet,
+  apiKey?: string,
+  baseApiUrl?: string
+): Promise<void> {
+  await Promise.all(
+    verifiers.map(async (v) => {
+      try {
+        const platform = platformFromVerifierAddress(addresses, v.verifier);
+        if (platform) {
+          v.verificationData.paymentMethod = platform;
+        }
+
+        const hashedOnchainId = v.verificationData.payeeDetails;
+        if (!apiKey || !baseApiUrl || !platform || !hashedOnchainId) return;
+
+        const res = await apiGetPayeeDetails(
+          { hashedOnchainId, processorName: platform },
+          apiKey,
+          baseApiUrl
+        );
+        if (res?.responseObject?.depositData) {
+          // API returns `depositData`; we expose it on views as `paymentData`
+          v.verificationData.paymentData = res.responseObject.depositData;
+        }
+      } catch (e) {
+        logger.warn('[zkp2p] Failed enriching verifier payee data:', e);
+      }
+    })
+  );
+}
+
+/**
+ * Enrich top-level intent with paymentMethod and paymentData from matching verifier.
+ */
+export function enrichIntentFromVerifiers(
+  parsed: EscrowIntentView,
+  addresses: ContractSet
+): void {
+  const intentPlatform = platformFromVerifierAddress(
+    addresses,
+    parsed.intent.paymentVerifier
+  );
+  if (intentPlatform) {
+    parsed.intent.paymentMethod = intentPlatform;
+  }
+
+  const match = parsed.deposit.verifiers.find(
+    (v) =>
+      v.verifier?.toLowerCase?.() ===
+      parsed.intent.paymentVerifier?.toLowerCase?.()
+  );
+  if (match?.verificationData?.paymentData) {
+    parsed.intent.paymentData = match.verificationData.paymentData;
+  }
 }

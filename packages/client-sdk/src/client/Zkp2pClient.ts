@@ -1,8 +1,8 @@
 import type { Address, Hash, PublicClient, WalletClient } from 'viem';
 import { createPublicClient, http } from 'viem';
-import { base, baseSepolia, hardhat, scroll, type Chain } from 'viem/chains';
+import { base, baseSepolia, hardhat, type Chain } from 'viem/chains';
 
-import { DEFAULT_BASE_API_URL, DEFAULT_WITNESS_URL, DEPLOYED_ADDRESSES } from '../utils/constants';
+import { DEFAULT_BASE_API_URL, DEFAULT_WITNESS_URL, DEPLOYED_ADDRESSES, type ContractSet, getPlatformAddressMap } from '../utils/constants';
 import type {
   Zkp2pClientOptions,
   FulfillIntentParams,
@@ -65,7 +65,12 @@ import {
 } from '../adapters/api';
 import { apiPostDepositDetails } from '../adapters/api';
 import { ESCROW_ABI } from '../utils/contracts';
-import { parseEscrowDepositView, parseEscrowIntentView } from '../utils/escrowViewParsers';
+import { 
+  parseEscrowDepositView, 
+  parseEscrowIntentView,
+  enrichVerifiers,
+  enrichIntentFromVerifiers
+} from '../utils/escrowViewParsers';
 /**
  * ZKP2P Client for interacting with the ZKP2P protocol
  * 
@@ -82,20 +87,10 @@ export class Zkp2pClient {
   readonly walletClient: WalletClient;
   readonly apiKey: string;
   readonly chainId: number;
+  readonly environment: 'production' | 'staging';
   readonly baseApiUrl: string;
   readonly witnessUrl: string;
-  readonly addresses: {
-    escrow: Address;
-    usdc: Address;
-    venmo: Address;
-    revolut: Address;
-    cashapp: Address;
-    wise: Address;
-    mercadopago: Address;
-    zelle: Address;
-    gatingService: Address;
-    zkp2pWitnessSigner: Address;
-  };
+  readonly addresses: ContractSet;
   readonly publicClient: PublicClient;
   readonly timeouts: Required<TimeoutConfig>;
   readonly authorizationToken?: string;
@@ -103,6 +98,7 @@ export class Zkp2pClient {
   constructor(opts: Zkp2pClientOptions) {
     logger.debug('[Zkp2pClient] Initializing with options:', { 
       chainId: opts.chainId,
+      environment: opts.environment || 'production',
       baseApiUrl: opts.baseApiUrl || DEFAULT_BASE_API_URL,
       witnessUrl: opts.witnessUrl || DEFAULT_WITNESS_URL
     });
@@ -110,18 +106,19 @@ export class Zkp2pClient {
     this.walletClient = opts.walletClient;
     this.apiKey = opts.apiKey;
     this.chainId = opts.chainId;
+    this.environment = opts.environment || 'production';
     this.baseApiUrl = opts.baseApiUrl || DEFAULT_BASE_API_URL;
     this.witnessUrl = opts.witnessUrl || DEFAULT_WITNESS_URL;
     this.authorizationToken = opts.authorizationToken;
 
-    const contractAddresses = DEPLOYED_ADDRESSES[this.chainId];
-    if (!contractAddresses) {
+    // Get the appropriate contract addresses based on chainId and environment
+    const addressConfig = DEPLOYED_ADDRESSES[this.chainId];
+    if (!addressConfig) {
       const supportedChainIds = Object.keys(DEPLOYED_ADDRESSES);
       const supportedChainNames: Record<number, string> = {
         8453: 'Base',
         84532: 'Base Sepolia',
         31337: 'Hardhat',
-        534351: 'Scroll',
       };
       const supportedList = supportedChainIds
         .map((id) => `${id} (${supportedChainNames[Number(id)] || 'Unknown'})`)
@@ -133,18 +130,22 @@ export class Zkp2pClient {
       );
     }
 
-    this.addresses = {
-      escrow: contractAddresses.escrow,
-      usdc: contractAddresses.usdc,
-      venmo: contractAddresses.venmo,
-      revolut: contractAddresses.revolut,
-      cashapp: contractAddresses.cashapp,
-      wise: contractAddresses.wise,
-      mercadopago: contractAddresses.mercadopago,
-      zelle: contractAddresses.zelle,
-      gatingService: contractAddresses.gatingService,
-      zkp2pWitnessSigner: contractAddresses.zkp2pWitnessSigner,
-    };
+    // Check if the chain has environment-specific addresses (like Base mainnet)
+    let contractAddresses: ContractSet;
+    if ('production' in addressConfig && 'staging' in addressConfig) {
+      const envAddresses = addressConfig[this.environment];
+      if (!envAddresses) {
+        throw new ValidationError(
+          `Environment '${this.environment}' not supported for chain ID ${this.chainId}`,
+          'environment'
+        );
+      }
+      contractAddresses = envAddresses;
+    } else {
+      contractAddresses = addressConfig as ContractSet;
+    }
+
+    this.addresses = contractAddresses;
 
     // Set up timeout configuration with defaults
     this.timeouts = {
@@ -157,7 +158,6 @@ export class Zkp2pClient {
     const supportedChains: Record<number, Chain> = {
       [base.id]: base,
       [hardhat.id]: hardhat,
-      [scroll.id]: scroll,
       [baseSepolia.id]: baseSepolia,
     };
     const selectedChainObject = supportedChains[this.chainId];
@@ -220,6 +220,7 @@ export class Zkp2pClient {
       _params,
       this.apiKey,
       this.baseApiUrl,
+      this.addresses,
       this.timeouts.api
     );
   }
@@ -385,9 +386,10 @@ export class Zkp2pClient {
   }
 
   /**
-   * Get order statistics for multiple deposits
+   * Get intent statistics for multiple deposits.
+   * Returns counts: totalIntents, signaledIntents, fulfilledIntents, prunedIntents.
    * @param _params - Request parameters with deposit IDs
-   * @returns Order statistics for the deposits
+   * @returns Intent statistics for the deposits
    */
   async getDepositsOrderStats(_params: GetDepositsOrderStatsRequest): Promise<GetDepositsOrderStatsResponse> {
     logger.debug('[Zkp2pClient] Getting deposits order stats:', _params);
@@ -479,14 +481,42 @@ export class Zkp2pClient {
    */
   async getAccountDeposits(ownerAddress: Address): Promise<EscrowDepositView[]> {
     logger.debug('[Zkp2pClient] Getting account deposits:', { ownerAddress });
-    const raw = await this.publicClient.readContract({
-      address: this.addresses.escrow,
-      abi: ESCROW_ABI,
-      functionName: 'getAccountDeposits',
-      args: [ownerAddress],
-    });
-    if (!raw) return [] as EscrowDepositView[];
-    return (raw as Array<unknown>).map(parseEscrowDepositView);
+    try {
+      const rawDepositViews = await this.publicClient.readContract({
+        address: this.addresses.escrow,
+        abi: ESCROW_ABI,
+        functionName: 'getAccountDeposits',
+        args: [ownerAddress],
+      });
+      if (!rawDepositViews) {
+        return [];
+      }
+      const parsedViews = (rawDepositViews as Array<unknown>).map(parseEscrowDepositView);
+
+      // Enrich verifiers (always sets paymentMethod; attaches paymentData when apiKey is present)
+      try {
+        await Promise.all(
+          parsedViews.map((view) =>
+            enrichVerifiers(
+              view.verifiers,
+              this.addresses,
+              this.apiKey,
+              this.baseApiUrl
+            )
+          )
+        );
+      } catch (e) {
+        logger.warn(
+          '[zkp2p] Error enriching account deposits with payee data:',
+          e
+        );
+      }
+
+      return parsedViews;
+    } catch (error) {
+      logger.error('[zkp2p] Error fetching account deposits:', error);
+      throw error;
+    }
   }
 
   /**
@@ -496,17 +526,45 @@ export class Zkp2pClient {
    */
   async getAccountIntent(ownerAddress: Address): Promise<EscrowIntentView | null> {
     logger.debug('[Zkp2pClient] Getting account intent:', { ownerAddress });
-    const raw = await this.publicClient.readContract({
-      address: this.addresses.escrow,
-      abi: ESCROW_ABI,
-      functionName: 'getAccountIntent',
-      args: [ownerAddress],
-    });
-    if (!raw) return null;
-    const iv = raw as { intentHash?: string; [key: string]: unknown };
-    const zeroHash = '0x' + '0'.repeat(64);
-    if (!iv.intentHash || iv.intentHash.toLowerCase() === zeroHash) return null;
-    return parseEscrowIntentView(raw);
+    try {
+      const rawIntentViews = await this.publicClient.readContract({
+        address: this.addresses.escrow,
+        abi: ESCROW_ABI,
+        functionName: 'getAccountIntent',
+        args: [ownerAddress],
+      });
+      if (!rawIntentViews) return null;
+      const iv = rawIntentViews as { intentHash?: string; [key: string]: unknown };
+      const zeroHash = '0x' + '0'.repeat(64);
+      if (
+        !iv.intentHash ||
+        iv.intentHash.toLowerCase() === zeroHash
+      ) {
+        return null;
+      }
+      const parsed = parseEscrowIntentView(rawIntentViews);
+
+      // Enrich verifiers for the intent view and propagate to top-level intent
+      try {
+        await enrichVerifiers(
+          parsed.deposit.verifiers,
+          this.addresses,
+          this.apiKey,
+          this.baseApiUrl
+        );
+        enrichIntentFromVerifiers(parsed, this.addresses);
+      } catch (e) {
+        logger.warn(
+          '[zkp2p] Error enriching account intent with payee data:',
+          e
+        );
+      }
+
+      return parsed;
+    } catch (error) {
+      logger.error('[zkp2p] Error fetching account intent:', error);
+      throw error;
+    }
   }
 
   getUsdcAddress(): Address {

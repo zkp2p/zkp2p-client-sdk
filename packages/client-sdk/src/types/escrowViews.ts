@@ -23,6 +23,12 @@ export interface EscrowDepositVerifierData {
   intentGatingService: string;
   payeeDetails: string;
   data: string;
+  // Optional enrichment from API when available
+  paymentData?: {
+    [key: string]: string;
+  };
+  // Optional enriched platform key (e.g., 'wise', 'revolut')
+  paymentMethod?: string;
 }
 
 export interface EscrowVerifierDataView {
@@ -47,6 +53,12 @@ export interface EscrowIntent {
   paymentVerifier: string;
   fiatCurrency: string;
   conversionRate: bigint;
+  // Optional enriched data resolved via API for the selected verifier
+  paymentData?: {
+    [key: string]: string;
+  };
+  // Optional enriched platform key (e.g., 'wise', 'revolut')
+  paymentMethod?: string;
 }
 
 export interface EscrowIntentView {
