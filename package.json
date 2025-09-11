@@ -1,5 +1,6 @@
 {
-  "name": "@zkp2p/client-sdk",
+  "name": "zkp2p-client-sdk-root",
+  "private": true,
   "version": "0.1.0",
   "description": "Browser-first TypeScript SDK for ZKP2P with peerauth extension integration",
   "license": "MIT",
@@ -7,16 +8,7 @@
   "module": "packages/client-sdk/dist/index.mjs",
   "types": "packages/client-sdk/dist/index.d.ts",
   "sideEffects": false,
-  "exports": {
-    ".": {
-      "import": "./packages/client-sdk/dist/index.mjs",
-      "require": "./packages/client-sdk/dist/index.cjs"
-    },
-    "./extension": {
-      "import": "./packages/client-sdk/dist/extension.mjs",
-      "require": "./packages/client-sdk/dist/extension.cjs"
-    }
-  },
+  "exports": {},
   "scripts": {
     "build": "npm --prefix packages/client-sdk run build",
     "clean": "npm --prefix packages/client-sdk run clean",

@@ -155,6 +155,27 @@ describe('api adapters', () => {
       );
     });
 
+    it('appends status query when provided for owner deposits', async () => {
+      const mockResponse = {
+        success: true,
+        message: 'ok',
+        statusCode: 200,
+        responseObject: [],
+      };
+      const fetchMock = vi.fn(async () => new Response(JSON.stringify(mockResponse), { status: 200 }));
+      (globalThis as any).fetch = fetchMock;
+
+      await apiGetOwnerDeposits(
+        { ownerAddress: '0xabc', status: 'WITHDRAWN' },
+        'api-key',
+        'https://api.example'
+      );
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://api.example/deposits/maker/0xabc?status=WITHDRAWN',
+        expect.objectContaining({ method: 'GET' })
+      );
+    });
+
     it('fetches owner intents', async () => {
       const mockResponse = {
         success: true,

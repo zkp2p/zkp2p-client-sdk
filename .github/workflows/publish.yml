@@ -1,0 +1,80 @@
+name: Publish @zkp2p/client-sdk
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'packages/client-sdk/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Build, Test, and Publish
+    runs-on: ubuntu-latest
+    env:
+      PACKAGE_DIR: packages/client-sdk
+      NODE_VERSION: '20'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        working-directory: ${{ env.PACKAGE_DIR }}
+        run: npm ci
+
+      - name: Lint
+        working-directory: ${{ env.PACKAGE_DIR }}
+        run: npm run lint --silent
+
+      - name: Typecheck
+        working-directory: ${{ env.PACKAGE_DIR }}
+        run: npm run typecheck --silent
+
+      - name: Test
+        working-directory: ${{ env.PACKAGE_DIR }}
+        run: npm test --silent
+
+      - name: Build
+        working-directory: ${{ env.PACKAGE_DIR }}
+        run: npm run build --silent
+
+      - name: Read local package version
+        id: pkg
+        working-directory: ${{ env.PACKAGE_DIR }}
+        run: |
+          echo "local_version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+          echo "package_name=$(node -p "require('./package.json').name")" >> $GITHUB_OUTPUT
+
+      - name: Read published version
+        id: published
+        run: |
+          echo "published_version=$(npm view ${{ steps.pkg.outputs.package_name }} version || echo '0.0.0')" >> $GITHUB_OUTPUT
+
+      - name: Decide publish
+        id: decide
+        run: |
+          echo "Local: ${{ steps.pkg.outputs.local_version }} | Published: ${{ steps.published.outputs.published_version }}"
+          if [ "${{ steps.pkg.outputs.local_version }}" = "${{ steps.published.outputs.published_version }}" ]; then
+            echo "should_publish=false" >> $GITHUB_OUTPUT
+          else
+            echo "should_publish=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish to npm (latest)
+        if: steps.decide.outputs.should_publish == 'true'
+        working-directory: ${{ env.PACKAGE_DIR }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          # Use provenance for public repos. Remove --provenance if using private CI.
+          npm publish --access public --provenance
+

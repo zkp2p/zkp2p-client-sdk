@@ -459,6 +459,8 @@ export type ApiDeposit = {
 
 export type GetOwnerDepositsRequest = {
   ownerAddress: string;
+  /** Optional status filter: 'ACTIVE' | 'WITHDRAWN' | 'CLOSED' */
+  status?: DepositStatus;
 };
 
 export type GetOwnerDepositsResponse = {

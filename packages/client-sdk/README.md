@@ -19,6 +19,14 @@ Browser-first TypeScript SDK for integrating ZKP2P into web applications. Built 
 - **Payment Platforms**: Support for Venmo, Revolut, CashApp, Wise, MercadoPago, Zelle, PayPal, and Monzo
 - **Data Enrichment**: Automatic enrichment of intents and deposits with payment metadata
 
+## Project Structure
+
+- `@zkp2p/client-sdk` root export exposes the current stable client and types.
+- Versioned subpaths:
+  - `@zkp2p/client-sdk/v1` — current stable surface (recommended import)
+  - `@zkp2p/client-sdk/v2` — scaffold for future API; intentionally minimal
+- Browser-only helpers under `@zkp2p/client-sdk/extension` (peerauth helpers, metadata orchestration).
+
 ## Installation
 
 ```bash
@@ -162,6 +170,47 @@ await client.updateSpread(123, { spread: 0.0125 });
 await client.upsertSpread(123, { spread: 0.01 });
 await client.deleteSpread(123);
 ```
+
+## SSR Usage (Next.js, Remix)
+
+The `extension` entry is browser-only. When server-rendering, guard access and use dynamic import:
+
+```ts
+// Safe access pattern
+const isBrowser = typeof window !== 'undefined';
+if (isBrowser) {
+  const { ExtensionMetadataFlow } = await import('@zkp2p/client-sdk/extension');
+  // use ExtensionMetadataFlow
+}
+```
+
+In React frameworks (Next.js), prefer `dynamic(() => import('@zkp2p/client-sdk/extension'), { ssr: false })` for UI components that rely on the extension.
+
+## Security Notes
+
+- Do not commit API keys. Provide `apiKey` (or `authorizationToken`) at runtime via app config.
+- Extension messaging validates `event.origin`. Only listen to trusted origins and propagate data defensively.
+- Validate user-provided payee details with `validatePayeeDetails` before registering or signaling intents.
+
+## Quality & Tooling
+
+- Lint: `npm run lint` (ESLint with TypeScript + import and Prettier compatibility)
+- Format: `npm run format` / `npm run format:write` (Prettier)
+- Types: `npm run typecheck` (strict TS)
+- Tests: `npm run test` (Vitest unit tests)
+- Build: `npm run build` (tsup ESM/CJS + d.ts)
+
+## Contributing & Development
+
+```bash
+cd packages/client-sdk
+npm ci
+npm run build
+npm run test
+npm run lint && npm run format
+```
+
+We follow Conventional Commits for releases. See `PUBLISHING.md` for package publishing guidance.
 
 ### Auth Options
 

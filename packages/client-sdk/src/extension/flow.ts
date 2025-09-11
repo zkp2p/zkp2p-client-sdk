@@ -66,7 +66,8 @@ export class ExtensionProofFlow {
       const start = Date.now();
       // immediate poll once
       this.ext.fetchProofById();
-      while (true) {
+      let done = false;
+      while (!done) {
         if (Date.now() - start > timeoutMs) {
           onProgress?.({ stage: 'proof_error', proofIndex: i, message: 'Timed out waiting for proof' });
           throw new Error('Timed out waiting for proof');
@@ -77,7 +78,7 @@ export class ExtensionProofFlow {
             const parsed = parseExtensionProof(this.lastRequest.proof);
             proofs.push(parsed);
             onProgress?.({ stage: 'proof_success', proofIndex: i });
-            break;
+            done = true;
           } catch (e) {
             onProgress?.({ stage: 'proof_error', proofIndex: i, message: (e as Error)?.message });
             throw e;

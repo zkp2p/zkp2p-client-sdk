@@ -423,8 +423,9 @@ export async function apiGetOwnerDeposits(
   authToken?: string,
   timeoutMs?: number
 ): Promise<GetOwnerDepositsResponse> {
+  const statusQuery = req.status ? `?status=${encodeURIComponent(req.status)}` : '';
   const data = await apiFetch<GetOwnerDepositsResponse>({
-    url: `${baseApiUrl}/deposits/maker/${req.ownerAddress}`,
+    url: `${baseApiUrl}/deposits/maker/${req.ownerAddress}${statusQuery}`,
     method: 'GET',
     apiKey,
     authToken,
