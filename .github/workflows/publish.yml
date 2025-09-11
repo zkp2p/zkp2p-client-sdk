@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   publish:
@@ -77,4 +78,3 @@ jobs:
         run: |
           # Use provenance for public repos. Remove --provenance if using private CI.
           npm publish --access public --provenance
-
