@@ -191,6 +191,89 @@ const client = new Zkp2pClient({
 
 - Public Indexer types exported as `IndexerDeposit`, `IndexerDepositWithRelations`, and `IndexerIntent`.
 
+## React Hooks (optional)
+
+Use the minimal hooks from `@zkp2p/client-sdk/react` with your existing `Zkp2pClient` instance.
+
+```tsx
+import { Zkp2pClient } from '@zkp2p/client-sdk';
+import { useSignalIntent, useCreateDeposit, useFulfillIntent } from '@zkp2p/client-sdk/react';
+
+export function SignalButton({ client, params }: { client: Zkp2pClient; params: Parameters<Zkp2pClient['signalIntent']>[0] }) {
+  const { signalIntent, isLoading, error, txHash } = useSignalIntent({ client, onSuccess: (hash) => console.log('Signaled:', hash) });
+  return <button disabled={isLoading} onClick={() => signalIntent(params)}>Signal Intent</button>;
+}
+
+export function CreateDepositButton({ client, params }: { client: Zkp2pClient; params: Parameters<Zkp2pClient['createDeposit']>[0] }) {
+  const { createDeposit, isLoading, error, txHash } = useCreateDeposit({ client });
+  return <button disabled={isLoading} onClick={() => createDeposit(params)}>Create Deposit</button>;
+}
+
+export function FulfillButton({ client, params }: { client: Zkp2pClient; params: Parameters<Zkp2pClient['fulfillIntent']>[0] }) {
+  const { fulfillIntent, isLoading, error, txHash } = useFulfillIntent({ client });
+  return <button disabled={isLoading} onClick={() => fulfillIntent(params)}>Fulfill Intent</button>;
+}
+```
+
+## API Overview
+
+- Reads (Indexer):
+  - `getDeposits(filter?, pagination?)`
+  - `getDepositsWithRelations(filter?, pagination?, { includeIntents?, intentStatuses? })`
+  - `getDepositById(id, { includeIntents?, intentStatuses? })`
+  - `getIntentsForDeposits(ids, statuses?)`
+  - `getOwnerIntents(owner, statuses?)`
+- Writes (Contracts v2.1):
+  - `createDeposit({ token, amount, intentAmountRange, paymentMethods, paymentMethodData, currencies, ... })`
+  - `signalIntent({ orchestrator: { ... } })` (or escrow path)
+  - `fulfillIntent({ useOrchestrator?, orchestratorCall? | escrowCall? })`
+  - `cancelIntent({ intentHash, useOrchestrator? })`
+
+### Testing
+
+```ts
+import { Zkp2pClient } from '@zkp2p/client-sdk';
+import { createWalletClient, http } from 'viem';
+import { hardhat } from 'viem/chains';
+
+const testClient = new Zkp2pClient({
+  walletClient: createWalletClient({
+    chain: hardhat,
+    transport: http(),
+  }),
+  chainId: hardhat.id,
+});
+```
+
+## Contributing & Development
+
+```bash
+cd packages/client-sdk
+npm ci
+npm run build
+npm run test
+npm run lint && npm run format
+```
+
+We follow Conventional Commits for releases. See `PUBLISHING.md` for package publishing guidance.
+
+### Auth Options
+
+Client supports both `x-api-key` and optional `Authorization: Bearer <token>` for hybrid auth.
+
+```typescript
+const client = new Zkp2pClient({
+  walletClient,
+  apiKey: 'YOUR_API_KEY',
+  authorizationToken: 'JWT_OR_OAUTH_TOKEN',
+  chainId: 8453,
+});
+```
+
+### Types
+
+- Public Indexer types exported as `IndexerDeposit`, `IndexerDepositWithRelations`, and `IndexerIntent`.
+
 ## React Integration
 
 ### Complete React Example
@@ -889,13 +972,11 @@ NEXT_PUBLIC_ZKP2P_RPC_URL=https://base-mainnet.g.alchemy.com/v2/your_key
 // app/providers.tsx
 'use client';
 
-import { Zkp2pClient } from '@zkp2p/client-sdk/v1';
+import { Zkp2pClient } from '@zkp2p/client-sdk';
 
 const client = new Zkp2pClient({
   walletClient,
-  apiKey: process.env.NEXT_PUBLIC_ZKP2P_API_KEY!,
   chainId: 8453,
-  rpcUrl: process.env.NEXT_PUBLIC_ZKP2P_RPC_URL,
 });
 ```
 
@@ -917,65 +998,7 @@ const client = new Zkp2pClient({
 });
 ```
 
-## Complete API Reference
-
-### Client Methods
-
-| Method | Description | Returns |
-|--------|-------------|---------|
-| `getQuote(request)` | Get quotes from liquidity providers | `QuoteResponse` |
-| `createDeposit(params)` | Create a new liquidity deposit | `{ hash, depositDetails }` |
-| `signalIntent(params)` | Signal intent to trade | `SignalIntentResponse & { txHash? }` |
-| `fulfillIntent(params)` | Fulfill intent with payment proof | `Hash` |
-| `withdrawDeposit(params)` | Withdraw a deposit | `Hash` |
-| `cancelIntent(params)` | Cancel a pending intent | `Hash` |
-| `releaseFundsToPayer(params)` | Release escrowed funds | `Hash` |
-| `validatePayeeDetails(params)` | Validate payee information | `ValidatePayeeDetailsResponse` |
-| `registerPayeeDetails(params)` | Register payee and get `hashedOnchainId` | `RegisterPayeeDetailsResponse` |
-| `validateAndRegisterPayeeDetails(params)` | Validate then register; returns both | `{ isValid, validation, registration? }` |
-| `listPayees(processorName?)` | List registered payees (makers) | `PresentedMaker[]` |
-| `getIntentsByRecipient(params)` | Intents for a recipient address | `Intent[]` |
-| `getDepositSpread(id)` | Get spread for deposit | API response |
-| `listDepositSpreads()` | List all spreads | API response |
-| `getSpreadsByDepositIds(ids)` | Bulk spreads | API response |
-| `createSpread(body)` | Create spread | API response |
-| `updateSpread(id, body)` | Update spread | API response |
-| `upsertSpread(id, body)` | Upsert spread | API response |
-| `deleteSpread(id)` | Delete spread | API response |
-| `getAccountDeposits(address)` | Get account's deposits | `EscrowDepositView[]` |
-| `getAccountIntent(address)` | Get account's current intent | `EscrowIntentView` |
-
-### React Hooks
-
-| Hook | Purpose | Key Returns |
-|------|---------|-------------|
-| `useZkp2pClient` | Initialize client | `{ client, isInitialized, error }` |
-| `useQuote` | Manage quotes | `{ fetchQuote, quote, isLoading, error }` |
-| `useSignalIntent` | Signal intents | `{ signalIntent, response, isLoading }` |
-| `useCreateDeposit` | Create deposits | `{ createDeposit, txHash, depositDetails }` |
-| `useRegisterPayeeDetails` | Register payee and get payeeHash | `{ registerPayeeDetails, response, isLoading }` |
-| `useValidatePayeeDetails` | Validate payee details | `{ validatePayeeDetails, response, isLoading }` |
-| `usePayeeRegistration` | Validate then register flow | `{ validateAndRegister, result, isLoading }` |
-| `useFulfillIntent` | Fulfill intents | `{ fulfillIntent, txHash, isLoading }` |
-| `useExtensionOrchestrator` | Extension integration | `{ authenticate, payments, proofs }` |
-
-## Testing
-
-```typescript
-// Example test setup
-import { Zkp2pClient } from '@zkp2p/client-sdk/v1';
-import { createWalletClient, http } from 'viem';
-import { hardhat } from 'viem/chains';
-
-const testClient = new Zkp2pClient({
-  walletClient: createWalletClient({
-    chain: hardhat,
-    transport: http(),
-  }),
-  apiKey: 'TEST_KEY',
-  chainId: 31337, // Hardhat
-});
-```
+ 
 
 ## Contributing
 
