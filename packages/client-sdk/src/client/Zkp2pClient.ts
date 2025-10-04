@@ -1,577 +1,261 @@
 import type { Address, Hash, PublicClient, WalletClient } from 'viem';
 import { createPublicClient, http } from 'viem';
-import { base, baseSepolia, hardhat, type Chain } from 'viem/chains';
+import type { Abi } from 'abitype';
 
-import { DEFAULT_BASE_API_URL, DEFAULT_WITNESS_URL, DEPLOYED_ADDRESSES, type ContractSet, getPlatformAddressMap } from '../utils/constants';
-import type {
-  Zkp2pClientOptions,
-  FulfillIntentParams,
-  SignalIntentParams,
-  CreateDepositParams,
-  SignalIntentResponse,
-  QuoteRequest,
-  QuoteResponse,
-  GetPayeeDetailsRequest,
-  GetPayeeDetailsResponse,
-  ValidatePayeeDetailsRequest,
-  ValidatePayeeDetailsResponse,
-  PostDepositDetailsRequest,
-  WithdrawDepositParams,
-  CancelIntentParams,
-  ReleaseFundsToPayerParams,
-  EscrowDepositView,
-  EscrowIntentView,
-  TimeoutConfig,
-  GetOwnerDepositsRequest,
-  GetOwnerDepositsResponse,
-  GetOwnerIntentsRequest,
-  GetOwnerIntentsResponse,
-  GetIntentsByDepositRequest,
-  GetIntentsByDepositResponse,
-  GetIntentsByTakerRequest,
-  GetIntentsByTakerResponse,
-  GetIntentsByRecipientRequest,
-  GetIntentsByRecipientResponse,
-  GetIntentByHashRequest,
-  GetIntentByHashResponse,
-  GetDepositByIdRequest,
-  GetDepositByIdResponse,
-  GetDepositsOrderStatsRequest,
-  GetDepositsOrderStatsResponse,
-  ListPayeesResponse,
-  RegisterPayeeDetailsRequest,
-  RegisterPayeeDetailsResponse,
-} from '../types';
-import { withTimeout, DEFAULT_TIMEOUTS } from '../utils/timeout';
-import { ValidationError } from '../errors';
-import { logger } from '../utils/logger';
-import { fulfillIntent } from '../actions/fulfillIntent';
-import { releaseFundsToPayer } from '../actions/releaseFundsToPayer';
-import { signalIntent as _signalIntent } from '../actions/signalIntent';
-import { createDeposit as _createDeposit } from '../actions/createDeposit';
-import { withdrawDeposit as _withdrawDeposit } from '../actions/withdrawDeposit';
-import { cancelIntent as _cancelIntent } from '../actions/cancelIntent';
-import { 
-  apiGetQuote, 
-  apiGetPayeeDetails, 
-  apiValidatePayeeDetails,
-  apiGetOwnerDeposits,
-  apiGetOwnerIntents,
-  apiGetIntentsByDeposit,
-  apiGetIntentsByTaker,
-  apiGetIntentByHash,
-  apiGetDepositById,
-  apiGetDepositsOrderStats
-} from '../adapters/api';
-import { apiPostDepositDetails } from '../adapters/api';
-import { ESCROW_ABI } from '../utils/contracts';
-import { 
-  parseEscrowDepositView, 
-  parseEscrowIntentView,
-  enrichVerifiers,
-  enrichIntentFromVerifiers
-} from '../utils/escrowViewParsers';
-/**
- * ZKP2P Client for interacting with the ZKP2P protocol
- * 
- * @example
- * ```typescript
- * const client = new Zkp2pClient({
- *   walletClient,
- *   apiKey: 'YOUR_API_KEY',
- *   chainId: 8453, // Base mainnet
- * });
- * ```
- */
+import { defaultIndexerEndpoint, IndexerClient } from '../indexer/client';
+import { IndexerDepositService, type DepositFilter, type PaginationOptions } from '../indexer/service';
+import type { DepositEntity, DepositWithRelations, IntentEntity, IntentStatus } from '../indexer/types';
+import { getContractsV2, orchestratorAvailable, type RuntimeEnv } from '../contractsV2';
+import { apiSignIntentV2 } from '../adapters/verification';
+
+export type Zkp2pNextOptions = {
+  walletClient: WalletClient;
+  chainId: number;
+  rpcUrl?: string;
+  runtimeEnv?: RuntimeEnv; // 'production' | 'staging'
+  indexerUrl?: string;     // override
+  // optional http verification (for orchestrator signal)
+  baseApiUrl?: string;
+  apiKey?: string;
+  authorizationToken?: string;
+  timeouts?: { api?: number };
+};
+
 export class Zkp2pClient {
   readonly walletClient: WalletClient;
-  readonly apiKey: string;
-  readonly chainId: number;
-  readonly environment: 'production' | 'staging';
-  readonly baseApiUrl: string;
-  readonly witnessUrl: string;
-  readonly addresses: ContractSet;
   readonly publicClient: PublicClient;
-  readonly timeouts: Required<TimeoutConfig>;
+  readonly chainId: number;
+  readonly runtimeEnv: RuntimeEnv;
+
+  // contracts v2
+  readonly escrowAddress: Address;
+  readonly escrowAbi: Abi;
+  readonly orchestratorAddress?: Address;
+  readonly orchestratorAbi?: Abi;
+  readonly unifiedPaymentVerifier?: Address;
+
+  // indexer
+  readonly indexer: IndexerClient;
+  readonly deposits: IndexerDepositService;
+
+  // http verification
+  readonly baseApiUrl?: string;
+  readonly apiKey?: string;
   readonly authorizationToken?: string;
+  readonly apiTimeoutMs: number;
 
-  constructor(opts: Zkp2pClientOptions) {
-    logger.debug('[Zkp2pClient] Initializing with options:', { 
-      chainId: opts.chainId,
-      environment: opts.environment || 'production',
-      baseApiUrl: opts.baseApiUrl || DEFAULT_BASE_API_URL,
-      witnessUrl: opts.witnessUrl || DEFAULT_WITNESS_URL
-    });
-    
+  constructor(opts: Zkp2pNextOptions) {
     this.walletClient = opts.walletClient;
-    this.apiKey = opts.apiKey;
     this.chainId = opts.chainId;
-    this.environment = opts.environment || 'production';
-    this.baseApiUrl = opts.baseApiUrl || DEFAULT_BASE_API_URL;
-    this.witnessUrl = opts.witnessUrl || DEFAULT_WITNESS_URL;
+    this.runtimeEnv = opts.runtimeEnv ?? 'production';
+    this.publicClient = createPublicClient({ transport: http(opts.rpcUrl ?? '') });
+
+    // contracts-v2 resolution
+    const { addresses, abis } = getContractsV2(this.chainId, this.runtimeEnv);
+    this.escrowAddress = addresses.escrow as Address;
+    this.escrowAbi = abis.escrow;
+    this.orchestratorAddress = addresses.orchestrator as Address | undefined;
+    this.orchestratorAbi = abis.orchestrator;
+    this.unifiedPaymentVerifier = addresses.unifiedPaymentVerifier as Address | undefined;
+
+    // indexer
+    const endpoint = opts.indexerUrl ?? defaultIndexerEndpoint(this.runtimeEnv === 'staging' ? 'STAGING' : 'PRODUCTION');
+    this.indexer = new IndexerClient(endpoint);
+    this.deposits = new IndexerDepositService(this.indexer);
+
+    // http verification config
+    this.baseApiUrl = opts.baseApiUrl;
+    this.apiKey = opts.apiKey;
     this.authorizationToken = opts.authorizationToken;
+    this.apiTimeoutMs = opts.timeouts?.api ?? 15000;
+  }
 
-    // Get the appropriate contract addresses based on chainId and environment
-    const addressConfig = DEPLOYED_ADDRESSES[this.chainId];
-    if (!addressConfig) {
-      const supportedChainIds = Object.keys(DEPLOYED_ADDRESSES);
-      const supportedChainNames: Record<number, string> = {
-        8453: 'Base',
-        84532: 'Base Sepolia',
-        31337: 'Hardhat',
-      };
-      const supportedList = supportedChainIds
-        .map((id) => `${id} (${supportedChainNames[Number(id)] || 'Unknown'})`)
-        .join(', ');
+  // ---------- Read methods (Indexer) ----------
 
-      throw new ValidationError(
-        `Unsupported chain ID: ${opts.chainId}. Supported chains are: ${supportedList}`,
-        'chainId'
-      );
-    }
+  getDeposits(filter?: DepositFilter, pagination?: PaginationOptions): Promise<DepositEntity[]> {
+    return this.deposits.fetchDeposits(filter, pagination);
+  }
 
-    // Check if the chain has environment-specific addresses (like Base mainnet)
-    let contractAddresses: ContractSet;
-    if ('production' in addressConfig && 'staging' in addressConfig) {
-      const envAddresses = addressConfig[this.environment];
-      if (!envAddresses) {
-        throw new ValidationError(
-          `Environment '${this.environment}' not supported for chain ID ${this.chainId}`,
-          'environment'
-        );
+  getDepositsWithRelations(filter?: DepositFilter, pagination?: PaginationOptions, options?: { includeIntents?: boolean; intentStatuses?: IntentStatus[] }): Promise<DepositWithRelations[]> {
+    return this.deposits.fetchDepositsWithRelations(filter, pagination, options);
+  }
+
+  getDepositById(id: string, options?: { includeIntents?: boolean; intentStatuses?: IntentStatus[] }): Promise<DepositWithRelations | null> {
+    return this.deposits.fetchDepositWithRelations(id, options);
+  }
+
+  getIntentsForDeposits(depositIds: string[], statuses: IntentStatus[] = ['SIGNALED']): Promise<IntentEntity[]> {
+    return this.deposits.fetchIntentsForDeposits(depositIds, statuses);
+  }
+
+  getOwnerIntents(owner: string, statuses?: IntentStatus[]): Promise<IntentEntity[]> {
+    return this.deposits.fetchIntentsByOwner(owner, statuses);
+  }
+
+  // ---------- Write methods (Contracts v2.1, orchestrator-first) ----------
+
+  async createDeposit(params: {
+    token: Address;
+    amount: bigint;
+    intentAmountRange: { min: bigint; max: bigint };
+    paymentMethods: `0x${string}`[];
+    paymentMethodData: { intentGatingService: Address; payeeDetails: string; data: `0x${string}` }[];
+    currencies: { code: `0x${string}`; minConversionRate: bigint }[][];
+    delegate?: Address;
+    intentGuardian?: Address;
+    referrer?: Address;
+    referrerFee?: bigint;
+  }): Promise<Hash> {
+    const args = [{
+      token: params.token,
+      amount: params.amount,
+      intentAmountRange: params.intentAmountRange,
+      paymentMethods: params.paymentMethods,
+      paymentMethodData: params.paymentMethodData,
+      currencies: params.currencies,
+      delegate: (params.delegate ?? '0x0000000000000000000000000000000000000000') as Address,
+      intentGuardian: (params.intentGuardian ?? '0x0000000000000000000000000000000000000000') as Address,
+      referrer: (params.referrer ?? '0x0000000000000000000000000000000000000000') as Address,
+      referrerFee: params.referrerFee ?? 0n,
+    }];
+
+    const { request } = await this.publicClient.simulateContract({
+      address: this.escrowAddress,
+      abi: this.escrowAbi,
+      functionName: 'createDeposit',
+      args,
+      account: this.walletClient.account!,
+    });
+    const hash = await this.walletClient.writeContract(request);
+    return hash as Hash;
+  }
+
+  async signalIntent(params:
+    | {
+        useOrchestrator?: boolean;
+        orchestrator: {
+          escrow: Address;
+          depositId: bigint;
+          amount: bigint;
+          to: Address;
+          paymentMethod: `0x${string}`;
+          fiatCurrency: `0x${string}`;
+          conversionRate: bigint;
+          gatingServiceSignature?: `0x${string}`; // if omitted, SDK will try to fetch via HTTP if configured
+          signatureExpiration?: bigint;           // same as above
+          referrer?: Address;
+          referrerFee?: bigint;
+          postIntentHook?: Address;
+          data?: `0x${string}`;
+          processorName?: string; // for HTTP verifier
+          payeeDetails?: string;   // for HTTP verifier
+        };
       }
-      contractAddresses = envAddresses;
-    } else {
-      contractAddresses = addressConfig as ContractSet;
-    }
-
-    this.addresses = contractAddresses;
-
-    // Set up timeout configuration with defaults
-    this.timeouts = {
-      api: opts.timeouts?.api ?? DEFAULT_TIMEOUTS.API,
-      transaction: opts.timeouts?.transaction ?? DEFAULT_TIMEOUTS.TRANSACTION,
-      proofGeneration: opts.timeouts?.proofGeneration ?? DEFAULT_TIMEOUTS.PROOF_GENERATION,
-      extension: opts.timeouts?.extension ?? DEFAULT_TIMEOUTS.EXTENSION,
-    };
-
-    const supportedChains: Record<number, Chain> = {
-      [base.id]: base,
-      [hardhat.id]: hardhat,
-      [baseSepolia.id]: baseSepolia,
-    };
-    const selectedChainObject = supportedChains[this.chainId];
-    if (!selectedChainObject) {
-      throw new ValidationError(
-        `Chain ID ${this.chainId} is not configured properly. Please check the chain configuration.`,
-        'chainId'
-      );
-    }
-
-    this.publicClient = createPublicClient({
-      chain: selectedChainObject,
-      transport: http(opts.rpcUrl),
-    }) as PublicClient;
-  }
-
-  // The methods below will be wired in subsequent steps by porting actions/adapters
-
-  /**
-   * Fulfill an intent by providing payment proofs
-   * @param _params - Parameters for fulfilling the intent
-   * @returns Transaction hash
-   */
-  async fulfillIntent(_params: FulfillIntentParams): Promise<Hash> {
-    logger.debug('[Zkp2pClient] Fulfilling intent:', { intentHash: _params.intentHash });
-    return fulfillIntent(this.walletClient, this.publicClient, this.addresses.escrow, _params);
-  }
-
-  /**
-   * Signal an intent to use a deposit for payment
-   * @param _params - Parameters for signaling the intent
-   * @returns API response with transaction hash
-   */
-  async signalIntent(_params: SignalIntentParams): Promise<SignalIntentResponse & { txHash?: Hash }> {
-    logger.debug('[Zkp2pClient] Signaling intent:', { depositId: _params.depositId });
-    return _signalIntent(
-      this.walletClient,
-      this.publicClient,
-      this.addresses.escrow,
-      this.chainId,
-      _params,
-      this.apiKey,
-      this.baseApiUrl,
-      this.timeouts.api
-    );
-  }
-
-  /**
-   * Create a new deposit on-chain
-   * @param _params - Parameters for creating the deposit
-   * @returns Deposit details and transaction hash
-   */
-  async createDeposit(_params: CreateDepositParams): Promise<{ depositDetails: PostDepositDetailsRequest[]; hash: Hash }> {
-    logger.debug('[Zkp2pClient] Creating deposit:', { amount: _params.amount, processorNames: _params.processorNames });
-    return _createDeposit(
-      this.walletClient,
-      this.publicClient,
-      this.addresses.escrow,
-      this.chainId,
-      _params,
-      this.apiKey,
-      this.baseApiUrl,
-      this.addresses,
-      this.timeouts.api
-    );
-  }
-
-  /**
-   * Withdraw a deposit from the escrow
-   * @param _params - Parameters for withdrawing the deposit
-   * @returns Transaction hash
-   */
-  async withdrawDeposit(_params: WithdrawDepositParams): Promise<Hash> {
-    logger.debug('[Zkp2pClient] Withdrawing deposit:', { depositId: _params.depositId });
-    return _withdrawDeposit(this.walletClient, this.publicClient, this.addresses.escrow, _params);
-  }
-
-  /**
-   * Cancel a previously signaled intent
-   * @param _params - Parameters for canceling the intent
-   * @returns Transaction hash
-   */
-  async cancelIntent(_params: CancelIntentParams): Promise<Hash> {
-    logger.debug('[Zkp2pClient] Canceling intent:', { intentHash: _params.intentHash });
-    return _cancelIntent(this.walletClient, this.publicClient, this.addresses.escrow, _params);
-  }
-
-  /**
-   * Release funds back to the payer
-   * @param _params - Parameters for releasing funds
-   * @returns Transaction hash
-   */
-  async releaseFundsToPayer(_params: ReleaseFundsToPayerParams): Promise<Hash> {
-    logger.debug('[Zkp2pClient] Releasing funds to payer:', { intentHash: _params.intentHash });
-    return releaseFundsToPayer(this.walletClient, this.publicClient, this.addresses.escrow, _params);
-  }
-
-  /**
-   * Get quotes for a potential swap
-   * @param _params - Quote request parameters
-   * @returns Quote response with available quotes
-   */
-  async getQuote(_params: QuoteRequest): Promise<QuoteResponse> {
-    logger.debug('[Zkp2pClient] Getting quote:', _params);
-    const quoteResponse = await apiGetQuote(_params, this.baseApiUrl, this.timeouts.api);
-
-    // If we have quotes and an API key or authorization token, enrich them with payee details
-    if (quoteResponse.responseObject?.quotes && (this.apiKey || this.authorizationToken)) {
-      try {
-        // Create promises for all payee details fetches
-        const payeeDetailsPromises = quoteResponse.responseObject.quotes.map(
-          async (quote) => {
-            try {
-              const hashedOnchainId = quote.intent.payeeDetails;
-              const processorName = quote.intent.processorName;
-
-              if (hashedOnchainId && processorName) {
-                const payeeDetailsResponse = await apiGetPayeeDetails(
-                  { hashedOnchainId, processorName },
-                  this.apiKey,
-                  this.baseApiUrl,
-                  this.authorizationToken,
-                  this.timeouts.api
-                );
-
-                if (payeeDetailsResponse?.responseObject?.depositData) {
-                  quote.payeeData = payeeDetailsResponse.responseObject.depositData;
-                }
-              }
-            } catch (error) {
-              // Log error but don't fail the entire quote request
-              logger.warn('[Zkp2pClient] Failed to fetch payee details for quote:', error);
-            }
-          }
-        );
-
-        // Wait for all payee details to be fetched (or fail gracefully)
-        await Promise.all(payeeDetailsPromises);
-      } catch (error) {
-        // Log error but return quotes without payee data
-        logger.warn('[Zkp2pClient] Error enriching quotes with payee details:', error);
+    | {
+        // Escrow path (direct)
+        depositId: bigint;
+        tokenAmount: bigint;
+        to: Address;
+        verifier: Address;
+        currencyCodeHash: `0x${string}`;
+        gatingServiceSignature: `0x${string}`;
       }
-    }
-
-    return quoteResponse;
-  }
-
-  /**
-   * Get payee details for a specific deposit
-   * @param _params - Request parameters
-   * @returns Payee details response
-   */
-  async getPayeeDetails(_params: GetPayeeDetailsRequest): Promise<GetPayeeDetailsResponse> {
-    logger.debug('[Zkp2pClient] Getting payee details:', { hashedOnchainId: _params.hashedOnchainId, processorName: _params.processorName });
-    return apiGetPayeeDetails(_params, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
-  }
-
-  /**
-   * Validate payee details before creating a deposit
-   * @param _params - Request parameters
-   * @returns Validation response
-   */
-  async validatePayeeDetails(_params: ValidatePayeeDetailsRequest): Promise<ValidatePayeeDetailsResponse> {
-    logger.debug('[Zkp2pClient] Validating payee details:', { processorName: _params.processorName });
-    return apiValidatePayeeDetails(_params, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
-  }
-
-  /**
-   * Get historical deposits for a given owner address via the API
-   * @param _params - Request parameters with owner address and optional status filter
-   * @returns Historical deposits response
-   */
-  async getAccountDepositsHistory(_params: GetOwnerDepositsRequest): Promise<GetOwnerDepositsResponse> {
-    logger.debug('[Zkp2pClient] Getting account deposits history:', { owner: _params.ownerAddress });
-    return apiGetOwnerDeposits(_params, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
-  }
-
-  /**
-   * Get historical intents for a given owner address
-   * @param _params - Request parameters with owner address
-   * @returns Historical intents response
-   */
-  async getOwnerIntentsHistory(_params: GetOwnerIntentsRequest): Promise<GetOwnerIntentsResponse> {
-    logger.debug('[Zkp2pClient] Getting owner intents history:', { owner: _params.ownerAddress });
-    return apiGetOwnerIntents(_params, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
-  }
-
-  /**
-   * Get historical intents for a given taker address with optional status filter
-   * @param _params - Request parameters with taker address and optional status filter
-   * @returns Historical intents response
-   */
-  async getAccountIntentsHistory(_params: GetIntentsByTakerRequest): Promise<GetIntentsByTakerResponse> {
-    logger.debug('[Zkp2pClient] Getting account intents history:', { taker: _params.takerAddress });
-    return apiGetIntentsByTaker(_params, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
-  }
-
-  /**
-   * Get intents by deposit ID with optional status filter
-   * @param _params - Request parameters with deposit ID and optional status filter
-   * @returns Intents for the deposit
-   */
-  async getIntentsByDeposit(_params: GetIntentsByDepositRequest): Promise<GetIntentsByDepositResponse> {
-    logger.debug('[Zkp2pClient] Getting intents by deposit:', { depositId: _params.depositId });
-    return apiGetIntentsByDeposit(_params, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
-  }
-
-  /**
-   * Get a single intent by its hash
-   * @param _params - Request parameters with intent hash
-   * @returns Intent details
-   */
-  async getIntentByHash(_params: GetIntentByHashRequest): Promise<GetIntentByHashResponse> {
-    logger.debug('[Zkp2pClient] Getting intent by hash:', { hash: _params.intentHash });
-    return apiGetIntentByHash(_params, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
-  }
-
-  /**
-   * Get a single deposit by its ID
-   * @param _params - Request parameters with deposit ID
-   * @returns Deposit details
-   */
-  async getDepositById(_params: GetDepositByIdRequest): Promise<GetDepositByIdResponse> {
-    logger.debug('[Zkp2pClient] Getting deposit by ID:', { depositId: _params.depositId });
-    return apiGetDepositById(_params, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
-  }
-
-  /**
-   * Get intent statistics for multiple deposits.
-   * Returns counts: totalIntents, signaledIntents, fulfilledIntents, prunedIntents.
-   * @param _params - Request parameters with deposit IDs
-   * @returns Intent statistics for the deposits
-   */
-  async getDepositsOrderStats(_params: GetDepositsOrderStatsRequest): Promise<GetDepositsOrderStatsResponse> {
-    logger.debug('[Zkp2pClient] Getting deposits order stats:', _params);
-    return apiGetDepositsOrderStats(_params, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
-  }
-
-  /**
-   * Get intents by recipient address with optional status filter
-   */
-  async getIntentsByRecipient(_params: GetIntentsByRecipientRequest): Promise<GetIntentsByRecipientResponse> {
-    logger.debug('[Zkp2pClient] Getting intents by recipient:', { recipient: _params.recipientAddress });
-    const { apiGetIntentsByRecipient } = await import('../adapters/api');
-    return apiGetIntentsByRecipient(_params, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
-  }
-
-  /**
-   * List registered payees (makers) with optional processor filter
-   */
-  async listPayees(processorName?: string): Promise<ListPayeesResponse> {
-    logger.debug('[Zkp2pClient] Listing payees:', { processorName });
-    const { apiListPayees } = await import('../adapters/api');
-    return apiListPayees(processorName, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
-  }
-
-  /**
-   * Validate and then register payee details. Returns validation and optional registration result.
-   */
-  async validateAndRegisterPayeeDetails(_params: RegisterPayeeDetailsRequest): Promise<{
-    isValid: boolean;
-    validation: ValidatePayeeDetailsResponse;
-    registration?: RegisterPayeeDetailsResponse;
-  }> {
-    const validation = await this.validatePayeeDetails({ processorName: _params.processorName, depositData: _params.depositData });
-    if (!validation.responseObject?.isValid) {
-      return { isValid: false, validation };
-    }
-    const registration = await this.registerPayeeDetails(_params);
-    return { isValid: true, validation, registration };
-  }
-
-  /**
-   * Deposit spread management helpers (maker dashboards)
-   */
-  async getDepositSpread(depositId: number) {
-    const { apiGetDepositSpread } = await import('../adapters/api');
-    return apiGetDepositSpread(depositId, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
-  }
-  async listDepositSpreads() {
-    const { apiListDepositSpreads } = await import('../adapters/api');
-    return apiListDepositSpreads(this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
-  }
-  async getSpreadsByDepositIds(depositIds: number[]) {
-    const { apiGetSpreadsByDepositIds } = await import('../adapters/api');
-    return apiGetSpreadsByDepositIds(depositIds, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
-  }
-  async createSpread(body: { depositId: number; spread: number; minPrice?: number | null; maxPrice?: number | null }) {
-    const { apiCreateSpread } = await import('../adapters/api');
-    return apiCreateSpread(body, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
-  }
-  async updateSpread(depositId: number, body: { spread?: number; minPrice?: number | null; maxPrice?: number | null }) {
-    const { apiUpdateSpread } = await import('../adapters/api');
-    return apiUpdateSpread(depositId, body, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
-  }
-  async upsertSpread(depositId: number, body: { spread?: number; minPrice?: number | null; maxPrice?: number | null }) {
-    const { apiUpsertSpread } = await import('../adapters/api');
-    return apiUpsertSpread(depositId, body, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
-  }
-  async deleteSpread(depositId: number) {
-    const { apiDeleteSpread } = await import('../adapters/api');
-    return apiDeleteSpread(depositId, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
-  }
-
-  /**
-   * Register payee details and receive a hashedOnchainId (payeeHash)
-   * @param _params - Processor name and platform-specific payee details
-   * @returns Response including `hashedOnchainId` (aka payeeHash)
-   */
-  async registerPayeeDetails(
-    _params: RegisterPayeeDetailsRequest
-  ): Promise<RegisterPayeeDetailsResponse> {
-    logger.debug('[Zkp2pClient] Registering payee details:', { processorName: _params.processorName });
-    return apiPostDepositDetails(_params, this.apiKey, this.baseApiUrl, this.authorizationToken, this.timeouts.api);
-  }
-
-  /**
-   * Get all deposits for a specific account
-   * @param ownerAddress - The account address
-   * @returns Array of deposit views
-   */
-  async getAccountDeposits(ownerAddress: Address): Promise<EscrowDepositView[]> {
-    logger.debug('[Zkp2pClient] Getting account deposits:', { ownerAddress });
-    try {
-      const rawDepositViews = await this.publicClient.readContract({
-        address: this.addresses.escrow,
-        abi: ESCROW_ABI,
-        functionName: 'getAccountDeposits',
-        args: [ownerAddress],
-      });
-      if (!rawDepositViews) {
-        return [];
-      }
-      const parsedViews = (rawDepositViews as Array<unknown>).map(parseEscrowDepositView);
-
-      // Enrich verifiers (always sets paymentMethod; attaches paymentData when apiKey is present)
-      try {
-        await Promise.all(
-          parsedViews.map((view) =>
-            enrichVerifiers(
-              view.verifiers,
-              this.addresses,
-              this.apiKey,
-              this.baseApiUrl
-            )
-          )
-        );
-      } catch (e) {
-        logger.warn(
-          '[zkp2p] Error enriching account deposits with payee data:',
-          e
-        );
+  ): Promise<Hash> {
+    const isOrchInput = (p: any): p is { useOrchestrator?: boolean; orchestrator: any } => 'orchestrator' in p;
+    if (isOrchInput(params)) {
+      const preferOrchestrator = params.useOrchestrator !== false && orchestratorAvailable({ escrow: this.escrowAddress, orchestrator: this.orchestratorAddress }, { escrow: this.escrowAbi, orchestrator: this.orchestratorAbi });
+      if (!preferOrchestrator || !this.orchestratorAddress || !this.orchestratorAbi) {
+        throw new Error('Orchestrator not available');
       }
 
-      return parsedViews;
-    } catch (error) {
-      logger.error('[zkp2p] Error fetching account deposits:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get the active intent for a specific account
-   * @param ownerAddress - The account address
-   * @returns Intent view or null if no active intent
-   */
-  async getAccountIntent(ownerAddress: Address): Promise<EscrowIntentView | null> {
-    logger.debug('[Zkp2pClient] Getting account intent:', { ownerAddress });
-    try {
-      const rawIntentViews = await this.publicClient.readContract({
-        address: this.addresses.escrow,
-        abi: ESCROW_ABI,
-        functionName: 'getAccountIntent',
-        args: [ownerAddress],
-      });
-      if (!rawIntentViews) return null;
-      const iv = rawIntentViews as { intentHash?: string; [key: string]: unknown };
-      const zeroHash = '0x' + '0'.repeat(64);
-      if (
-        !iv.intentHash ||
-        iv.intentHash.toLowerCase() === zeroHash
-      ) {
-        return null;
-      }
-      const parsed = parseEscrowIntentView(rawIntentViews);
-
-      // Enrich verifiers for the intent view and propagate to top-level intent
-      try {
-        await enrichVerifiers(
-          parsed.deposit.verifiers,
-          this.addresses,
-          this.apiKey,
-          this.baseApiUrl
+      let { gatingServiceSignature, signatureExpiration } = params.orchestrator;
+      if ((!gatingServiceSignature || !signatureExpiration) && this.baseApiUrl && (this.apiKey || this.authorizationToken)) {
+        if (!params.orchestrator.processorName || !params.orchestrator.payeeDetails) {
+          throw new Error('Missing processorName/payeeDetails for HTTP intent verification');
+        }
+        const resp = await apiSignIntentV2(
+          {
+            processorName: params.orchestrator.processorName,
+            payeeDetails: params.orchestrator.payeeDetails,
+            depositId: params.orchestrator.depositId.toString(),
+            amount: params.orchestrator.amount.toString(),
+            toAddress: params.orchestrator.to,
+            paymentMethod: params.orchestrator.paymentMethod,
+            fiatCurrency: params.orchestrator.fiatCurrency,
+            conversionRate: params.orchestrator.conversionRate.toString(),
+            chainId: this.chainId.toString(),
+            orchestratorAddress: this.orchestratorAddress!,
+            escrowAddress: params.orchestrator.escrow,
+          },
+          { baseApiUrl: this.baseApiUrl, apiKey: this.apiKey, authorizationToken: this.authorizationToken, timeoutMs: this.apiTimeoutMs }
         );
-        enrichIntentFromVerifiers(parsed, this.addresses);
-      } catch (e) {
-        logger.warn(
-          '[zkp2p] Error enriching account intent with payee data:',
-          e
-        );
+        gatingServiceSignature = resp.signature;
+        signatureExpiration = resp.signatureExpiration;
       }
 
-      return parsed;
-    } catch (error) {
-      logger.error('[zkp2p] Error fetching account intent:', error);
-      throw error;
+      if (!gatingServiceSignature || !signatureExpiration) {
+        throw new Error('Missing gatingServiceSignature/signatureExpiration');
+      }
+
+      const args = [{
+        escrow: params.orchestrator.escrow,
+        depositId: params.orchestrator.depositId,
+        amount: params.orchestrator.amount,
+        to: params.orchestrator.to,
+        paymentMethod: params.orchestrator.paymentMethod,
+        fiatCurrency: params.orchestrator.fiatCurrency,
+        conversionRate: params.orchestrator.conversionRate,
+        referrer: (params.orchestrator.referrer ?? ('0x0000000000000000000000000000000000000000' as Address)) as Address,
+        referrerFee: params.orchestrator.referrerFee ?? 0n,
+        gatingServiceSignature,
+        signatureExpiration,
+        postIntentHook: (params.orchestrator.postIntentHook ?? ('0x0000000000000000000000000000000000000000' as Address)) as Address,
+        data: (params.orchestrator.data ?? '0x') as `0x${string}`,
+      }];
+
+      const { request } = await this.publicClient.simulateContract({ address: this.orchestratorAddress, abi: this.orchestratorAbi, functionName: 'signalIntent', args, account: this.walletClient.account! });
+      return (await this.walletClient.writeContract(request)) as Hash;
     }
+
+    // Escrow path
+    const args = [params.depositId, params.tokenAmount, params.to, params.verifier, params.currencyCodeHash, params.gatingServiceSignature] as const;
+    const { request } = await this.publicClient.simulateContract({ address: this.escrowAddress, abi: this.escrowAbi, functionName: 'signalIntent', args, account: this.walletClient.account! });
+    return (await this.walletClient.writeContract(request)) as Hash;
   }
 
-  getUsdcAddress(): Address {
-    return this.addresses.usdc;
+  async cancelIntent(params: { intentHash: `0x${string}`; useOrchestrator?: boolean }): Promise<Hash> {
+    const preferOrchestrator = params.useOrchestrator !== false && orchestratorAvailable({ escrow: this.escrowAddress, orchestrator: this.orchestratorAddress }, { escrow: this.escrowAbi, orchestrator: this.orchestratorAbi });
+    if (preferOrchestrator && this.orchestratorAddress && this.orchestratorAbi) {
+      const { request } = await this.publicClient.simulateContract({ address: this.orchestratorAddress, abi: this.orchestratorAbi, functionName: 'cancelIntent', args: [params.intentHash], account: this.walletClient.account! });
+      return (await this.walletClient.writeContract(request)) as Hash;
+    }
+    const { request } = await this.publicClient.simulateContract({ address: this.escrowAddress, abi: this.escrowAbi, functionName: 'cancelIntent', args: [params.intentHash], account: this.walletClient.account! });
+    return (await this.walletClient.writeContract(request)) as Hash;
   }
 
-  getDeployedAddresses(): typeof this.addresses {
-    return this.addresses;
+  async fulfillIntent(params: {
+    useOrchestrator?: boolean;
+    // orchestrator struct
+    orchestratorCall?: { intentHash: `0x${string}`; verificationData?: `0x${string}`; paymentProof?: `0x${string}`; postIntentHookData?: `0x${string}` };
+    // escrow tuple
+    escrowCall?: { paymentProof: `0x${string}`; intentHash: `0x${string}` };
+  }): Promise<Hash> {
+    const preferOrchestrator = params.useOrchestrator !== false && orchestratorAvailable({ escrow: this.escrowAddress, orchestrator: this.orchestratorAddress }, { escrow: this.escrowAbi, orchestrator: this.orchestratorAbi });
+
+    if (preferOrchestrator && this.orchestratorAddress && this.orchestratorAbi && params.orchestratorCall) {
+      const args = [{
+        paymentProof: (params.orchestratorCall.paymentProof ?? '0x') as `0x${string}`,
+        intentHash: params.orchestratorCall.intentHash,
+        verificationData: (params.orchestratorCall.verificationData ?? '0x') as `0x${string}`,
+        postIntentHookData: (params.orchestratorCall.postIntentHookData ?? '0x') as `0x${string}`,
+      }];
+      const { request } = await this.publicClient.simulateContract({ address: this.orchestratorAddress, abi: this.orchestratorAbi, functionName: 'fulfillIntent', args, account: this.walletClient.account! });
+      return (await this.walletClient.writeContract(request)) as Hash;
+    }
+
+    if (!params.escrowCall) throw new Error('Escrow fulfillIntent requires escrowCall { paymentProof, intentHash }');
+    const { paymentProof, intentHash } = params.escrowCall;
+    const { request } = await this.publicClient.simulateContract({ address: this.escrowAddress, abi: this.escrowAbi, functionName: 'fulfillIntent', args: [paymentProof, intentHash], account: this.walletClient.account! });
+    return (await this.walletClient.writeContract(request)) as Hash;
   }
 }

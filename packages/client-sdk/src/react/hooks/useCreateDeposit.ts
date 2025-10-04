@@ -1,45 +1,22 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import type { Zkp2pClient } from '../../client/Zkp2pClient';
-import type { CreateDepositParams, PostDepositDetailsRequest } from '../../types';
 import type { Hash } from 'viem';
 
 export interface UseCreateDepositOptions {
   client: Zkp2pClient | null;
-  onSuccess?: (result: { hash: Hash; depositDetails: PostDepositDetailsRequest[] }) => void;
+  onSuccess?: (hash: Hash) => void;
   onError?: (error: Error) => void;
 }
 
-/**
- * Hook for creating deposits on the ZKP2P protocol
- * 
- * @example
- * ```tsx
- * const { createDeposit, isLoading, error, txHash, depositDetails } = useCreateDeposit({ 
- *   client,
- *   onSuccess: ({ hash, depositDetails }) => console.log('Deposit created:', hash),
- * });
- * 
- * // Create a deposit
- * await createDeposit({ 
- *   amount: BigInt('1000000'), // 1 USDC
- *   paymentPlatform: 'venmo',
- *   conversionRate: { 
- *     raw: BigInt('1000000'),
- *     float: 1.0,
- *   },
- * });
- * ```
- */
 export function useCreateDeposit({ client, onSuccess, onError }: UseCreateDepositOptions) {
-  const [txHash, setTxHash] = useState<Hash | null>(null);
-  const [depositDetails, setDepositDetails] = useState<PostDepositDetailsRequest[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const [txHash, setTxHash] = useState<Hash | null>(null);
 
   const createDeposit = useCallback(
-    async (params: CreateDepositParams) => {
+    async (params: Parameters<Zkp2pClient['createDeposit']>[0]) => {
       if (!client) {
-        const err = new Error('Client not initialized');
+        const err = new Error('Zkp2pClient is not initialized');
         setError(err);
         onError?.(err);
         return null;
@@ -47,17 +24,17 @@ export function useCreateDeposit({ client, onSuccess, onError }: UseCreateDeposi
 
       setIsLoading(true);
       setError(null);
+      setTxHash(null);
 
       try {
-        const result = await client.createDeposit(params);
-        setTxHash(result.hash);
-        setDepositDetails(result.depositDetails);
-        onSuccess?.(result);
-        return result;
+        const hash = await client.createDeposit(params);
+        setTxHash(hash);
+        onSuccess?.(hash);
+        return hash;
       } catch (err) {
-        const error = err as Error;
-        setError(error);
-        onError?.(error);
+        const e = err instanceof Error ? err : new Error(String(err));
+        setError(e);
+        onError?.(e);
         return null;
       } finally {
         setIsLoading(false);
@@ -66,19 +43,5 @@ export function useCreateDeposit({ client, onSuccess, onError }: UseCreateDeposi
     [client, onSuccess, onError]
   );
 
-  const reset = useCallback(() => {
-    setTxHash(null);
-    setDepositDetails(null);
-    setError(null);
-    setIsLoading(false);
-  }, []);
-
-  return {
-    createDeposit,
-    txHash,
-    depositDetails,
-    isLoading,
-    error,
-    reset,
-  };
+  return useMemo(() => ({ createDeposit, isLoading, error, txHash }), [createDeposit, isLoading, error, txHash]);
 }

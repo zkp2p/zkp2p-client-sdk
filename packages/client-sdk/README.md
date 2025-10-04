@@ -1,31 +1,24 @@
-# @zkp2p/client-sdk
+# @zkp2p/client-sdk (Breaking)
 
 [![npm version](https://img.shields.io/npm/v/@zkp2p/client-sdk.svg)](https://www.npmjs.com/package/@zkp2p/client-sdk)
 [![GitHub Release](https://img.shields.io/github/v/release/zkp2p/zkp2p-client-sdk?display_name=tag)](https://github.com/zkp2p/zkp2p-client-sdk/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0%2B-blue)](https://www.typescriptlang.org/)
 
-Browser-first TypeScript SDK for integrating ZKP2P into web applications. Built with React hooks, unified authentication, and comprehensive type safety.
+Browser-first TypeScript SDK for integrating ZKP2P into web applications.
+
+Breaking notice: This major version removes the legacy v1/v2 split and supports only the new protocol stack — contracts v2.1 (Escrow, Orchestrator, UnifiedPaymentVerifier) and the Indexer (GraphQL) for reads. Intent lifecycle is orchestrator-first (signal → cancel → fulfill). APIs that depended on the legacy Orders API have been removed.
 
 ## Features
 
-- **Unified Authentication**: Single method for authentication and proof generation
-- **React Hooks**: Complete set of hooks for seamless React integration
-- **Enhanced Callbacks**: Granular progress tracking and error handling
-- **Comprehensive Constants**: All platforms, currencies, and chain data exported
-- **TypeScript First**: Full type safety and IntelliSense support
-- **Multi-Chain Support**: Base (Production & Staging), Base Sepolia, and Hardhat networks
-- **Extension Integration**: Built-in support for peerauth browser extension
-- **Payment Platforms**: Support for Venmo, Revolut, CashApp, Wise, MercadoPago, Zelle, PayPal, and Monzo
-- **Data Enrichment**: Automatic enrichment of intents and deposits with payment metadata
+- Contracts v2.1 writes: createDeposit, signalIntent (orchestrator-first), cancelIntent, fulfillIntent
+- Indexer reads: deposits (+relations), intents (by deposit/owner)
+- Proof utilities and minimal logging helpers
 
 ## Project Structure
 
-- `@zkp2p/client-sdk` root export exposes the current stable client and types.
-- Versioned subpaths:
-  - `@zkp2p/client-sdk/v1` — current stable surface (recommended import)
-  - `@zkp2p/client-sdk/v2` — scaffold for future API; intentionally minimal
-- Browser-only helpers under `@zkp2p/client-sdk/extension` (peerauth helpers, metadata orchestration).
+- Root export exposes a single modern client and minimal utilities.
+- Browser-only helpers remain under `@zkp2p/client-sdk/extension`.
 
 ## Installation
 
@@ -44,24 +37,10 @@ pnpm add @zkp2p/client-sdk viem
 
 ## Quick Start
 
-### Versioned Imports (Recommended)
-
-Google-style subpath imports provide compile-time isolation between API versions and better tree-shaking:
-
-```ts
-// Explicitly target v1 (current stable)
-import { Zkp2pClient } from '@zkp2p/client-sdk/v1';
-
-// v2 scaffold exists but is not yet implemented in this package version
-// import { createClient } from '@zkp2p/client-sdk/v2';
-```
-
-The root import `@zkp2p/client-sdk` continues to expose the current default (v1) for backward compatibility.
-
 ### Basic Client Setup
 
 ```typescript
-import { Zkp2pClient, SUPPORTED_CHAIN_IDS } from '@zkp2p/client-sdk/v1';
+import { Zkp2pClient } from '@zkp2p/client-sdk';
 import { createWalletClient, custom } from 'viem';
 import { base } from 'viem/chains';
 
@@ -72,104 +51,89 @@ const walletClient = createWalletClient({
 });
 
 // Initialize ZKP2P client (Production)
-const client = new Zkp2pClient({
-  walletClient,
-  apiKey: 'YOUR_API_KEY',
-  chainId: SUPPORTED_CHAIN_IDS.BASE_MAINNET, // 8453
-  environment: 'production', // optional, defaults to 'production'
-});
+const client = new Zkp2pClient({ walletClient, chainId: base.id, runtimeEnv: 'production' });
+```
 
-// Or use staging environment for Base mainnet
-const stagingClient = new Zkp2pClient({
-  walletClient,
-  apiKey: 'YOUR_API_KEY',
-  chainId: SUPPORTED_CHAIN_IDS.BASE_MAINNET, // 8453
-  environment: 'staging', // Use staging contract addresses
+### Indexer Reads
+
+```typescript
+// Get active deposits with payment methods/currencies and latest intents
+const deposits = await client.getDepositsWithRelations({ status: 'ACTIVE', acceptingIntents: true }, { limit: 50 }, { includeIntents: true });
+```
+
+### Signal Intent (orchestrator-first with HTTP verification)
+
+```typescript
+// Provide baseApiUrl + apiKey (or authorizationToken) to auto-fetch gating signature
+const client = new Zkp2pClient({ walletClient, chainId: base.id, baseApiUrl: 'https://api.zkp2p.xyz', apiKey: 'YOUR_API_KEY' });
+
+await client.signalIntent({
+  orchestrator: {
+    escrow: '0xEscrow',
+    depositId: 1n,
+    amount: 1000000n,
+    to: '0xRecipient',
+    paymentMethod: '0x…',
+    fiatCurrency: '0x…',
+    conversionRate: 123n,
+    processorName: 'wise',
+    payeeDetails: '0xPayeeHash',
+  },
 });
 ```
 
-### Fetching Quotes
+### Peerauth Extension (React)
 
-```typescript
-import { Currency, PAYMENT_PLATFORMS } from '@zkp2p/client-sdk/v1';
+Use the optional extension entry for browser proof generation. The hook wraps window.postMessage and the `ExtensionProofFlow` class:
 
-// Get quotes for multiple platforms
-const quotes = await client.getQuote({
-  paymentPlatforms: ['wise', 'revolut', 'venmo'],
-  fiatCurrency: Currency.USD,
-  user: '0xYourAddress',
-  recipient: '0xRecipientAddress',
-  destinationChainId: SUPPORTED_CHAIN_IDS.BASE_MAINNET,
-  destinationToken: client.getUsdcAddress(),
-  amount: '100', // $100 USD
-});
+```tsx
+import { usePeerauthProofFlow } from '@zkp2p/client-sdk/extension';
 
-console.log('Available quotes:', quotes);
-```
+function ProofButton({ platform, intentHash, originalIndex }: { platform: string; intentHash: string; originalIndex: number }) {
+  const { start, status, progress, proofs, error, reset } = usePeerauthProofFlow({ requiredProofs: 1, timeoutMs: 60000 });
 
-### Register Payee Details (payeeHash)
+  const onClick = async () => {
+    try {
+      await start(platform as any, intentHash, originalIndex);
+      // proofs[0] contains the Reclaim proof object ready to be encoded
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
-```typescript
-// 1) Validate platform-specific details
-const validation = await client.validatePayeeDetails({
-  processorName: 'mercadopago',
-  depositData: { identifier: 'user@example.com', accountHolderName: 'Alice Doe' },
-});
-
-if (!validation.responseObject.isValid) {
-  console.error('Invalid payee details:', validation.responseObject.errors);
-  throw new Error('Please correct payee details');
+  return (
+    <div>
+      <button onClick={onClick} disabled={status === 'polling_proof' || status === 'waiting_proof_id'}>Generate Proof</button>
+      {status !== 'idle' && <div>status: {status} (stage: {progress?.stage})</div>}
+      {error && <div>Error: {String(error.message)}</div>}
+    </div>
+  );
 }
-
-// 2) Register details to obtain a payeeHash (hashedOnchainId)
-const created = await client.registerPayeeDetails({
-  processorName: 'mercadopago',
-  depositData: { identifier: 'user@example.com', accountHolderName: 'Alice Doe' },
-});
-
-const payeeHash = created.responseObject.hashedOnchainId; // aka payeeHash
 ```
 
-### Validate and Register (one call)
+This hook is only available in the browser. For SSR, conditionally render components that import from `@zkp2p/client-sdk/extension`.
 
-```typescript
-const { isValid, validation, registration } = await client.validateAndRegisterPayeeDetails({
-  processorName: 'mercadopago',
-  depositData: { identifier: 'user@example.com', accountHolderName: 'Alice Doe' },
-});
-if (!isValid) {
-  console.error('Invalid details', validation.responseObject);
-}
-const payeeHash = registration?.responseObject.hashedOnchainId;
+### Helpers for Payment Method and Currency Encoding
+
+You can resolve bytes32 values conveniently:
+
+```ts
+import { resolvePaymentMethodHash, resolveFiatCurrencyBytes32 } from '@zkp2p/client-sdk';
+
+// Staging uses mainnet with a separate contract set
+const paymentMethod = resolvePaymentMethodHash('wise', { env: 'staging', network: 'base' });
+const usd = resolveFiatCurrencyBytes32('USD');
 ```
 
-### Listing Registered Payees
+### Node Examples
 
-```typescript
-const { responseObject: makers } = await client.listPayees('mercadopago');
-makers.forEach(m => console.log(m.processorName, m.hashedOnchainId));
-```
+See `examples/node-scripts`:
+- `create-deposit-v21.ts`
+- `signal-intent-orchestrator.ts`
+- `fulfill-intent-orchestrator.ts`
+- `cancel-intent.ts`
 
-### Intents by Recipient
-
-```typescript
-const intents = await client.getIntentsByRecipient({ recipientAddress: '0xRecipient', status: ['SIGNALED','FULFILLED'] });
-```
-
-### Deposit Spreads (Maker dashboards)
-
-```typescript
-// Read
-await client.getDepositSpread(123);
-await client.listDepositSpreads();
-await client.getSpreadsByDepositIds([1,2,3]);
-
-// Write
-await client.createSpread({ depositId: 123, spread: 0.01, minPrice: null, maxPrice: null });
-await client.updateSpread(123, { spread: 0.0125 });
-await client.upsertSpread(123, { spread: 0.01 });
-await client.deleteSpread(123);
-```
+Run with ts-node or compile locally; provide env vars (see headers of each file).
 
 ## SSR Usage (Next.js, Remix)
 
@@ -225,11 +189,9 @@ const client = new Zkp2pClient({
 });
 ```
 
-### Statuses and Types
+### Types
 
-- Orders API statuses: `SIGNALED | FULFILLED | PRUNED`. SDK returns these for API history calls.
-- On-chain views remain exposed via `getAccountDeposits`/`getAccountIntent` parsers.
-- Historical responses automatically convert ISO timestamps into `Date` objects.
+- Public Indexer types exported as `IndexerDeposit`, `IndexerDepositWithRelations`, and `IndexerIntent`.
 
 ## React Integration
 
