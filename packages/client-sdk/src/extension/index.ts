@@ -5,3 +5,4 @@ export { ExtensionProofFlow, type ExtensionProofFlowOptions } from './flow';
 export * from './metadataFlow';
 export * from './platformConfig';
 export * from './orchestrator';
+export * from './react';

@@ -1,6 +1,7 @@
 import type { Address } from 'viem';
 
-export const DEFAULT_BASE_API_URL = 'https://api.zkp2p.xyz/v1';
+// Unversioned base; callers/providers must append /v1 or /v2 in adapters
+export const DEFAULT_BASE_API_URL = 'https://api.zkp2p.xyz';
 export const DEFAULT_WITNESS_URL = 'https://witness-proxy.zkp2p.xyz';
 
 // Enabled payment platforms (verifiers) for enrichment and platform-aware logic
@@ -132,4 +133,3 @@ export function platformFromVerifierAddress(
   }
   return null;
 }
-

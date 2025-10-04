@@ -1,57 +1,38 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import type { Zkp2pClient } from '../../client/Zkp2pClient';
-import type { SignalIntentParams, SignalIntentResponse } from '../../types';
+import type { Hash } from 'viem';
 
 export interface UseSignalIntentOptions {
   client: Zkp2pClient | null;
-  onSuccess?: (response: SignalIntentResponse) => void;
+  onSuccess?: (hash: Hash) => void;
   onError?: (error: Error) => void;
 }
 
-/**
- * Hook for signaling intents on the ZKP2P protocol
- * 
- * @example
- * ```tsx
- * const { signalIntent, isLoading, error } = useSignalIntent({ 
- *   client,
- *   onSuccess: (response) => console.log('Intent signaled:', response),
- * });
- * 
- * // Signal an intent
- * await signalIntent({ 
- *   depositId: '123',
- *   amount: BigInt('1000000'),
- *   payeeDetails: 'user@example.com',
- * });
- * ```
- */
 export function useSignalIntent({ client, onSuccess, onError }: UseSignalIntentOptions) {
-  const [response, setResponse] = useState<SignalIntentResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const [txHash, setTxHash] = useState<Hash | null>(null);
 
   const signalIntent = useCallback(
-    async (params: SignalIntentParams) => {
+    async (params: Parameters<Zkp2pClient['signalIntent']>[0]) => {
       if (!client) {
-        const err = new Error('Client not initialized');
+        const err = new Error('Zkp2pClient is not initialized');
         setError(err);
         onError?.(err);
         return null;
       }
-
       setIsLoading(true);
       setError(null);
-
+      setTxHash(null);
       try {
-        const intentResponse = await client.signalIntent(params);
-        setResponse(intentResponse);
-        onSuccess?.(intentResponse);
-        return intentResponse;
+        const hash = await client.signalIntent(params);
+        setTxHash(hash);
+        onSuccess?.(hash);
+        return hash;
       } catch (err) {
-        const error = err as Error;
-        setError(error);
-        onError?.(error);
+        const e = err instanceof Error ? err : new Error(String(err));
+        setError(e);
+        onError?.(e);
         return null;
       } finally {
         setIsLoading(false);
@@ -60,17 +41,5 @@ export function useSignalIntent({ client, onSuccess, onError }: UseSignalIntentO
     [client, onSuccess, onError]
   );
 
-  const reset = useCallback(() => {
-    setResponse(null);
-    setError(null);
-    setIsLoading(false);
-  }, []);
-
-  return {
-    signalIntent,
-    response,
-    isLoading,
-    error,
-    reset,
-  };
+  return useMemo(() => ({ signalIntent, isLoading, error, txHash }), [signalIntent, isLoading, error, txHash]);
 }

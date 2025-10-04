@@ -22,34 +22,54 @@ Browser-first TypeScript SDK for integrating ZKP2P into web applications. ZKP2P 
 npm install @zkp2p/client-sdk viem
 ```
 
-## Quick Start
+## Quick Start (V3)
 
-```typescript
-import { Zkp2pClient } from '@zkp2p/client-sdk/v1';
+```ts
+import { Zkp2pClient } from '@zkp2p/client-sdk';
 import { createWalletClient, custom } from 'viem';
 import { base } from 'viem/chains';
 
-// Initialize the client
-const walletClient = createWalletClient({
-  chain: base,
-  transport: custom(window.ethereum)
-});
+// Create a viem wallet client (browser)
+const walletClient = createWalletClient({ chain: base, transport: custom(window.ethereum) });
 
-const client = new Zkp2pClient({
-  walletClient,
-  apiKey: 'YOUR_API_KEY',
-  chainId: 8453, // Base mainnet
-});
+// Initialize the V3 client (Orchestrator + Attestation + ProtocolViewer)
+const client = new Zkp2pClient({ walletClient, chainId: base.id, runtimeEnv: 'production', baseApiUrl: 'https://api.zkp2p.xyz', apiKey: 'YOUR_API_KEY' });
 
-// Get quotes for fiat-to-crypto exchange
+// Quote (HTTP)
 const quotes = await client.getQuote({
   paymentPlatforms: ['wise'],
   fiatCurrency: 'USD',
   user: '0xYourAddress',
   recipient: '0xRecipientAddress',
-  destinationChainId: 8453,
-  destinationToken: client.getUsdcAddress(),
+  destinationChainId: base.id,
+  destinationToken: '0xUSDC',
   amount: '100',
+});
+
+// Signal intent (Orchestrator) with ergonomic inputs
+await client.signalIntentResolved({
+  escrow: '0xEscrow',
+  depositId: 1n,
+  amount: 1000000n,
+  to: '0xRecipientAddress',
+  processorName: 'wise',
+  fiatCurrencyCode: 'USD',
+  conversionRate: 1000000n,
+  payeeDetails: '0xHashedOnchainId',
+});
+
+// Fulfill via Attestation Service (proof is a string)
+await client.fulfillIntentWithAttestation({
+  intentHash: '0xIntent',
+  zkTlsProof: JSON.stringify(proofObj),
+  platform: 'wise',
+  actionType: 'payment',
+  amount: '1000000',
+  timestampMs: String(Date.now()),
+  fiatCurrency: '0xUSD_BYTES32',
+  conversionRate: '1000000',
+  payeeDetails: '0xHashedOnchainId',
+  timestampBufferMs: '600000',
 });
 ```
 
@@ -110,12 +130,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ### Setup
 ```bash
-npm install
+cd packages/client-sdk
+npm ci
 npm run build
 ```
 
 ### Testing
 ```bash
+cd packages/client-sdk
 npm test
 ```
 

@@ -1,14 +1,15 @@
-// Core exports
+// Breaking SDK export: single modern client (contracts v2.1 + indexer)
 export { Zkp2pClient } from './client/Zkp2pClient';
 
-// Types and errors
-export * from './types';
-export * from './errors';
+// Public indexer types
+export type {
+  DepositEntity as IndexerDeposit,
+  IntentEntity as IndexerIntent,
+  DepositWithRelations as IndexerDepositWithRelations,
+} from './indexer/types';
 
-// Constants - comprehensive export for easy access
-export * from './constants';
-
-// Utilities
+// Generic utilities and errors
+export { logger, setLogLevel, type LogLevel } from './utils/logger';
 export {
   encodeProofAsBytes,
   encodeTwoProofs,
@@ -18,7 +19,12 @@ export {
   intentHashHexToDecimalString,
   type ReclaimProof,
 } from './utils/proofEncoding';
-export { logger, setLogLevel, type LogLevel } from './utils/logger';
+export * from './errors';
 
-// React hooks (only available in browser environments with React)
-export * from './react';
+// Optional utilities
+export { ensureBytes32, asciiToBytes32 } from './utils/bytes32';
+export { resolvePaymentMethodHash, resolveFiatCurrencyBytes32 } from './utils/paymentResolution';
+export { resolvePaymentMethodHashFromCatalog } from './utils/paymentResolution';
+export { mapConversionRatesToOnchainV2 } from './utils/currency';
+export { getContractsV2, getPaymentMethodsCatalog, type RuntimeEnv } from './contractsV2';
+export type { PaymentMethodCatalog } from './contractsV2';

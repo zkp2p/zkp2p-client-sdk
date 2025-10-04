@@ -1,11 +1,11 @@
-# ZKP2P React Hooks Demo
+# ZKP2P React Hooks Demo (V3)
 
-A complete demonstration of the @zkp2p/client-sdk v1.0.0 featuring all React hooks and the unified authentication API.
+A demo showing how to use `@zkp2p/client-sdk` (V3) React hooks and Orchestrator flows.
 
 ## Features Demonstrated
 
-- ✅ All 6 React hooks (`useZkp2pClient`, `useQuote`, `useSignalIntent`, `useCreateDeposit`, `useFulfillIntent`, `useExtensionOrchestrator`)
-- ✅ Unified authentication with `authenticateAndGenerateProof`
+- ✅ Hooks: `useSignalIntent`, `useCreateDeposit`, `useFulfillIntent`
+- ✅ Unified authentication and proof generation via extension
 - ✅ Enhanced callbacks (onProofGenerated, onProofError, onProgress, onPaymentsReceived)
 - ✅ Platform and currency constants usage
 - ✅ Real-time progress tracking
@@ -15,7 +15,8 @@ A complete demonstration of the @zkp2p/client-sdk v1.0.0 featuring all React hoo
 
 1. Install dependencies:
 ```bash
-npm install
+cd packages/client-sdk
+npm ci
 ```
 
 2. Create `.env` file:
@@ -53,7 +54,7 @@ npm run dev
 - React 18
 - TypeScript
 - Vite
-- @zkp2p/client-sdk v1.0.0
+- @zkp2p/client-sdk (V3)
 - viem
 - @tanstack/react-query
 
