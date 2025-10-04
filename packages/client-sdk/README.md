@@ -1,4 +1,4 @@
-# @zkp2p/client-sdk (Breaking)
+# @zkp2p/client-sdk
 
 [![npm version](https://img.shields.io/npm/v/@zkp2p/client-sdk.svg)](https://www.npmjs.com/package/@zkp2p/client-sdk)
 [![GitHub Release](https://img.shields.io/github/v/release/zkp2p/zkp2p-client-sdk?display_name=tag)](https://github.com/zkp2p/zkp2p-client-sdk/releases)
@@ -6,8 +6,6 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0%2B-blue)](https://www.typescriptlang.org/)
 
 Browser-first TypeScript SDK for integrating ZKP2P into web applications.
-
-Breaking notice: This major version removes the legacy v1/v2 split and supports only the new protocol stack — contracts v2.1 (Escrow, Orchestrator, UnifiedPaymentVerifier) and the Indexer (GraphQL) for reads. Intent lifecycle is orchestrator-first (signal → cancel → fulfill). APIs that depended on the legacy Orders API have been removed.
 
 ## Features
 
