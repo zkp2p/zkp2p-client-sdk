@@ -25,7 +25,11 @@ import ProtocolViewerBaseStaging from '@zkp2p/contracts-v2/abis/baseStaging/Prot
 
 import baseConstants from '@zkp2p/contracts-v2/constants/base';
 import baseStagingConstants from '@zkp2p/contracts-v2/constants/baseStaging';
-// paymentMethods deep paths may not be exported; resolve them at runtime in getPaymentMethodsCatalog()
+// Payment methods catalogs (JSON). Import statically so ESM bundlers include the data.
+// These modules are present in @zkp2p/contracts-v2; tsconfig sets resolveJsonModule: true
+import basePaymentMethods from '@zkp2p/contracts-v2/paymentMethods/base.json';
+import baseSepoliaPaymentMethods from '@zkp2p/contracts-v2/paymentMethods/baseSepolia.json';
+import baseStagingPaymentMethods from '@zkp2p/contracts-v2/paymentMethods/baseStaging.json';
 
 export type V2ContractAddresses = {
   escrow: `0x${string}`;
@@ -112,25 +116,11 @@ export type PaymentMethodCatalog = Record<string, { paymentMethodHash: `0x${stri
 
 export function getPaymentMethodsCatalog(chainId: number, env: RuntimeEnv = 'production'): PaymentMethodCatalog {
   const isBaseSepolia = networkKeyFromChainId(chainId) === 'base_sepolia';
-  // Prefer explicit JSON paths so bundlers include the data
-  try {
-    if (env === 'staging') {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const mod = require('@zkp2p/contracts-v2/paymentMethods/baseStaging.json');
-      return (mod?.methods ?? mod?.default?.methods ?? {}) as PaymentMethodCatalog;
-    }
-    if (isBaseSepolia) {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const mod = require('@zkp2p/contracts-v2/paymentMethods/baseSepolia.json');
-      return (mod?.methods ?? mod?.default?.methods ?? {}) as PaymentMethodCatalog;
-    }
-    // Base mainnet
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const mod = require('@zkp2p/contracts-v2/paymentMethods/base.json');
-    return (mod?.methods ?? mod?.default?.methods ?? {}) as PaymentMethodCatalog;
-  } catch {
-    return {} as PaymentMethodCatalog;
-  }
+  const src = env === 'staging'
+    ? (baseStagingPaymentMethods as any)
+    : (isBaseSepolia ? (baseSepoliaPaymentMethods as any) : (basePaymentMethods as any));
+  const methods = (src?.methods ?? src?.default?.methods ?? {}) as PaymentMethodCatalog;
+  return methods;
 }
 
 // Gating service address per environment/network (aligns with reference RN SDK)
