@@ -11,7 +11,7 @@ Build & Verify
 1) Install and build the package
 ```
 cd packages/client-sdk
-npm install
+npm ci
 npm run typecheck
 npm run test
 npm run build

@@ -2,19 +2,19 @@ import { useState, useCallback, useMemo } from 'react';
 import type { Zkp2pClient } from '../../client/Zkp2pClient';
 import type { Hash } from 'viem';
 
-export interface UseFulfillIntentOptions {
+export interface UseRemoveFundsOptions {
   client: Zkp2pClient | null;
-  onSuccess?: (txHash: Hash) => void;
+  onSuccess?: (hash: Hash) => void;
   onError?: (error: Error) => void;
 }
 
-export function useFulfillIntent({ client, onSuccess, onError }: UseFulfillIntentOptions) {
+export function useRemoveFunds({ client, onSuccess, onError }: UseRemoveFundsOptions) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [txHash, setTxHash] = useState<Hash | null>(null);
 
-  const fulfillIntent = useCallback(
-    async (params: Parameters<Zkp2pClient['fulfillIntentWithAttestation']>[0]) => {
+  const removeFunds = useCallback(
+    async (params: Parameters<Zkp2pClient['removeFunds']>[0]) => {
       if (!client) {
         const err = new Error('Zkp2pClient is not initialized');
         setError(err);
@@ -25,7 +25,7 @@ export function useFulfillIntent({ client, onSuccess, onError }: UseFulfillInten
       setError(null);
       setTxHash(null);
       try {
-        const hash = await client.fulfillIntentWithAttestation(params);
+        const hash = await client.removeFunds(params);
         setTxHash(hash);
         onSuccess?.(hash);
         return hash;
@@ -41,5 +41,6 @@ export function useFulfillIntent({ client, onSuccess, onError }: UseFulfillInten
     [client, onSuccess, onError]
   );
 
-  return useMemo(() => ({ fulfillIntent, isLoading, error, txHash }), [fulfillIntent, isLoading, error, txHash]);
+  return useMemo(() => ({ removeFunds, isLoading, error, txHash }), [removeFunds, isLoading, error, txHash]);
 }
+

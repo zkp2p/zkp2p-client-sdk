@@ -103,3 +103,26 @@ export function mapConversionRatesToOnchain(
     return { code: info.currencyCodeHash as `0x${string}`, conversionRate: BigInt(r.conversionRate) };
   }));
 }
+
+// V2: map UI currency groups to on-chain tuple[][] with minConversionRate
+export type OnchainCurrencyMinRate = { code: `0x${string}`; minConversionRate: bigint };
+
+export function mapConversionRatesToOnchainMinRate(
+  groups: UICurrencyRate[][],
+  expectedGroups?: number
+): OnchainCurrencyMinRate[][] {
+  if (!Array.isArray(groups) || !Array.isArray(groups[0])) {
+    throw new Error('conversionRates must be a nested array per payment method');
+  }
+  if (typeof expectedGroups === 'number' && groups.length !== expectedGroups) {
+    throw new Error(`conversionRates length (${groups.length}) must match processorNames length (${expectedGroups})`);
+  }
+  return groups.map((group) =>
+    group.map((r) => {
+      const info = currencyInfo[r.currency as CurrencyType];
+      const hash = info?.currencyCodeHash as `0x${string}` | undefined;
+      if (!hash) throw new Error(`Invalid currency: ${r.currency}`);
+      return { code: hash, minConversionRate: BigInt(r.conversionRate) };
+    })
+  );
+}

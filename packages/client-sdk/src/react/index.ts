@@ -1,19 +1,22 @@
-// React hooks for ZKP2P SDK
-export { useZkp2pClient } from './hooks/useZkp2pClient';
-export { useQuote } from './hooks/useQuote';
-export { useSignalIntent } from './hooks/useSignalIntent';
+// Minimal React hooks for the new SDK surface
 export { useCreateDeposit } from './hooks/useCreateDeposit';
-export { useRegisterPayeeDetails } from './hooks/useRegisterPayeeDetails';
-export { useValidatePayeeDetails, usePayeeRegistration } from './hooks/useRegisterPayeeDetails';
+export { useSignalIntent } from './hooks/useSignalIntent';
 export { useFulfillIntent } from './hooks/useFulfillIntent';
-export { useExtensionOrchestrator } from './hooks/useExtensionOrchestrator';
+export { useReleaseFundsToPayer } from './hooks/useReleaseFundsToPayer';
+export { useSetAcceptingIntents } from './hooks/useSetAcceptingIntents';
+export { useSetIntentRange } from './hooks/useSetIntentRange';
+export { useSetCurrencyMinRate } from './hooks/useSetCurrencyMinRate';
+export { useAddFunds } from './hooks/useAddFunds';
+export { useRemoveFunds } from './hooks/useRemoveFunds';
+export { useWithdrawDeposit } from './hooks/useWithdrawDeposit';
 
-// Export types
-export type { UseZkp2pClientOptions } from './hooks/useZkp2pClient';
-export type { UseQuoteOptions } from './hooks/useQuote';
-export type { UseSignalIntentOptions } from './hooks/useSignalIntent';
 export type { UseCreateDepositOptions } from './hooks/useCreateDeposit';
-export type { UseRegisterPayeeDetailsOptions } from './hooks/useRegisterPayeeDetails';
-export type { UseValidatePayeeDetailsOptions, UsePayeeRegistrationOptions } from './hooks/useRegisterPayeeDetails';
+export type { UseSignalIntentOptions } from './hooks/useSignalIntent';
 export type { UseFulfillIntentOptions } from './hooks/useFulfillIntent';
-export type { UseExtensionOrchestratorOptions } from './hooks/useExtensionOrchestrator';
+export type { UseReleaseFundsToPayerOptions } from './hooks/useReleaseFundsToPayer';
+export type { UseSetAcceptingIntentsOptions } from './hooks/useSetAcceptingIntents';
+export type { UseSetIntentRangeOptions } from './hooks/useSetIntentRange';
+export type { UseSetCurrencyMinRateOptions } from './hooks/useSetCurrencyMinRate';
+export type { UseAddFundsOptions } from './hooks/useAddFunds';
+export type { UseRemoveFundsOptions } from './hooks/useRemoveFunds';
+export type { UseWithdrawDepositOptions } from './hooks/useWithdrawDeposit';

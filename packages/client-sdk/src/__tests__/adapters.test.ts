@@ -84,7 +84,7 @@ describe('api adapters', () => {
     );
     expect(res.responseObject.isValid).toBe(true);
     const calledUrl = String(fetchMock.mock.calls[0][0]);
-    expect(calledUrl).toContain('/makers/validate');
+    expect(calledUrl).toContain('/v1/makers/validate');
   });
 
   it('calls /makers/create and returns hashedOnchainId', async () => {
@@ -115,7 +115,7 @@ describe('api adapters', () => {
     );
     expect(res.responseObject.hashedOnchainId).toBe(mockHid);
     const calledUrl = String(fetchMock.mock.calls[0][0]);
-    expect(calledUrl).toContain('/makers/create');
+    expect(calledUrl).toContain('/v1/makers/create');
   });
 
   describe('historical endpoints', () => {
@@ -150,7 +150,7 @@ describe('api adapters', () => {
 
       expect(res.responseObject[0].createdAt).toBeInstanceOf(Date);
       expect(fetchMock).toHaveBeenCalledWith(
-        'https://api.example/deposits/maker/0x123',
+        'https://api.example/v1/deposits/maker/0x123',
         expect.objectContaining({ method: 'GET' })
       );
     });
@@ -171,7 +171,7 @@ describe('api adapters', () => {
         'https://api.example'
       );
       expect(fetchMock).toHaveBeenCalledWith(
-        'https://api.example/deposits/maker/0xabc?status=WITHDRAWN',
+        'https://api.example/v1/deposits/maker/0xabc?status=WITHDRAWN',
         expect.objectContaining({ method: 'GET' })
       );
     });
@@ -218,7 +218,7 @@ describe('api adapters', () => {
 
       expect(res.responseObject[0].signalTimestamp).toBeInstanceOf(Date);
       expect(fetchMock).toHaveBeenCalledWith(
-        'https://api.example/orders/maker/0x123',
+        'https://api.example/v1/orders/maker/0x123',
         expect.objectContaining({ method: 'GET' })
       );
     });
@@ -243,7 +243,7 @@ describe('api adapters', () => {
       );
 
       expect(fetchMock).toHaveBeenCalledWith(
-        'https://api.example/orders/taker/0x456?status=SIGNALED,FULFILLED',
+        'https://api.example/v1/orders/taker/0x456?status=SIGNALED,FULFILLED',
         expect.objectContaining({ method: 'GET' })
       );
     });
@@ -290,7 +290,7 @@ describe('api adapters', () => {
 
       expect(res.responseObject.fulfillTimestamp).toBeInstanceOf(Date);
       expect(fetchMock).toHaveBeenCalledWith(
-        'https://api.example/orders/0xabc123',
+        'https://api.example/v1/orders/0xabc123',
         expect.objectContaining({ method: 'GET' })
       );
     });
@@ -326,7 +326,7 @@ describe('api adapters', () => {
 
       expect(res.responseObject.createdAt).toBeInstanceOf(Date);
       expect(fetchMock).toHaveBeenCalledWith(
-        'https://api.example/deposits/123',
+        'https://api.example/v1/deposits/123',
         expect.objectContaining({ method: 'GET' })
       );
     });
@@ -366,7 +366,7 @@ describe('api adapters', () => {
 
       expect(res.responseObject[0].totalIntents).toBe(10);
       expect(fetchMock).toHaveBeenCalledWith(
-        'https://api.example/deposits/order-stats',
+        'https://api.example/v1/deposits/order-stats',
         expect.objectContaining({ 
           method: 'POST',
           body: JSON.stringify({ depositIds: [1, 2, 3] })
@@ -387,7 +387,7 @@ describe('api adapters', () => {
         'https://api.example'
       );
       expect(fetchMock).toHaveBeenCalledWith(
-        'https://api.example/orders/recipient/0x999?status=SIGNALED',
+        'https://api.example/v1/orders/recipient/0x999?status=SIGNALED',
         expect.objectContaining({ method: 'GET' })
       );
     });
@@ -399,7 +399,7 @@ describe('api adapters', () => {
 
       await apiListPayees('venmo', 'api-key', 'https://api.example');
       expect(fetchMock).toHaveBeenCalledWith(
-        'https://api.example/makers?processorName=venmo',
+        'https://api.example/v1/makers?processorName=venmo',
         expect.objectContaining({ method: 'GET' })
       );
     });
@@ -410,7 +410,7 @@ describe('api adapters', () => {
       (globalThis as any).fetch = fetchMock;
       await apiGetDepositSpread(1, 'api-key', 'https://api.example');
       expect(fetchMock).toHaveBeenCalledWith(
-        'https://api.example/deposits/1/spread',
+        'https://api.example/v1/deposits/1/spread',
         expect.objectContaining({ method: 'GET' })
       );
     });

@@ -41,9 +41,12 @@ We are committed to providing a welcoming and inclusive environment. Please be r
 
 ### Installation
 
+This repository hosts the SDK under `packages/client-sdk/` with its own lockfile. For deterministic installs and CI parity, run commands from that package directory.
+
 ```bash
-# Install dependencies
-npm install
+# Install dependencies for the SDK package
+cd packages/client-sdk
+npm ci
 
 # Build the project
 npm run build
