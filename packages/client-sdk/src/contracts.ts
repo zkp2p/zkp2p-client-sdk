@@ -111,12 +111,23 @@ export function getContracts(chainId: number, env: RuntimeEnv = 'production'): {
 export type PaymentMethodCatalog = Record<string, { paymentMethodHash: `0x${string}`; currencies?: `0x${string}`[] }>;
 
 export function getPaymentMethodsCatalog(chainId: number, env: RuntimeEnv = 'production'): PaymentMethodCatalog {
-  const key = env === 'staging' ? 'baseStaging' : networkKeyFromChainId(chainId) === 'base_sepolia' ? 'baseSepolia' : 'base';
+  const isBaseSepolia = networkKeyFromChainId(chainId) === 'base_sepolia';
+  // Prefer explicit JSON paths so bundlers include the data
   try {
+    if (env === 'staging') {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const mod = require('@zkp2p/contracts-v2/paymentMethods/baseStaging.json');
+      return (mod?.methods ?? mod?.default?.methods ?? {}) as PaymentMethodCatalog;
+    }
+    if (isBaseSepolia) {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const mod = require('@zkp2p/contracts-v2/paymentMethods/baseSepolia.json');
+      return (mod?.methods ?? mod?.default?.methods ?? {}) as PaymentMethodCatalog;
+    }
+    // Base mainnet
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const mod = require(`@zkp2p/contracts-v2/paymentMethods/${key}`);
-    const m = (mod?.methods ?? mod?.default?.methods) as PaymentMethodCatalog | undefined;
-    return m ?? {} as PaymentMethodCatalog;
+    const mod = require('@zkp2p/contracts-v2/paymentMethods/base.json');
+    return (mod?.methods ?? mod?.default?.methods ?? {}) as PaymentMethodCatalog;
   } catch {
     return {} as PaymentMethodCatalog;
   }
