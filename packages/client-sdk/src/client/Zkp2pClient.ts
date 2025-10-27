@@ -133,7 +133,6 @@ export class Zkp2pClient {
   }
 
   // Unified createDeposit: human-friendly API using processor names and currency codes.
-  // Breaking change: replaces the old hash-based createDeposit and the former createDepositResolved.
   async createDeposit(params: {
     token: Address;
     amount: bigint;
@@ -401,7 +400,7 @@ export class Zkp2pClient {
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
-  // createDepositResolved has been removed in favor of a unified createDeposit API
+  
 
   async signalIntent(params: {
     depositId: bigint | string;
@@ -472,7 +471,7 @@ export class Zkp2pClient {
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
-  // signalIntentResolved removed. Use signalIntent with processorName + fiatCurrencyCode.
+  
 
   async cancelIntent(params: { intentHash: `0x${string}`; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     if (!this.orchestratorAddress || !this.orchestratorAbi) throw new Error('Orchestrator not available');
