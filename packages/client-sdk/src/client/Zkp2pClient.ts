@@ -647,11 +647,25 @@ export class Zkp2pClient {
   }
 
   async getPvDepositsFromIds(ids: Array<string | bigint>) {
-    const { address, abi } = this.requireProtocolViewer();
+    // When ProtocolViewer is unavailable, fall back to per-id Escrow.getDeposit reads
+    if (!this.protocolViewerAddress || !this.protocolViewerAbi) {
+      const { parseDepositView } = await import('../utils/protocolViewerParsers');
+      const results: any[] = [];
+      for (const id of ids) {
+        const raw = await this.publicClient.readContract({
+          address: this.escrowAddress,
+          abi: this.escrowAbi,
+          functionName: 'getDeposit',
+          args: [typeof id === 'bigint' ? id : BigInt(id)],
+        });
+        results.push(parseDepositView(raw));
+      }
+      return results;
+    }
     const bn = ids.map((id) => (typeof id === 'bigint' ? id : BigInt(id)));
     const raw = (await this.publicClient.readContract({
-      address,
-      abi,
+      address: this.protocolViewerAddress!,
+      abi: this.protocolViewerAbi!,
       functionName: 'getDepositFromIds',
       args: [bn],
     })) as any[];
@@ -698,5 +712,15 @@ export class Zkp2pClient {
   // ---------- Convenience ----------
   getUsdcAddress(): Address | undefined {
     return this._usdcAddress;
+  }
+
+  getDeployedAddresses(): { escrow: Address; orchestrator?: Address; protocolViewer?: Address; unifiedPaymentVerifier?: Address; usdc?: Address } {
+    return {
+      escrow: this.escrowAddress,
+      orchestrator: this.orchestratorAddress,
+      protocolViewer: this.protocolViewerAddress,
+      unifiedPaymentVerifier: this.unifiedPaymentVerifier,
+      usdc: this._usdcAddress,
+    };
   }
 }
