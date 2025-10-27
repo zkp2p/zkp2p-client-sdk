@@ -646,22 +646,25 @@ export class Zkp2pClient {
   // ---------- Optional on-chain views via ProtocolViewer ----------
 
   private requireProtocolViewer() {
-    if (this.protocolViewerAddress && this.protocolViewerAbi) {
-      return { address: this.protocolViewerAddress, abi: this.protocolViewerAbi } as const;
+    if (!this.protocolViewerAddress || !this.protocolViewerAbi) {
+      throw new Error('ProtocolViewer not available for this network');
     }
-    return { address: this.escrowAddress, abi: this.escrowAbi } as const;
+    return { address: this.protocolViewerAddress, abi: this.protocolViewerAbi } as const;
   }
 
   async getPvDepositById(depositId: string | bigint) {
-    const { address, abi } = this.requireProtocolViewer();
-    const raw = await this.publicClient.readContract({
-      address,
-      abi,
-      functionName: 'getDeposit',
-      args: [typeof depositId === 'bigint' ? depositId : BigInt(depositId)],
-    });
-    const { parseDepositView } = await import('../utils/protocolViewerParsers');
-    return parseDepositView(raw);
+    const id = typeof depositId === 'bigint' ? depositId : BigInt(depositId);
+    try {
+      const { address, abi } = this.requireProtocolViewer();
+      const raw = await this.publicClient.readContract({ address, abi, functionName: 'getDeposit', args: [id] });
+      const { parseDepositView } = await import('../utils/protocolViewerParsers');
+      return parseDepositView(raw);
+    } catch (e) {
+      // Fallback to Escrow.getDeposit
+      const raw = await this.publicClient.readContract({ address: this.escrowAddress, abi: this.escrowAbi, functionName: 'getDeposit', args: [id] });
+      const { parseDepositView } = await import('../utils/protocolViewerParsers');
+      return parseDepositView(raw);
+    }
   }
 
   async getPvDepositsFromIds(ids: Array<string | bigint>) {
@@ -692,15 +695,16 @@ export class Zkp2pClient {
   }
 
   async getPvAccountDeposits(owner: Address) {
-    const { address, abi } = this.requireProtocolViewer();
-    const raw = (await this.publicClient.readContract({
-      address,
-      abi,
-      functionName: 'getAccountDeposits',
-      args: [owner],
-    })) as any[];
-    const { parseDepositView } = await import('../utils/protocolViewerParsers');
-    return raw.map(parseDepositView);
+    try {
+      const { address, abi } = this.requireProtocolViewer();
+      const raw = (await this.publicClient.readContract({ address, abi, functionName: 'getAccountDeposits', args: [owner] })) as any[];
+      const { parseDepositView } = await import('../utils/protocolViewerParsers');
+      return raw.map(parseDepositView);
+    } catch (e) {
+      const raw = (await this.publicClient.readContract({ address: this.escrowAddress, abi: this.escrowAbi, functionName: 'getAccountDeposits', args: [owner] })) as any[];
+      const { parseDepositView } = await import('../utils/protocolViewerParsers');
+      return raw.map(parseDepositView);
+    }
   }
 
   async getPvAccountIntents(owner: Address) {
