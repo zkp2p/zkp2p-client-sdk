@@ -47,11 +47,10 @@ const quotes = await client.getQuote({
 });
 
 // Signal intent (Orchestrator) with ergonomic inputs
-await client.signalIntentResolved({
-  escrow: '0xEscrow',
+await client.signalIntent({
   depositId: 1n,
   amount: 1000000n,
-  to: '0xRecipientAddress',
+  toAddress: '0xRecipientAddress',
   processorName: 'wise',
   fiatCurrencyCode: 'USD',
   conversionRate: 1000000n,
@@ -59,7 +58,7 @@ await client.signalIntentResolved({
 });
 
 // Fulfill via Attestation Service (proof is a string)
-await client.fulfillIntentWithAttestation({
+await client.fulfillIntent({
   intentHash: '0xIntent',
   zkTlsProof: JSON.stringify(proofObj),
   platform: 'wise',

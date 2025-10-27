@@ -11,10 +11,10 @@ import { apiSignIntentV2 } from '../adapters/verification';
 import { apiCreatePaymentAttestation } from '../adapters/attestation';
 import { encodeAddressAsBytes, encodePaymentAttestation, encodeVerifyPaymentData } from '../utils/encode';
 import { ethers } from 'ethers';
-import { apiGetPayeeDetails, apiGetQuote } from '../adapters/api';
+import { apiGetPayeeDetails, apiGetQuote, apiPostDepositDetails } from '../adapters/api';
 import { getGatingServiceAddress, getPaymentMethodsCatalog } from '../contracts';
 import { resolveFiatCurrencyBytes32, resolvePaymentMethodHashFromCatalog } from '../utils/paymentResolution';
-import type { QuoteRequest, QuoteResponse } from '../types';
+import type { QuoteRequest, QuoteResponse, PostDepositDetailsRequest } from '../types';
 import { ERC20_ABI } from '../utils/erc20';
 
 export type Zkp2pNextOptions = {
@@ -132,25 +132,78 @@ export class Zkp2pClient {
     return { hadAllowance: false, hash };
   }
 
+  // Unified createDeposit: human-friendly API using processor names and currency codes.
+  // Breaking change: replaces the old hash-based createDeposit and the former createDepositResolved.
   async createDeposit(params: {
     token: Address;
     amount: bigint;
     intentAmountRange: { min: bigint; max: bigint };
-    paymentMethods: `0x${string}`[];
-    paymentMethodData: { intentGatingService: Address; payeeDetails: string; data: `0x${string}` }[];
-    currencies: { code: `0x${string}`; minConversionRate: bigint }[][];
+    processorNames: string[];
+    depositData: { [key: string]: string }[];
+    conversionRates: { currency: string; conversionRate: string }[][]; // grouped per processor
     delegate?: Address;
     intentGuardian?: Address;
     retainOnEmpty?: boolean;
     txOverrides?: Record<string, unknown>;
-  }): Promise<Hash> {
+  }): Promise<{ depositDetails: PostDepositDetailsRequest[]; hash: Hash }> {
+    const methods = getPaymentMethodsCatalog(this.chainId, this.runtimeEnv);
+    if (!Array.isArray(params.processorNames) || params.processorNames.length === 0) {
+      throw new Error('processorNames must be a non-empty array');
+    }
+    if (params.processorNames.length !== params.conversionRates.length) {
+      throw new Error('processorNames and conversionRates length mismatch');
+    }
+    if (params.processorNames.length !== params.depositData.length) {
+      throw new Error('processorNames and depositData length mismatch');
+    }
+
+    const paymentMethods = params.processorNames.map((name) => resolvePaymentMethodHashFromCatalog(name, methods));
+    const intentGatingService = getGatingServiceAddress(this.chainId, this.runtimeEnv);
+    // Post deposit details to API to produce hashed on-chain ids
+    const baseApiUrl = (this.baseApiUrl ?? 'https://api.zkp2p.xyz').replace(/\/$/, '');
+    if (!this.apiKey && !this.authorizationToken) {
+      throw new Error('createDeposit requires apiKey or authorizationToken to post deposit details');
+    }
+    const depositDetails: PostDepositDetailsRequest[] = params.processorNames.map((processorName, index) => ({
+      processorName,
+      depositData: params.depositData[index] || {},
+    }));
+    const apiResponses = await Promise.all(
+      depositDetails.map((req) => apiPostDepositDetails(req, this.apiKey!, baseApiUrl, this.authorizationToken, this.apiTimeoutMs))
+    );
+    if (!apiResponses.every((r) => (r as any)?.success)) {
+      const failed = apiResponses.find((r) => !(r as any)?.success) as any;
+      throw new Error(failed?.message || 'Failed to create deposit details');
+    }
+    const hashedOnchainIds = apiResponses.map((r: any) => r.responseObject?.hashedOnchainId as string);
+    const paymentMethodData = hashedOnchainIds.map((hid) => ({ intentGatingService, payeeDetails: hid, data: '0x' as `0x${string}` }));
+
+    // Validate currency support per processor when catalog lists allowed currencies
+    params.conversionRates.forEach((group, i) => {
+      const key = params.processorNames[i]?.toLowerCase();
+      const allowed = methods[key!]?.currencies?.map((c) => c.toLowerCase());
+      if (allowed && allowed.length) {
+        for (const { currency } of group) {
+          const codeBytes32 = resolveFiatCurrencyBytes32(String(currency)).toLowerCase();
+          if (!allowed.includes(codeBytes32)) {
+            throw new Error(`Currency ${currency} not supported by ${params.processorNames[i]}. Allowed: ${allowed.join(', ')}`);
+          }
+        }
+      }
+    });
+
+    // Map UI currency groups to on-chain tuple[][] with minConversionRate
+    const { mapConversionRatesToOnchainMinRate } = await import('../utils/currency');
+    const normalized = params.conversionRates.map((group) => group.map((r) => ({ currency: r.currency as any, conversionRate: r.conversionRate })));
+    const currencies = mapConversionRatesToOnchainMinRate(normalized as any, paymentMethods.length);
+
     const args = [{
       token: params.token,
       amount: params.amount,
       intentAmountRange: params.intentAmountRange,
-      paymentMethods: params.paymentMethods,
-      paymentMethodData: params.paymentMethodData,
-      currencies: params.currencies,
+      paymentMethods,
+      paymentMethodData,
+      currencies,
       delegate: (params.delegate ?? '0x0000000000000000000000000000000000000000') as Address,
       intentGuardian: (params.intentGuardian ?? '0x0000000000000000000000000000000000000000') as Address,
       retainOnEmpty: Boolean(params.retainOnEmpty ?? false),
@@ -164,8 +217,8 @@ export class Zkp2pClient {
       account: this.walletClient.account!,
       ...(params.txOverrides ?? {}),
     });
-    const hash = await this.walletClient.writeContract(request);
-    return hash as Hash;
+    const hash = (await this.walletClient.writeContract(request)) as Hash;
+    return { depositDetails, hash };
   }
 
   // ---------- Maker-side deposit management (Escrow v3) ----------
@@ -348,118 +401,48 @@ export class Zkp2pClient {
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
-  /**
-   * Convenience wrapper for createDeposit that accepts processor names and hashedOnchainIds,
-   * resolves paymentMethod hashes and auto-builds paymentMethodData using the gating service address.
-   * Also validates currencies against allowed list per method when the catalog provides it.
-   */
-  async createDepositResolved(params: {
-    token: Address;
-    amount: bigint;
-    intentAmountRange: { min: bigint; max: bigint };
-    processorNames: string[];
-    hashedOnchainIds: string[]; // one per processor
-    // currencies grouped by processor, e.g., [[{ currency: 'USD', conversionRate: '1000000' }], …]
-    conversionRates: { currency: string; conversionRate: string }[][];
-    delegate?: Address;
-    intentGuardian?: Address;
-    retainOnEmpty?: boolean;
-  }): Promise<Hash> {
-    const methods = getPaymentMethodsCatalog(this.chainId, this.runtimeEnv);
-    if (!Array.isArray(params.processorNames) || params.processorNames.length === 0) {
-      throw new Error('processorNames must be a non-empty array');
-    }
-    if (params.processorNames.length !== params.hashedOnchainIds.length) {
-      throw new Error('processorNames and hashedOnchainIds length mismatch');
-    }
-    if (params.processorNames.length !== params.conversionRates.length) {
-      throw new Error('processorNames and conversionRates length mismatch');
-    }
-
-    const paymentMethods = params.processorNames.map((name) => resolvePaymentMethodHashFromCatalog(name, methods));
-    const intentGatingService = getGatingServiceAddress(this.chainId, this.runtimeEnv);
-
-    const paymentMethodData = params.hashedOnchainIds.map((hid) => ({
-      intentGatingService,
-      payeeDetails: hid,
-      data: '0x' as `0x${string}`,
-    }));
-
-    // Validate currencies allowed per method when catalog provides list
-    params.conversionRates.forEach((group, i) => {
-      const key = params.processorNames[i]?.toLowerCase();
-      const allowed = methods[key!]?.currencies?.map((c) => c.toLowerCase());
-      if (allowed && allowed.length) {
-        for (const { currency } of group) {
-          const code = typeof currency === 'string' ? currency.toLowerCase() : String(currency).toLowerCase();
-          const codeBytes32 = resolveFiatCurrencyBytes32(code).toLowerCase();
-          if (!allowed.includes(codeBytes32)) {
-            throw new Error(`Currency ${currency} not supported by ${params.processorNames[i]}. Allowed: ${allowed.join(', ')}`);
-          }
-        }
-      }
-    });
-
-    // Map to on-chain struct shape (minConversionRate)
-    const { mapConversionRatesToOnchainMinRate } = await import('../utils/currency');
-    // Normalize currency codes to our CurrencyType union when possible
-    const normalized = params.conversionRates.map((group) =>
-      group.map((r) => ({ currency: r.currency as any, conversionRate: r.conversionRate }))
-    );
-    const currencies = mapConversionRatesToOnchainMinRate(normalized as any, paymentMethods.length);
-
-    return this.createDeposit({
-      token: params.token,
-      amount: params.amount,
-      intentAmountRange: params.intentAmountRange,
-      paymentMethods,
-      paymentMethodData,
-      currencies,
-      delegate: params.delegate,
-      intentGuardian: params.intentGuardian,
-      retainOnEmpty: params.retainOnEmpty,
-    });
-  }
+  // createDepositResolved has been removed in favor of a unified createDeposit API
 
   async signalIntent(params: {
-    escrow: Address;
-    depositId: bigint;
-    amount: bigint;
-    to: Address;
-    paymentMethod: `0x${string}`;
-    fiatCurrency: `0x${string}`;
-    conversionRate: bigint;
+    depositId: bigint | string;
+    amount: bigint | string;
+    toAddress: Address;
+    processorName: string;
+    payeeDetails: string;
+    fiatCurrencyCode: string;
+    conversionRate: bigint | string;
     referrer?: Address;
-    referrerFee?: bigint;
+    referrerFee?: bigint | string;
     postIntentHook?: Address;
     data?: `0x${string}`;
-    // HTTP verification (optional)
-    processorName?: string;
-    payeeDetails?: string;
     gatingServiceSignature?: `0x${string}`;
-    signatureExpiration?: bigint;
+    signatureExpiration?: bigint | string;
     txOverrides?: Record<string, unknown>;
   }): Promise<Hash> {
     if (!this.orchestratorAddress || !this.orchestratorAbi) throw new Error('Orchestrator not available');
+    const catalog = getPaymentMethodsCatalog(this.chainId, this.runtimeEnv);
+    const paymentMethod = resolvePaymentMethodHashFromCatalog(params.processorName, catalog);
+    const fiatCurrency = resolveFiatCurrencyBytes32(params.fiatCurrencyCode);
+    const depositId = typeof params.depositId === 'bigint' ? params.depositId : BigInt(params.depositId);
+    const amount = typeof params.amount === 'bigint' ? params.amount : BigInt(params.amount);
+    const conversionRate = typeof params.conversionRate === 'bigint' ? params.conversionRate : BigInt(params.conversionRate);
+    const referrerFee = params.referrerFee === undefined ? 0n : (typeof params.referrerFee === 'bigint' ? params.referrerFee : BigInt(params.referrerFee));
 
     let { gatingServiceSignature, signatureExpiration } = params;
     if ((!gatingServiceSignature || !signatureExpiration) && this.baseApiUrl && (this.apiKey || this.authorizationToken)) {
-      if (!params.processorName || !params.payeeDetails) {
-        throw new Error('Missing processorName/payeeDetails for HTTP intent verification');
-      }
       const resp = await apiSignIntentV2(
         {
           processorName: params.processorName,
           payeeDetails: params.payeeDetails,
-          depositId: params.depositId.toString(),
-          amount: params.amount.toString(),
-          toAddress: params.to,
-          paymentMethod: params.paymentMethod,
-          fiatCurrency: params.fiatCurrency,
-          conversionRate: params.conversionRate.toString(),
+          depositId: depositId.toString(),
+          amount: amount.toString(),
+          toAddress: params.toAddress,
+          paymentMethod,
+          fiatCurrency,
+          conversionRate: conversionRate.toString(),
           chainId: this.chainId.toString(),
           orchestratorAddress: this.orchestratorAddress!,
-          escrowAddress: params.escrow,
+          escrowAddress: this.escrowAddress,
         },
         { baseApiUrl: this.baseApiUrl, apiKey: this.apiKey, authorizationToken: this.authorizationToken, timeoutMs: this.apiTimeoutMs }
       );
@@ -467,22 +450,20 @@ export class Zkp2pClient {
       signatureExpiration = resp.signatureExpiration;
     }
 
-    if (!gatingServiceSignature || !signatureExpiration) {
-      throw new Error('Missing gatingServiceSignature/signatureExpiration');
-    }
+    if (!gatingServiceSignature || !signatureExpiration) throw new Error('Missing gatingServiceSignature/signatureExpiration');
 
     const args = [{
-      escrow: params.escrow,
-      depositId: params.depositId,
-      amount: params.amount,
-      to: params.to,
-      paymentMethod: params.paymentMethod,
-      fiatCurrency: params.fiatCurrency,
-      conversionRate: params.conversionRate,
+      escrow: this.escrowAddress,
+      depositId,
+      amount,
+      to: params.toAddress,
+      paymentMethod,
+      fiatCurrency,
+      conversionRate,
       referrer: (params.referrer ?? ('0x0000000000000000000000000000000000000000' as Address)) as Address,
-      referrerFee: params.referrerFee ?? 0n,
+      referrerFee,
       gatingServiceSignature,
-      signatureExpiration,
+      signatureExpiration: typeof signatureExpiration === 'bigint' ? signatureExpiration : BigInt(signatureExpiration),
       postIntentHook: (params.postIntentHook ?? ('0x0000000000000000000000000000000000000000' as Address)) as Address,
       data: (params.data ?? '0x') as `0x${string}`,
     }];
@@ -491,51 +472,7 @@ export class Zkp2pClient {
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
-  /**
-   * Convenience wrapper that resolves `paymentMethod` and `fiatCurrency` from human-readable inputs.
-   * - processorName: e.g., 'wise', 'venmo' (or bytes32 hash)
-   * - fiatCurrencyCode: e.g., 'USD' (or bytes32)
-   * If API config is provided (apiKey or authorizationToken + baseApiUrl), will auto-fetch gating signature.
-   */
-  async signalIntentResolved(params: {
-    escrow: Address;
-    depositId: bigint;
-    amount: bigint;
-    to: Address;
-    processorName: string; // name or bytes32
-    fiatCurrencyCode: string; // ISO code or bytes32
-    conversionRate: bigint;
-    referrer?: Address;
-    referrerFee?: bigint;
-    postIntentHook?: Address;
-    data?: `0x${string}`;
-    payeeDetails?: string;
-    gatingServiceSignature?: `0x${string}`;
-    signatureExpiration?: bigint;
-    txOverrides?: Record<string, unknown>;
-  }): Promise<Hash> {
-    const catalog = getPaymentMethodsCatalog(this.chainId, this.runtimeEnv);
-    const paymentMethod = resolvePaymentMethodHashFromCatalog(params.processorName, catalog);
-    const fiatCurrency = resolveFiatCurrencyBytes32(params.fiatCurrencyCode);
-    return this.signalIntent({
-      escrow: params.escrow,
-      depositId: params.depositId,
-      amount: params.amount,
-      to: params.to,
-      paymentMethod,
-      fiatCurrency,
-      conversionRate: params.conversionRate,
-      referrer: params.referrer,
-      referrerFee: params.referrerFee,
-      postIntentHook: params.postIntentHook,
-      data: params.data,
-      processorName: params.processorName,
-      payeeDetails: params.payeeDetails,
-      gatingServiceSignature: params.gatingServiceSignature,
-      signatureExpiration: params.signatureExpiration,
-      txOverrides: params.txOverrides,
-    });
-  }
+  // signalIntentResolved removed. Use signalIntent with processorName + fiatCurrencyCode.
 
   async cancelIntent(params: { intentHash: `0x${string}`; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     if (!this.orchestratorAddress || !this.orchestratorAbi) throw new Error('Orchestrator not available');
@@ -556,7 +493,7 @@ export class Zkp2pClient {
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
-  async fulfillIntentWithAttestation(params: {
+  async fulfillIntent(params: {
     intentHash: `0x${string}`;
     zkTlsProof: string; // stringified proof JSON
     platform: string;

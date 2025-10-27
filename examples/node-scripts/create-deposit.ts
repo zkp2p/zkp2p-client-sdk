@@ -19,7 +19,7 @@ async function main() {
   const AMOUNT_DEC = process.env.AMOUNT || '10';
   const RANGE_MIN_DEC = process.env.RANGE_MIN || '5';
   const PROCESSOR_NAMES = (process.env.PROCESSOR_NAMES || 'wise').split(',').filter(Boolean);
-  const HASHED_ONCHAIN_IDS = (process.env.HASHED_ONCHAIN_IDS || '0x').split(',').filter(Boolean);
+  const DEPOSIT_DATA = JSON.parse(process.env.DEPOSIT_DATA || '[{"revolutUsername":"alice"}]');
   const CONVERSION_RATES = JSON.parse(process.env.CONVERSION_RATES || '[[{"currency":"USD","conversionRate":"1000000"}]]');
 
   if (!PRIV) throw new Error('Set PRIVATE_KEY');
@@ -31,16 +31,17 @@ async function main() {
   const amount = parseUnits(AMOUNT_DEC, 6);
   const min = parseUnits(RANGE_MIN_DEC, 6);
 
-  const hash = await client.createDepositResolved({
+  const result = await client.createDeposit({
     token: TOKEN,
     amount,
     intentAmountRange: { min, max: amount * 2n },
     processorNames: PROCESSOR_NAMES,
-    hashedOnchainIds: HASHED_ONCHAIN_IDS,
+    depositData: DEPOSIT_DATA,
     conversionRates: CONVERSION_RATES,
   });
 
-  console.log('createDeposit tx hash:', hash);
+  console.log('createDeposit tx hash:', result.hash);
+  console.log('posted deposit details:', JSON.stringify(result.depositDetails));
 }
 
 main().catch((e) => {

@@ -14,7 +14,7 @@ export function useFulfillIntent({ client, onSuccess, onError }: UseFulfillInten
   const [txHash, setTxHash] = useState<Hash | null>(null);
 
   const fulfillIntent = useCallback(
-    async (params: Parameters<Zkp2pClient['fulfillIntentWithAttestation']>[0]) => {
+    async (params: Parameters<Zkp2pClient['fulfillIntent']>[0]) => {
       if (!client) {
         const err = new Error('Zkp2pClient is not initialized');
         setError(err);
@@ -25,7 +25,7 @@ export function useFulfillIntent({ client, onSuccess, onError }: UseFulfillInten
       setError(null);
       setTxHash(null);
       try {
-        const hash = await client.fulfillIntentWithAttestation(params);
+        const hash = await client.fulfillIntent(params);
         setTxHash(hash);
         onSuccess?.(hash);
         return hash;

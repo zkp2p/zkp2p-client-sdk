@@ -124,15 +124,12 @@ const hash = methods['wise'].paymentMethodHash;
 const client = new Zkp2pClient({ walletClient, chainId: base.id, baseApiUrl: 'https://api.zkp2p.xyz', apiKey: 'YOUR_API_KEY' });
 
 await client.signalIntent({
-  escrow: '0xEscrow',
   depositId: 1n,
   amount: 1000000n,
-  to: '0xRecipient',
-  paymentMethod: '0x…',
-  fiatCurrency: '0x…',
-  conversionRate: 123n,
-  // Optional HTTP verification to fetch gatingServiceSignature/signatureExpiration
+  toAddress: '0xRecipient',
   processorName: 'wise',
+  fiatCurrencyCode: 'USD',
+  conversionRate: 123n,
   payeeDetails: '0xPayeeHash',
 });
 
@@ -145,7 +142,7 @@ await client.signalIntent({
 ### Fulfill Intent via Attestation Service
 
 ```ts
-const hash = await client.fulfillIntentWithAttestation({
+const hash = await client.fulfillIntent({
   intentHash: '0xIntent',
   zkTlsProof: JSON.stringify(proofObj), // zkTLS proof JSON string
   platform: 'wise',
@@ -328,7 +325,9 @@ export function FulfillButton({ client, params }: { client: Zkp2pClient; params:
   - `getIntentsForDeposits(ids, statuses?)`
   - `getOwnerIntents(owner, statuses?)`
 - Writes (Contracts v3):
-  - `createDeposit({ token, amount, intentAmountRange, paymentMethods, paymentMethodData, currencies, ... })`
+  - `createDeposit({ token, amount, intentAmountRange, processorNames, depositData, conversionRates, ... })`
+  - `signalIntent({ depositId, amount, toAddress, processorName, payeeDetails, fiatCurrencyCode, conversionRate, ... })`
+  - `fulfillIntent({ intentHash, zkTlsProof, platform, actionType, ... })`
   - `signalIntent({ orchestrator: { ... } })` (or escrow path)
   - `fulfillIntent({ useOrchestrator?, orchestratorCall? | escrowCall? })`
   - `cancelIntent({ intentHash, useOrchestrator? })`
@@ -627,7 +626,7 @@ function Actions({ client }: { client: Zkp2pClient }) {
   const { fulfillIntent, isLoading: fulfilling } = useFulfillIntent({ client });
   const { releaseFundsToPayer, isLoading: releasing } = useReleaseFundsToPayer({ client });
 
-  // call createDeposit({ token, amount, intentAmountRange, paymentMethods, paymentMethodData, currencies })
+  // call createDeposit({ token, amount, intentAmountRange, processorNames, depositData, conversionRates })
   // call signalIntent({ escrow, depositId, amount, to, paymentMethod, fiatCurrency, conversionRate, ... })
   // call fulfillIntent({ intentHash, zkTlsProof, platform, actionType, ... })
   // call releaseFundsToPayer({ intentHash })

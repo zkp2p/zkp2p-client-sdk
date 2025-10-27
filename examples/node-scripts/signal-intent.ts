@@ -18,7 +18,6 @@ async function main() {
   const BASE_API_URL = process.env.BASE_API_URL || 'https://api.zkp2p.xyz';
   const API_KEY = process.env.API_KEY || undefined;
 
-  const ESCROW = process.env.ESCROW as `0x${string}`;
   const DEPOSIT_ID = BigInt(process.env.DEPOSIT_ID || '1');
   const AMOUNT = BigInt(process.env.AMOUNT || '1000000');
   const TO = process.env.TO as `0x${string}`;
@@ -28,17 +27,16 @@ async function main() {
   const CONVERSION_RATE = BigInt(process.env.CONVERSION_RATE || '1000000');
 
   if (!PRIV) throw new Error('Set PRIVATE_KEY');
-  if (!ESCROW || !TO) throw new Error('Missing ESCROW/TO');
+  if (!TO) throw new Error('Missing TO');
 
   const account = privateKeyToAccount(PRIV);
   const walletClient = createWalletClient({ account, chain: base, transport: http(RPC) });
   const client = new Zkp2pClient({ walletClient, chainId: base.id, runtimeEnv: 'production', baseApiUrl: BASE_API_URL, apiKey: API_KEY });
 
-  const hash = await client.signalIntentResolved({
-    escrow: ESCROW,
+  const hash = await client.signalIntent({
     depositId: DEPOSIT_ID,
     amount: AMOUNT,
-    to: TO,
+    toAddress: TO,
     processorName: PROCESSOR_NAME,
     fiatCurrencyCode: FIAT_CURRENCY_CODE,
     conversionRate: CONVERSION_RATE,
