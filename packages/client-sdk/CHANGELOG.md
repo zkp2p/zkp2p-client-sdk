@@ -116,3 +116,17 @@ See README for detailed migration guide and new API usage examples.
 
 ## [0.1.0] - Initial Release
 - Initial public release of `@zkp2p/client-sdk` with core actions, extension helper, and documentation.
+## [5.0.0] - 2025-10-27
+
+### Breaking
+- Unified API with React Native SDK schema to minimize bloat and ambiguity.
+- createDeposit now accepts name-based inputs and returns `{ depositDetails, hash }`.
+- Removed createDepositResolved (use createDeposit).
+- Simplified signalIntent to accept `{ depositId, amount, toAddress, processorName, payeeDetails, fiatCurrencyCode, conversionRate }`.
+- Removed signalIntentResolved (use signalIntent).
+- Renamed fulfillIntentWithAttestation to fulfillIntent.
+
+### Added/Changed
+- createDeposit posts deposit details to API to resolve hashedOnchainIds internally.
+- retainOnEmpty defaults to `false` to avoid viem ABI boolean undefined issues.
+- Hooks and examples updated to match new signatures.

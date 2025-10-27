@@ -13,7 +13,7 @@ Browser-first TypeScript SDK for integrating ZKP2P into web applications.
   - createDeposit (Escrow)
   - signalIntent (Orchestrator, HTTP verification optional)
   - cancelIntent (Orchestrator)
-  - fulfillIntentWithAttestation (Orchestrator + Attestation Service)
+  - fulfillIntent (Orchestrator + Attestation Service)
   - releaseFundsToPayer (Orchestrator)
   - setAcceptingIntents / setIntentRange (Escrow)
   - setCurrencyMinRate (Escrow)
@@ -328,9 +328,7 @@ export function FulfillButton({ client, params }: { client: Zkp2pClient; params:
   - `createDeposit({ token, amount, intentAmountRange, processorNames, depositData, conversionRates, ... })`
   - `signalIntent({ depositId, amount, toAddress, processorName, payeeDetails, fiatCurrencyCode, conversionRate, ... })`
   - `fulfillIntent({ intentHash, zkTlsProof, platform, actionType, ... })`
-  - `signalIntent({ orchestrator: { ... } })` (or escrow path)
-  - `fulfillIntent({ useOrchestrator?, orchestratorCall? | escrowCall? })`
-  - `cancelIntent({ intentHash, useOrchestrator? })`
+  - `cancelIntent({ intentHash })`
 
 ### Testing
 
@@ -610,7 +608,7 @@ export default ZKP2PApp;
 
 - useCreateDeposit: Calls client.createDeposit.
 - useSignalIntent: Calls client.signalIntent.
-- useFulfillIntent: Calls client.fulfillIntentWithAttestation.
+- useFulfillIntent: Calls client.fulfillIntent.
 - useReleaseFundsToPayer: Calls client.releaseFundsToPayer.
 - useSetAcceptingIntents, useSetIntentRange, useSetCurrencyMinRate: Escrow v3 maker management.
 - useAddFunds, useRemoveFunds, useWithdrawDeposit: Escrow v3 liquidity management.
