@@ -1,5 +1,6 @@
 import type { Address, Hash, PublicClient, WalletClient } from 'viem';
 import { createPublicClient, http } from 'viem';
+import { base, baseSepolia, hardhat } from 'viem/chains';
 import type { Abi } from 'abitype';
 
 import { defaultIndexerEndpoint, IndexerClient } from '../indexer/client';
@@ -60,7 +61,9 @@ export class Zkp2pClient {
     this.runtimeEnv = opts.runtimeEnv ?? 'production';
     const inferredRpc = (this.walletClient as any)?.chain?.rpcUrls?.default?.http?.[0] as string | undefined;
     const rpc = opts.rpcUrl ?? inferredRpc ?? 'http://127.0.0.1:8545';
-    this.publicClient = createPublicClient({ transport: http(rpc) });
+    const chainMap: Record<number, any> = { [base.id]: base, [baseSepolia.id]: baseSepolia, [hardhat.id]: hardhat };
+    const selectedChain = chainMap[this.chainId];
+    this.publicClient = createPublicClient({ chain: selectedChain as any, transport: http(rpc, { batch: false }) }) as unknown as PublicClient;
 
     // contracts-v3 resolution (via contracts-v2 package)
     const { addresses, abis } = getContracts(this.chainId, this.runtimeEnv);
@@ -120,8 +123,8 @@ export class Zkp2pClient {
     currencies: { code: `0x${string}`; minConversionRate: bigint }[][];
     delegate?: Address;
     intentGuardian?: Address;
-    referrer?: Address;
-    referrerFee?: bigint;
+    retainOnEmpty?: boolean;
+    txOverrides?: Record<string, unknown>;
   }): Promise<Hash> {
     const args = [{
       token: params.token,
@@ -132,8 +135,7 @@ export class Zkp2pClient {
       currencies: params.currencies,
       delegate: (params.delegate ?? '0x0000000000000000000000000000000000000000') as Address,
       intentGuardian: (params.intentGuardian ?? '0x0000000000000000000000000000000000000000') as Address,
-      referrer: (params.referrer ?? '0x0000000000000000000000000000000000000000') as Address,
-      referrerFee: params.referrerFee ?? 0n,
+      retainOnEmpty: Boolean(params.retainOnEmpty ?? false),
     }];
 
     const { request } = await this.publicClient.simulateContract({
@@ -142,6 +144,7 @@ export class Zkp2pClient {
       functionName: 'createDeposit',
       args,
       account: this.walletClient.account!,
+      ...(params.txOverrides ?? {}),
     });
     const hash = await this.walletClient.writeContract(request);
     return hash as Hash;
@@ -149,68 +152,180 @@ export class Zkp2pClient {
 
   // ---------- Maker-side deposit management (Escrow v3) ----------
 
-  async setAcceptingIntents(params: { depositId: bigint; accepting: boolean }): Promise<Hash> {
+  async setAcceptingIntents(params: { depositId: bigint; accepting: boolean; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     const { request } = await this.publicClient.simulateContract({
       address: this.escrowAddress,
       abi: this.escrowAbi,
       functionName: 'setAcceptingIntents',
       args: [params.depositId, params.accepting],
       account: this.walletClient.account!,
+      ...(params.txOverrides ?? {}),
     });
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
-  async setIntentRange(params: { depositId: bigint; min: bigint; max: bigint }): Promise<Hash> {
+  async setIntentRange(params: { depositId: bigint; min: bigint; max: bigint; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     const { request } = await this.publicClient.simulateContract({
       address: this.escrowAddress,
       abi: this.escrowAbi,
       functionName: 'setIntentRange',
       args: [params.depositId, { min: params.min, max: params.max }],
       account: this.walletClient.account!,
+      ...(params.txOverrides ?? {}),
     });
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
-  async setCurrencyMinRate(params: { depositId: bigint; paymentMethod: `0x${string}`; fiatCurrency: `0x${string}`; minConversionRate: bigint }): Promise<Hash> {
+  async setCurrencyMinRate(params: { depositId: bigint; paymentMethod: `0x${string}`; fiatCurrency: `0x${string}`; minConversionRate: bigint; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     const { request } = await this.publicClient.simulateContract({
       address: this.escrowAddress,
       abi: this.escrowAbi,
       functionName: 'setCurrencyMinRate',
       args: [params.depositId, params.paymentMethod, params.fiatCurrency, params.minConversionRate],
       account: this.walletClient.account!,
+      ...(params.txOverrides ?? {}),
     });
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
-  async addFunds(params: { depositId: bigint; amount: bigint }): Promise<Hash> {
+  async addFunds(params: { depositId: bigint; amount: bigint; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     const { request } = await this.publicClient.simulateContract({
       address: this.escrowAddress,
       abi: this.escrowAbi,
       functionName: 'addFunds',
       args: [params.depositId, params.amount],
       account: this.walletClient.account!,
+      ...(params.txOverrides ?? {}),
     });
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
-  async removeFunds(params: { depositId: bigint; amount: bigint }): Promise<Hash> {
+  async removeFunds(params: { depositId: bigint; amount: bigint; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     const { request } = await this.publicClient.simulateContract({
       address: this.escrowAddress,
       abi: this.escrowAbi,
       functionName: 'removeFunds',
       args: [params.depositId, params.amount],
       account: this.walletClient.account!,
+      ...(params.txOverrides ?? {}),
     });
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
-  async withdrawDeposit(params: { depositId: bigint }): Promise<Hash> {
+  async withdrawDeposit(params: { depositId: bigint; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     const { request } = await this.publicClient.simulateContract({
       address: this.escrowAddress,
       abi: this.escrowAbi,
       functionName: 'withdrawDeposit',
       args: [params.depositId],
       account: this.walletClient.account!,
+      ...(params.txOverrides ?? {}),
+    });
+    return (await this.walletClient.writeContract(request)) as Hash;
+  }
+
+  // ---------- Additional Escrow administration (V3) ----------
+
+  async setRetainOnEmpty(params: { depositId: bigint; retain: boolean; txOverrides?: Record<string, unknown> }): Promise<Hash> {
+    const { request } = await this.publicClient.simulateContract({
+      address: this.escrowAddress,
+      abi: this.escrowAbi,
+      functionName: 'setRetainOnEmpty',
+      args: [params.depositId, params.retain],
+      account: this.walletClient.account!,
+      ...(params.txOverrides ?? {}),
+    });
+    return (await this.walletClient.writeContract(request)) as Hash;
+  }
+
+  async setDelegate(params: { depositId: bigint; delegate: Address; txOverrides?: Record<string, unknown> }): Promise<Hash> {
+    const { request } = await this.publicClient.simulateContract({
+      address: this.escrowAddress,
+      abi: this.escrowAbi,
+      functionName: 'setDelegate',
+      args: [params.depositId, params.delegate],
+      account: this.walletClient.account!,
+      ...(params.txOverrides ?? {}),
+    });
+    return (await this.walletClient.writeContract(request)) as Hash;
+  }
+
+  async removeDelegate(params: { depositId: bigint; txOverrides?: Record<string, unknown> }): Promise<Hash> {
+    const { request } = await this.publicClient.simulateContract({
+      address: this.escrowAddress,
+      abi: this.escrowAbi,
+      functionName: 'removeDelegate',
+      args: [params.depositId],
+      account: this.walletClient.account!,
+      ...(params.txOverrides ?? {}),
+    });
+    return (await this.walletClient.writeContract(request)) as Hash;
+  }
+
+  async addPaymentMethods(params: { depositId: bigint; paymentMethods: `0x${string}`[]; paymentMethodData: { intentGatingService: Address; payeeDetails: string; data: `0x${string}` }[]; txOverrides?: Record<string, unknown> }): Promise<Hash> {
+    const { request } = await this.publicClient.simulateContract({
+      address: this.escrowAddress,
+      abi: this.escrowAbi,
+      functionName: 'addPaymentMethods',
+      args: [params.depositId, params.paymentMethods, params.paymentMethodData],
+      account: this.walletClient.account!,
+      ...(params.txOverrides ?? {}),
+    });
+    return (await this.walletClient.writeContract(request)) as Hash;
+  }
+
+  async setPaymentMethodActive(params: { depositId: bigint; paymentMethod: `0x${string}`; isActive: boolean; txOverrides?: Record<string, unknown> }): Promise<Hash> {
+    const { request } = await this.publicClient.simulateContract({
+      address: this.escrowAddress,
+      abi: this.escrowAbi,
+      functionName: 'setPaymentMethodActive',
+      args: [params.depositId, params.paymentMethod, params.isActive],
+      account: this.walletClient.account!,
+      ...(params.txOverrides ?? {}),
+    });
+    return (await this.walletClient.writeContract(request)) as Hash;
+  }
+
+  async removePaymentMethod(params: { depositId: bigint; paymentMethod: `0x${string}`; txOverrides?: Record<string, unknown> }): Promise<Hash> {
+    return this.setPaymentMethodActive({ depositId: params.depositId, paymentMethod: params.paymentMethod, isActive: false, txOverrides: params.txOverrides });
+  }
+
+  async addCurrencies(params: { depositId: bigint; paymentMethod: `0x${string}`; currencies: { code: `0x${string}`; minConversionRate: bigint }[]; txOverrides?: Record<string, unknown> }): Promise<Hash> {
+    const { request } = await this.publicClient.simulateContract({
+      address: this.escrowAddress,
+      abi: this.escrowAbi,
+      functionName: 'addCurrencies',
+      args: [params.depositId, params.paymentMethod, params.currencies],
+      account: this.walletClient.account!,
+      ...(params.txOverrides ?? {}),
+    });
+    return (await this.walletClient.writeContract(request)) as Hash;
+  }
+
+  async deactivateCurrency(params: { depositId: bigint; paymentMethod: `0x${string}`; currencyCode: `0x${string}`; txOverrides?: Record<string, unknown> }): Promise<Hash> {
+    const { request } = await this.publicClient.simulateContract({
+      address: this.escrowAddress,
+      abi: this.escrowAbi,
+      functionName: 'deactivateCurrency',
+      args: [params.depositId, params.paymentMethod, params.currencyCode],
+      account: this.walletClient.account!,
+      ...(params.txOverrides ?? {}),
+    });
+    return (await this.walletClient.writeContract(request)) as Hash;
+  }
+
+  async removeCurrency(params: { depositId: bigint; paymentMethod: `0x${string}`; currencyCode: `0x${string}`; txOverrides?: Record<string, unknown> }): Promise<Hash> {
+    return this.deactivateCurrency(params);
+  }
+
+  async pruneExpiredIntents(params: { depositId: bigint; txOverrides?: Record<string, unknown> }): Promise<Hash> {
+    const { request } = await this.publicClient.simulateContract({
+      address: this.escrowAddress,
+      abi: this.escrowAbi,
+      functionName: 'pruneExpiredIntents',
+      args: [params.depositId],
+      account: this.walletClient.account!,
+      ...(params.txOverrides ?? {}),
     });
     return (await this.walletClient.writeContract(request)) as Hash;
   }
@@ -230,8 +345,7 @@ export class Zkp2pClient {
     conversionRates: { currency: string; conversionRate: string }[][];
     delegate?: Address;
     intentGuardian?: Address;
-    referrer?: Address;
-    referrerFee?: bigint;
+    retainOnEmpty?: boolean;
   }): Promise<Hash> {
     const methods = getPaymentMethodsCatalog(this.chainId, this.runtimeEnv);
     if (!Array.isArray(params.processorNames) || params.processorNames.length === 0) {
@@ -285,8 +399,7 @@ export class Zkp2pClient {
       currencies,
       delegate: params.delegate,
       intentGuardian: params.intentGuardian,
-      referrer: params.referrer,
-      referrerFee: params.referrerFee,
+      retainOnEmpty: params.retainOnEmpty,
     });
   }
 
@@ -307,6 +420,7 @@ export class Zkp2pClient {
     payeeDetails?: string;
     gatingServiceSignature?: `0x${string}`;
     signatureExpiration?: bigint;
+    txOverrides?: Record<string, unknown>;
   }): Promise<Hash> {
     if (!this.orchestratorAddress || !this.orchestratorAbi) throw new Error('Orchestrator not available');
 
@@ -355,7 +469,7 @@ export class Zkp2pClient {
       data: (params.data ?? '0x') as `0x${string}`,
     }];
 
-    const { request } = await this.publicClient.simulateContract({ address: this.orchestratorAddress, abi: this.orchestratorAbi, functionName: 'signalIntent', args, account: this.walletClient.account! });
+    const { request } = await this.publicClient.simulateContract({ address: this.orchestratorAddress, abi: this.orchestratorAbi, functionName: 'signalIntent', args, account: this.walletClient.account!, ...(params.txOverrides ?? {}) });
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
@@ -380,6 +494,7 @@ export class Zkp2pClient {
     payeeDetails?: string;
     gatingServiceSignature?: `0x${string}`;
     signatureExpiration?: bigint;
+    txOverrides?: Record<string, unknown>;
   }): Promise<Hash> {
     const catalog = getPaymentMethodsCatalog(this.chainId, this.runtimeEnv);
     const paymentMethod = resolvePaymentMethodHashFromCatalog(params.processorName, catalog);
@@ -400,16 +515,17 @@ export class Zkp2pClient {
       payeeDetails: params.payeeDetails,
       gatingServiceSignature: params.gatingServiceSignature,
       signatureExpiration: params.signatureExpiration,
+      txOverrides: params.txOverrides,
     });
   }
 
-  async cancelIntent(params: { intentHash: `0x${string}` }): Promise<Hash> {
+  async cancelIntent(params: { intentHash: `0x${string}`; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     if (!this.orchestratorAddress || !this.orchestratorAbi) throw new Error('Orchestrator not available');
-    const { request } = await this.publicClient.simulateContract({ address: this.orchestratorAddress, abi: this.orchestratorAbi, functionName: 'cancelIntent', args: [params.intentHash], account: this.walletClient.account! });
+    const { request } = await this.publicClient.simulateContract({ address: this.orchestratorAddress, abi: this.orchestratorAbi, functionName: 'cancelIntent', args: [params.intentHash], account: this.walletClient.account!, ...(params.txOverrides ?? {}) });
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
-  async releaseFundsToPayer(params: { intentHash: `0x${string}` }): Promise<Hash> {
+  async releaseFundsToPayer(params: { intentHash: `0x${string}`; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     if (!this.orchestratorAddress || !this.orchestratorAbi) throw new Error('Orchestrator not available');
     const { request } = await this.publicClient.simulateContract({
       address: this.orchestratorAddress,
@@ -417,6 +533,7 @@ export class Zkp2pClient {
       functionName: 'releaseFundsToPayer',
       args: [params.intentHash],
       account: this.walletClient.account!,
+      ...(params.txOverrides ?? {}),
     });
     return (await this.walletClient.writeContract(request)) as Hash;
   }
@@ -435,6 +552,7 @@ export class Zkp2pClient {
     verifyingContract?: Address;
     attestationServiceUrl?: string;
     postIntentHookData?: `0x${string}`;
+    txOverrides?: Record<string, unknown>;
   }): Promise<Hash> {
     if (!this.orchestratorAddress || !this.orchestratorAbi) throw new Error('Orchestrator not available');
     const attUrl = (params.attestationServiceUrl ?? this.defaultAttestationService());
@@ -470,7 +588,7 @@ export class Zkp2pClient {
       verificationData,
       postIntentHookData: (params.postIntentHookData ?? '0x') as `0x${string}`,
     }];
-    const { request } = await this.publicClient.simulateContract({ address: this.orchestratorAddress, abi: this.orchestratorAbi, functionName: 'fulfillIntent', args, account: this.walletClient.account! });
+    const { request } = await this.publicClient.simulateContract({ address: this.orchestratorAddress, abi: this.orchestratorAbi, functionName: 'fulfillIntent', args, account: this.walletClient.account!, ...(params.txOverrides ?? {}) });
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
@@ -510,11 +628,11 @@ export class Zkp2pClient {
   // ---------- Optional on-chain views via ProtocolViewer ----------
 
   private requireProtocolViewer() {
-    if (!this.protocolViewerAddress || !this.protocolViewerAbi) {
-      throw new Error('ProtocolViewer not available for this network');
+    if (this.protocolViewerAddress && this.protocolViewerAbi) {
+      return { address: this.protocolViewerAddress, abi: this.protocolViewerAbi } as const;
     }
-    return { address: this.protocolViewerAddress, abi: this.protocolViewerAbi } as const;
-    }
+    return { address: this.escrowAddress, abi: this.escrowAbi } as const;
+  }
 
   async getPvDepositById(depositId: string | bigint) {
     const { address, abi } = this.requireProtocolViewer();
