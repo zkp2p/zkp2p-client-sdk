@@ -1,10 +1,10 @@
 /**
- * Example: Create a v2.1 deposit (struct-based)
+ * Example: Create a v3 deposit (struct-based)
  *
  * Usage:
  *   export PRIVATE_KEY=0x...
  *   export RPC_URL=https://base-mainnet.g.alchemy.com/v2/KEY
- *   ts-node create-deposit-v21.ts
+ *   ts-node create-deposit-v3.ts
  */
 import { createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -56,3 +56,4 @@ main().catch((e) => {
   process.exit(1);
 });
 /* eslint-disable no-console */
+

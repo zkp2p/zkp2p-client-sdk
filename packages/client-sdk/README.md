@@ -14,6 +14,10 @@ Browser-first TypeScript SDK for integrating ZKP2P into web applications.
   - signalIntent (Orchestrator, HTTP verification optional)
   - cancelIntent (Orchestrator)
   - fulfillIntentWithAttestation (Orchestrator + Attestation Service)
+  - releaseFundsToPayer (Orchestrator)
+  - setAcceptingIntents / setIntentRange (Escrow)
+  - setCurrencyMinRate (Escrow)
+  - addFunds / removeFunds / withdrawDeposit (Escrow)
 - Indexer reads for app data, optional ProtocolViewer on-chain reads
 - Proof/encoding utilities and minimal logging helpers
 
@@ -28,10 +32,10 @@ This SDK consumes contract addresses, ABIs, and payment method catalogs directly
 Helpers exported by the SDK:
 
 ```ts
-import { getContractsV2, getPaymentMethodsCatalog } from '@zkp2p/client-sdk';
+import { getContracts, getPaymentMethodsCatalog } from '@zkp2p/client-sdk';
 
 // Resolve addresses/ABIs per chain/env
-const { addresses, abis } = getContractsV2(8453, 'production');
+const { addresses, abis } = getContracts(8453, 'production');
 // addresses.Escrow, addresses.Orchestrator, ...
 // abis.escrow, abis.orchestrator, ...
 
@@ -155,6 +159,29 @@ const hash = await client.fulfillIntentWithAttestation({
 });
 ```
 
+### Maker Deposit Management (Escrow v3)
+
+```ts
+// Toggle accepting intents
+await client.setAcceptingIntents({ depositId: 1n, accepting: false });
+
+// Update allowed intent amount range
+await client.setIntentRange({ depositId: 1n, min: 100000n, max: 10000000n });
+
+// Update min conversion rate for a currency under a payment method
+await client.setCurrencyMinRate({
+  depositId: 1n,
+  paymentMethod: '0x…',
+  fiatCurrency: '0x…',
+  minConversionRate: 1000000n,
+});
+
+// Manage funds
+await client.addFunds({ depositId: 1n, amount: 5_000_000n });
+await client.removeFunds({ depositId: 1n, amount: 1_000_000n });
+await client.withdrawDeposit({ depositId: 1n });
+```
+
 ### Peerauth Extension (React)
 
 Use the optional extension entry for browser proof generation. The hook wraps window.postMessage and the `ExtensionProofFlow` class:
@@ -201,9 +228,11 @@ const usd = resolveFiatCurrencyBytes32('USD');
 ### Node Examples
 
 See `examples/node-scripts`:
-- `create-deposit-v21.ts`
+- `create-deposit.ts` (v3)
+- `create-deposit-v3.ts` (struct demonstration)
 - `signal-intent-orchestrator.ts`
 - `fulfill-intent-orchestrator.ts`
+- `release-funds-to-payer.ts`
 - `cancel-intent.ts`
 
 Run with ts-node or compile locally; provide env vars (see headers of each file).
@@ -298,7 +327,7 @@ export function FulfillButton({ client, params }: { client: Zkp2pClient; params:
   - `getDepositById(id, { includeIntents?, intentStatuses? })`
   - `getIntentsForDeposits(ids, statuses?)`
   - `getOwnerIntents(owner, statuses?)`
-- Writes (Contracts v2.1):
+- Writes (Contracts v3):
   - `createDeposit({ token, amount, intentAmountRange, paymentMethods, paymentMethodData, currencies, ... })`
   - `signalIntent({ orchestrator: { ... } })` (or escrow path)
   - `fulfillIntent({ useOrchestrator?, orchestratorCall? | escrowCall? })`
@@ -365,7 +394,7 @@ import {
   PLATFORM_METADATA,
   Currency,
   type PaymentPlatformType 
-} from '@zkp2p/client-sdk/v1';
+} from '@zkp2p/client-sdk';
 
 function ZKP2PApp() {
   const [selectedPlatform, setSelectedPlatform] = useState<PaymentPlatformType>('venmo');
@@ -578,97 +607,31 @@ function ZKP2PApp() {
 export default ZKP2PApp;
 ```
 
-### Individual Hook Examples
+### React Hooks (V3)
 
-#### `useCreateDeposit` - Create Liquidity Deposits
+- useCreateDeposit: Calls client.createDeposit.
+- useSignalIntent: Calls client.signalIntent.
+- useFulfillIntent: Calls client.fulfillIntentWithAttestation.
+- useReleaseFundsToPayer: Calls client.releaseFundsToPayer.
+- useSetAcceptingIntents, useSetIntentRange, useSetCurrencyMinRate: Escrow v3 maker management.
+- useAddFunds, useRemoveFunds, useWithdrawDeposit: Escrow v3 liquidity management.
 
-```tsx
-import { useCreateDeposit, Currency, type CreateDepositConversionRate } from '@zkp2p/client-sdk/v1';
-
-function DepositCreator() {
-  const { client } = useZkp2pClient({ /* ... */ });
-  
-  const { 
-    createDeposit, 
-    txHash, 
-    depositDetails,
-    isLoading, 
-    error 
-  } = useCreateDeposit({
-    client,
-    onSuccess: ({ hash, depositDetails }) => {
-      console.log('Deposit created:', hash);
-      console.log('Deposit details:', depositDetails);
-    },
-  });
-
-  const handleCreateDeposit = async () => {
-    const conversionRates: CreateDepositConversionRate[][] = [[
-      { currency: Currency.USD, conversionRate: '1000000' }, // 1:1 USD
-    ]];
-
-    await createDeposit({
-      token: client!.getUsdcAddress(),
-      amount: BigInt('1000000'), // 1 USDC
-      intentAmountRange: {
-        min: BigInt('500000'),  // 0.5 USDC minimum
-        max: BigInt('2000000'), // 2 USDC maximum
-      },
-      conversionRates,
-      processorNames: ['venmo'],
-      depositData: [{
-        venmoUsername: 'alice123',
-      }],
-    });
-  };
-
-  return (
-    <button onClick={handleCreateDeposit} disabled={isLoading}>
-      {isLoading ? 'Creating Deposit...' : 'Create Deposit'}
-    </button>
-  );
-}
-```
-
-#### `useSignalIntent` - Signal Trading Intent
+Basic usage:
 
 ```tsx
-import { useSignalIntent, Currency } from '@zkp2p/client-sdk/v1';
+import { useCreateDeposit, useSignalIntent, useFulfillIntent, useReleaseFundsToPayer } from '@zkp2p/client-sdk/react';
 
-function IntentSignaler() {
-  const { client } = useZkp2pClient({ /* ... */ });
-  
-  const { 
-    signalIntent, 
-    response, 
-    isLoading 
-  } = useSignalIntent({
-    client,
-    onSuccess: (response) => {
-      console.log('Intent hash:', response.intentHash);
-      console.log('Timestamp:', response.timestamp);
-    },
-  });
+function Actions({ client }: { client: Zkp2pClient }) {
+  const { createDeposit, isLoading: creating } = useCreateDeposit({ client });
+  const { signalIntent, isLoading: signaling } = useSignalIntent({ client });
+  const { fulfillIntent, isLoading: fulfilling } = useFulfillIntent({ client });
+  const { releaseFundsToPayer, isLoading: releasing } = useReleaseFundsToPayer({ client });
 
-  const handleSignalIntent = async () => {
-    await signalIntent({
-      processorName: 'wise',
-      depositId: '123',
-      tokenAmount: '1000000', // 1 USDC
-      payeeDetails: JSON.stringify({
-        email: 'alice@example.com',
-        accountNumber: '12345678',
-      }),
-      toAddress: '0xRecipientAddress',
-      currency: Currency.USD,
-    });
-  };
-
-  return (
-    <button onClick={handleSignalIntent} disabled={isLoading}>
-      {isLoading ? 'Signaling...' : 'Signal Intent'}
-    </button>
-  );
+  // call createDeposit({ token, amount, intentAmountRange, paymentMethods, paymentMethodData, currencies })
+  // call signalIntent({ escrow, depositId, amount, to, paymentMethod, fiatCurrency, conversionRate, ... })
+  // call fulfillIntent({ intentHash, zkTlsProof, platform, actionType, ... })
+  // call releaseFundsToPayer({ intentHash })
+  return null;
 }
 ```
 
@@ -677,7 +640,7 @@ function IntentSignaler() {
 ### Unified Authentication Flow (Recommended)
 
 ```typescript
-import { PLATFORM_METADATA } from '@zkp2p/client-sdk/v1';
+import { PLATFORM_METADATA } from '@zkp2p/client-sdk';
 import { ExtensionOrchestrator } from '@zkp2p/client-sdk/extension';
 
 async function authenticateAndGenerateProof() {
@@ -798,7 +761,7 @@ import {
   PAYMENT_PLATFORMS, 
   PLATFORM_METADATA,
   type PaymentPlatformType 
-} from '@zkp2p/client-sdk/v1';
+} from '@zkp2p/client-sdk';
 
 // List all supported platforms
 console.log('Supported platforms:', PAYMENT_PLATFORMS);
@@ -825,7 +788,7 @@ import {
   currencyInfo,
   type CurrencyType,
   type CurrencyData 
-} from '@zkp2p/client-sdk/v1';
+} from '@zkp2p/client-sdk';
 
 // Use currency constants
 const usdCurrency: CurrencyType = Currency.USD;
@@ -964,7 +927,7 @@ try {
 ### Logging Configuration
 
 ```typescript
-import { logger, setLogLevel } from '@zkp2p/client-sdk/v1';
+import { logger, setLogLevel } from '@zkp2p/client-sdk';
 
 // Set log level
 setLogLevel('debug'); // 'debug' | 'info' | 'warn' | 'error' | 'none'
@@ -986,7 +949,7 @@ import {
   encodeProofAndPaymentMethodAsBytes,
   assembleProofBytes,
   type ReclaimProof
-} from '@zkp2p/client-sdk/v1';
+} from '@zkp2p/client-sdk';
 import { parseExtensionProof } from '@zkp2p/client-sdk/extension';
 
 // Parse proof from extension
@@ -1017,13 +980,13 @@ const assembled = assembleProofBytes([proof1, proof2], { paymentMethod: 1 });
 # .env
 VITE_ZKP2P_API_KEY=your_api_key_here
 VITE_ZKP2P_RPC_URL=https://base-mainnet.g.alchemy.com/v2/your_key
-VITE_ZKP2P_BASE_API_URL=https://api.zkp2p.xyz/v1
+VITE_ZKP2P_BASE_API_URL=https://api.zkp2p.xyz
 VITE_ZKP2P_WITNESS_URL=https://witness-proxy.zkp2p.xyz
 ```
 
 ```typescript
 // main.tsx
-import { Zkp2pClient } from '@zkp2p/client-sdk/v1';
+import { Zkp2pClient } from '@zkp2p/client-sdk';
 
 const client = new Zkp2pClient({
   walletClient,

@@ -1,5 +1,5 @@
-// contracts-v2 resolution utilities for the SDK
-// Centralizes addresses/ABIs import from @zkp2p/contracts-v2 and environment switching
+// V3 contracts resolution utilities for the SDK
+// Centralizes addresses/ABIs import from @zkp2p/contracts-v2 (package providing v3 deployments) and environment switching
 
 import type { Abi } from 'abitype';
 
@@ -9,6 +9,10 @@ import baseSepoliaAddresses from '@zkp2p/contracts-v2/addresses/baseSepolia';
 import baseStagingAddresses from '@zkp2p/contracts-v2/addresses/baseStaging';
 
 import EscrowBase from '@zkp2p/contracts-v2/abis/base/Escrow.json';
+import OrchestratorBase from '@zkp2p/contracts-v2/abis/base/Orchestrator.json';
+import ProtocolViewerBase from '@zkp2p/contracts-v2/abis/base/ProtocolViewer.json';
+import UnifiedPaymentVerifierBase from '@zkp2p/contracts-v2/abis/base/UnifiedPaymentVerifier.json';
+
 import EscrowBaseSepolia from '@zkp2p/contracts-v2/abis/baseSepolia/Escrow.json';
 import OrchestratorBaseSepolia from '@zkp2p/contracts-v2/abis/baseSepolia/Orchestrator.json';
 import ProtocolViewerBaseSepolia from '@zkp2p/contracts-v2/abis/baseSepolia/ProtocolViewer.json';
@@ -46,12 +50,15 @@ export function networkKeyFromChainId(chainId: number): 'base' | 'base_sepolia' 
   return 'base';
 }
 
-export function getContractsV2(chainId: number, env: RuntimeEnv = 'production'): { addresses: V2ContractAddresses; abis: V2ContractAbis } {
+export function getContracts(chainId: number, env: RuntimeEnv = 'production'): { addresses: V2ContractAddresses; abis: V2ContractAbis } {
   const key = networkKeyFromChainId(chainId);
 
   const addressesByKey: Record<'base' | 'base_sepolia', V2ContractAddresses> = {
     base: {
       escrow: (baseAddresses.contracts?.Escrow ?? '') as `0x${string}`,
+      orchestrator: (baseAddresses.contracts?.Orchestrator ?? '') as `0x${string}`,
+      unifiedPaymentVerifier: (baseAddresses.contracts?.UnifiedPaymentVerifier ?? '') as `0x${string}`,
+      protocolViewer: (baseAddresses.contracts?.ProtocolViewer ?? '') as `0x${string}`,
       usdc: (baseConstants as any).USDC,
     },
     base_sepolia: {
@@ -59,11 +66,18 @@ export function getContractsV2(chainId: number, env: RuntimeEnv = 'production'):
       orchestrator: (baseSepoliaAddresses.contracts?.Orchestrator ?? '') as `0x${string}`,
       unifiedPaymentVerifier: (baseSepoliaAddresses.contracts?.UnifiedPaymentVerifier ?? '') as `0x${string}`,
       protocolViewer: (baseSepoliaAddresses.contracts?.ProtocolViewer ?? '') as `0x${string}`,
+      // Prefer mock USDC when available on testnet
+      usdc: (baseSepoliaAddresses.contracts as any)?.USDCMock as `0x${string}` | undefined,
     },
   };
 
   const abisByKey: Record<'base' | 'base_sepolia', V2ContractAbis> = {
-    base: { escrow: EscrowBase as unknown as Abi, protocolViewer: ProtocolViewerBaseStaging as unknown as Abi },
+    base: {
+      escrow: EscrowBase as unknown as Abi,
+      orchestrator: OrchestratorBase as unknown as Abi,
+      unifiedPaymentVerifier: UnifiedPaymentVerifierBase as unknown as Abi,
+      protocolViewer: ProtocolViewerBase as unknown as Abi,
+    },
     base_sepolia: {
       escrow: EscrowBaseSepolia as unknown as Abi,
       orchestrator: OrchestratorBaseSepolia as unknown as Abi,

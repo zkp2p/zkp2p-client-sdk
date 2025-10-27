@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [Conventional Commits](https://www.conventionalcommits.org/).
 
+## [4.0.0] - 2025-10-27
+
+### Breaking
+- V3-only client: removed versioned subpath imports (`@zkp2p/client-sdk/v1`, `@zkp2p/client-sdk/v2`). Use root import `@zkp2p/client-sdk`.
+- Renamed `getContractsV2` to `getContracts`.
+- Renamed `mapConversionRatesToOnchainV2` to `mapConversionRatesToOnchainMinRate`.
+
+### Added
+- Maker actions for Escrow v3: `setAcceptingIntents`, `setIntentRange`, `setCurrencyMinRate`, `addFunds`, `removeFunds`, `withdrawDeposit`.
+- Taker action: `releaseFundsToPayer` (Orchestrator).
+- React hooks for maker/taker actions under `@zkp2p/client-sdk/react`.
+- Updated indexer endpoints and added `MANUALLY_RELEASED` intent status.
+
+### Changed
+- Examples and README migrated to V3 flows (orchestrator + attestation + protocol viewer).
+
 ## [3.1.0] - 2025-09-08
 
 ### Added

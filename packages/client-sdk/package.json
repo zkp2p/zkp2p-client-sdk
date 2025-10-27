@@ -82,7 +82,7 @@
     "vitest": "^1.5.0"
   },
   "dependencies": {
-    "@zkp2p/contracts-v2": "^0.0.5-rc.4",
+    "@zkp2p/contracts-v2": "^0.0.6",
     "canonicalize": "^1.0.8"
   },
   "peerDependencies": {

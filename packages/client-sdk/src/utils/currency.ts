@@ -105,12 +105,12 @@ export function mapConversionRatesToOnchain(
 }
 
 // V2: map UI currency groups to on-chain tuple[][] with minConversionRate
-export type OnchainCurrencyV2 = { code: `0x${string}`; minConversionRate: bigint };
+export type OnchainCurrencyMinRate = { code: `0x${string}`; minConversionRate: bigint };
 
-export function mapConversionRatesToOnchainV2(
+export function mapConversionRatesToOnchainMinRate(
   groups: UICurrencyRate[][],
   expectedGroups?: number
-): OnchainCurrencyV2[][] {
+): OnchainCurrencyMinRate[][] {
   if (!Array.isArray(groups) || !Array.isArray(groups[0])) {
     throw new Error('conversionRates must be a nested array per payment method');
   }

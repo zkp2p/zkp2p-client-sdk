@@ -5,13 +5,13 @@ import type { Abi } from 'abitype';
 import { defaultIndexerEndpoint, IndexerClient } from '../indexer/client';
 import { IndexerDepositService, type DepositFilter, type PaginationOptions } from '../indexer/service';
 import type { DepositEntity, DepositWithRelations, IntentEntity, IntentStatus } from '../indexer/types';
-import { getContractsV2, type RuntimeEnv } from '../contractsV2';
+import { getContracts, type RuntimeEnv } from '../contracts';
 import { apiSignIntentV2 } from '../adapters/verification';
 import { apiCreatePaymentAttestation } from '../adapters/attestation';
 import { encodeAddressAsBytes, encodePaymentAttestation, encodeVerifyPaymentData } from '../utils/encode';
 import { ethers } from 'ethers';
 import { apiGetPayeeDetails, apiGetQuote } from '../adapters/api';
-import { getGatingServiceAddress, getPaymentMethodsCatalog } from '../contractsV2';
+import { getGatingServiceAddress, getPaymentMethodsCatalog } from '../contracts';
 import { resolveFiatCurrencyBytes32, resolvePaymentMethodHashFromCatalog } from '../utils/paymentResolution';
 import type { QuoteRequest, QuoteResponse } from '../types';
 
@@ -52,6 +52,7 @@ export class Zkp2pClient {
   readonly apiKey?: string;
   readonly authorizationToken?: string;
   readonly apiTimeoutMs: number;
+  private _usdcAddress?: Address;
 
   constructor(opts: Zkp2pNextOptions) {
     this.walletClient = opts.walletClient;
@@ -61,8 +62,8 @@ export class Zkp2pClient {
     const rpc = opts.rpcUrl ?? inferredRpc ?? 'http://127.0.0.1:8545';
     this.publicClient = createPublicClient({ transport: http(rpc) });
 
-    // contracts-v2 resolution
-    const { addresses, abis } = getContractsV2(this.chainId, this.runtimeEnv);
+    // contracts-v3 resolution (via contracts-v2 package)
+    const { addresses, abis } = getContracts(this.chainId, this.runtimeEnv);
     this.escrowAddress = addresses.escrow as Address;
     this.escrowAbi = abis.escrow;
     this.orchestratorAddress = addresses.orchestrator as Address | undefined;
@@ -70,6 +71,9 @@ export class Zkp2pClient {
     this.unifiedPaymentVerifier = addresses.unifiedPaymentVerifier as Address | undefined;
     this.protocolViewerAddress = (addresses as any).protocolViewer as Address | undefined;
     this.protocolViewerAbi = (abis as any).protocolViewer as Abi | undefined;
+    // optional USDC convenience
+    const maybeUsdc = (addresses as any).usdc as Address | undefined;
+    if (maybeUsdc) (this as any)._usdcAddress = maybeUsdc;
 
     // indexer
     const endpoint = opts.indexerUrl ?? defaultIndexerEndpoint(this.runtimeEnv === 'staging' ? 'STAGING' : 'PRODUCTION');
@@ -143,6 +147,74 @@ export class Zkp2pClient {
     return hash as Hash;
   }
 
+  // ---------- Maker-side deposit management (Escrow v3) ----------
+
+  async setAcceptingIntents(params: { depositId: bigint; accepting: boolean }): Promise<Hash> {
+    const { request } = await this.publicClient.simulateContract({
+      address: this.escrowAddress,
+      abi: this.escrowAbi,
+      functionName: 'setAcceptingIntents',
+      args: [params.depositId, params.accepting],
+      account: this.walletClient.account!,
+    });
+    return (await this.walletClient.writeContract(request)) as Hash;
+  }
+
+  async setIntentRange(params: { depositId: bigint; min: bigint; max: bigint }): Promise<Hash> {
+    const { request } = await this.publicClient.simulateContract({
+      address: this.escrowAddress,
+      abi: this.escrowAbi,
+      functionName: 'setIntentRange',
+      args: [params.depositId, { min: params.min, max: params.max }],
+      account: this.walletClient.account!,
+    });
+    return (await this.walletClient.writeContract(request)) as Hash;
+  }
+
+  async setCurrencyMinRate(params: { depositId: bigint; paymentMethod: `0x${string}`; fiatCurrency: `0x${string}`; minConversionRate: bigint }): Promise<Hash> {
+    const { request } = await this.publicClient.simulateContract({
+      address: this.escrowAddress,
+      abi: this.escrowAbi,
+      functionName: 'setCurrencyMinRate',
+      args: [params.depositId, params.paymentMethod, params.fiatCurrency, params.minConversionRate],
+      account: this.walletClient.account!,
+    });
+    return (await this.walletClient.writeContract(request)) as Hash;
+  }
+
+  async addFunds(params: { depositId: bigint; amount: bigint }): Promise<Hash> {
+    const { request } = await this.publicClient.simulateContract({
+      address: this.escrowAddress,
+      abi: this.escrowAbi,
+      functionName: 'addFunds',
+      args: [params.depositId, params.amount],
+      account: this.walletClient.account!,
+    });
+    return (await this.walletClient.writeContract(request)) as Hash;
+  }
+
+  async removeFunds(params: { depositId: bigint; amount: bigint }): Promise<Hash> {
+    const { request } = await this.publicClient.simulateContract({
+      address: this.escrowAddress,
+      abi: this.escrowAbi,
+      functionName: 'removeFunds',
+      args: [params.depositId, params.amount],
+      account: this.walletClient.account!,
+    });
+    return (await this.walletClient.writeContract(request)) as Hash;
+  }
+
+  async withdrawDeposit(params: { depositId: bigint }): Promise<Hash> {
+    const { request } = await this.publicClient.simulateContract({
+      address: this.escrowAddress,
+      abi: this.escrowAbi,
+      functionName: 'withdrawDeposit',
+      args: [params.depositId],
+      account: this.walletClient.account!,
+    });
+    return (await this.walletClient.writeContract(request)) as Hash;
+  }
+
   /**
    * Convenience wrapper for createDeposit that accepts processor names and hashedOnchainIds,
    * resolves paymentMethod hashes and auto-builds paymentMethodData using the gating service address.
@@ -197,12 +269,12 @@ export class Zkp2pClient {
     });
 
     // Map to on-chain struct shape (minConversionRate)
-    const { mapConversionRatesToOnchainV2 } = await import('../utils/currency');
+    const { mapConversionRatesToOnchainMinRate } = await import('../utils/currency');
     // Normalize currency codes to our CurrencyType union when possible
     const normalized = params.conversionRates.map((group) =>
       group.map((r) => ({ currency: r.currency as any, conversionRate: r.conversionRate }))
     );
-    const currencies = mapConversionRatesToOnchainV2(normalized as any, paymentMethods.length);
+    const currencies = mapConversionRatesToOnchainMinRate(normalized as any, paymentMethods.length);
 
     return this.createDeposit({
       token: params.token,
@@ -334,6 +406,18 @@ export class Zkp2pClient {
   async cancelIntent(params: { intentHash: `0x${string}` }): Promise<Hash> {
     if (!this.orchestratorAddress || !this.orchestratorAbi) throw new Error('Orchestrator not available');
     const { request } = await this.publicClient.simulateContract({ address: this.orchestratorAddress, abi: this.orchestratorAbi, functionName: 'cancelIntent', args: [params.intentHash], account: this.walletClient.account! });
+    return (await this.walletClient.writeContract(request)) as Hash;
+  }
+
+  async releaseFundsToPayer(params: { intentHash: `0x${string}` }): Promise<Hash> {
+    if (!this.orchestratorAddress || !this.orchestratorAbi) throw new Error('Orchestrator not available');
+    const { request } = await this.publicClient.simulateContract({
+      address: this.orchestratorAddress,
+      abi: this.orchestratorAbi,
+      functionName: 'releaseFundsToPayer',
+      args: [params.intentHash],
+      account: this.walletClient.account!,
+    });
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
@@ -491,5 +575,10 @@ export class Zkp2pClient {
     });
     const { parseIntentView } = await import('../utils/protocolViewerParsers');
     return parseIntentView(raw);
+  }
+
+  // ---------- Convenience ----------
+  getUsdcAddress(): Address | undefined {
+    return this._usdcAddress;
   }
 }

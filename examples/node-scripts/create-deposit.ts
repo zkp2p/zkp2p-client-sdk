@@ -1,149 +1,49 @@
 /**
- * Create Deposit Example - Demonstrates deposit creation with v1.0.0 features
+ * Create Deposit (V3) Example
+ *
+ * Env:
+ *   PRIVATE_KEY, RPC_URL,
+ *   TOKEN (defaults to Base USDC), AMOUNT, RANGE_MIN,
+ *   PROCESSOR_NAMES (comma-separated), HASHED_ONCHAIN_IDS (comma-separated),
+ *   CONVERSION_RATES (JSON nested array per processor)
  */
-
-import { 
-  Zkp2pClient,
-  Currency,
-  SUPPORTED_CHAIN_IDS,
-  PLATFORM_METADATA,
-  currencyInfo,
-  type CreateDepositParams,
-  type CreateDepositConversionRate,
-  type PaymentPlatformType,
-  type CurrencyType
-} from '@zkp2p/client-sdk/v1';
-// Note: extension helpers are available under '@zkp2p/client-sdk/extension'
+import { Zkp2pClient } from '@zkp2p/client-sdk';
 import { createWalletClient, http, parseUnits } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { base } from 'viem/chains';
 
 async function main() {
-  const apiKey = process.env.ZKP2P_API_KEY || '';
-  const privateKey = process.env.PRIVATE_KEY as `0x${string}`;
-  const rpcUrl = process.env.RPC_URL || `https://base-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_KEY}`;
+  const PRIV = process.env.PRIVATE_KEY as `0x${string}`;
+  const RPC = process.env.RPC_URL || `https://base-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_KEY}`;
+  const TOKEN = (process.env.TOKEN || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913') as `0x${string}`;
+  const AMOUNT_DEC = process.env.AMOUNT || '10';
+  const RANGE_MIN_DEC = process.env.RANGE_MIN || '5';
+  const PROCESSOR_NAMES = (process.env.PROCESSOR_NAMES || 'wise').split(',').filter(Boolean);
+  const HASHED_ONCHAIN_IDS = (process.env.HASHED_ONCHAIN_IDS || '0x').split(',').filter(Boolean);
+  const CONVERSION_RATES = JSON.parse(process.env.CONVERSION_RATES || '[[{"currency":"USD","conversionRate":"1000000"}]]');
 
-  if (!apiKey) throw new Error('Set ZKP2P_API_KEY');
-  if (!privateKey) throw new Error('Set PRIVATE_KEY to create deposits');
+  if (!PRIV) throw new Error('Set PRIVATE_KEY');
 
-  console.log('ZKP2P Client SDK v1.0.0 - Create Deposit Example\n');
+  const account = privateKeyToAccount(PRIV);
+  const walletClient = createWalletClient({ account, chain: base, transport: http(RPC) });
+  const client = new Zkp2pClient({ walletClient, chainId: base.id, runtimeEnv: 'production' });
 
-  // Setup wallet client with account
-  const account = privateKeyToAccount(privateKey);
-  const walletClient = createWalletClient({ 
-    account,
-    chain: base, 
-    transport: http(rpcUrl) 
+  const amount = parseUnits(AMOUNT_DEC, 6);
+  const min = parseUnits(RANGE_MIN_DEC, 6);
+
+  const hash = await client.createDepositResolved({
+    token: TOKEN,
+    amount,
+    intentAmountRange: { min, max: amount * 2n },
+    processorNames: PROCESSOR_NAMES,
+    hashedOnchainIds: HASHED_ONCHAIN_IDS,
+    conversionRates: CONVERSION_RATES,
   });
 
-  console.log(`Account: ${account.address}`);
-
-  // Initialize client
-  const client = new Zkp2pClient({ 
-    walletClient, 
-    apiKey, 
-    chainId: SUPPORTED_CHAIN_IDS.BASE_MAINNET,
-    rpcUrl,
-  });
-
-  // Configuration
-  const platform: PaymentPlatformType = 'venmo';
-  const currency: CurrencyType = Currency.USD;
-  const depositAmount = '10'; // 10 USDC
-  const platformMeta = PLATFORM_METADATA[platform];
-  const currencyMeta = currencyInfo[currency];
-
-  console.log(`\nCreating Deposit:`);
-  console.log(`  Platform: ${platformMeta.displayName}`);
-  console.log(`  Currency: ${currencyMeta.currencySymbol} ${currency}`);
-  console.log(`  Amount: ${depositAmount} USDC`);
-  console.log(`  Required Proofs: ${platformMeta.requiredProofs}`);
-
-  try {
-    // Convert amount to USDC units (6 decimals)
-    const amount = parseUnits(depositAmount, 6);
-
-    // Setup conversion rates - 1:1 for USD
-    const conversionRates: CreateDepositConversionRate[][] = [[
-      { 
-        currency: Currency.USD, 
-        conversionRate: '1000000' // 1 USDC = 1 USD (scaled by 1e6)
-      }
-    ]];
-
-    // Create deposit parameters
-    const depositParams: CreateDepositParams = {
-      token: client.getUsdcAddress(),
-      amount,
-      intentAmountRange: {
-        min: amount / 2n,     // Allow intents from 5 USDC
-        max: amount * 2n,     // Allow intents up to 20 USDC
-      },
-      conversionRates,
-      processorNames: [platform],
-      depositData: [{
-        // Platform-specific payee details
-        [`${platform}Username`]: 'alice_venmo',
-        [`${platform}Id`]: '1234567890',
-        email: 'alice@example.com',
-      }],
-      // Optional callbacks
-      onSuccess: ({ hash }) => {
-        console.log(`Transaction broadcast! Hash: ${hash}`);
-      },
-      onMined: ({ hash }) => {
-        console.log(`Transaction mined! Hash: ${hash}`);
-      },
-      onError: (error) => {
-        console.error(`Transaction failed:`, error);
-      },
-    };
-
-    console.log('\nSubmitting deposit transaction...');
-    const result = await client.createDeposit(depositParams);
-
-    console.log('\nDeposit Created Successfully!');
-    console.log(`  Transaction Hash: ${result.hash}`);
-    console.log(`  Block Explorer: https://basescan.org/tx/${result.hash}`);
-    
-    console.log('\nDeposit Details:');
-    result.depositDetails.forEach((detail, idx) => {
-      console.log(`  Deposit #${idx + 1}:`);
-      console.log(`    Processor: ${detail.processor}`);
-      console.log(`    Data:`, detail.data);
-    });
-
-    // Demonstrate reading deposits
-    console.log('\nReading account deposits...');
-    const deposits = await client.getAccountDeposits(account.address);
-    console.log(`  Total deposits: ${deposits.length}`);
-    
-    deposits.forEach((deposit, idx) => {
-      console.log(`\n  Deposit #${idx + 1}:`);
-      console.log(`    ID: ${deposit.deposit.depositId}`);
-      console.log(`    Amount: ${deposit.deposit.amount}`);
-      console.log(`    Available: ${deposit.deposit.availableDepositAmount}`);
-      console.log(`    Intent Range: ${deposit.deposit.intentAmountRange.min} - ${deposit.deposit.intentAmountRange.max}`);
-      console.log(`    Outstanding Intents: ${deposit.deposit.outstandingIntentAmount}`);
-    });
-
-  } catch (error) {
-    console.error('\nError creating deposit:', error);
-    if (error instanceof Error) {
-      console.error('Message:', error.message);
-      
-      // Check for common errors
-      if (error.message.includes('insufficient funds')) {
-        console.error('Make sure you have enough USDC and ETH for gas');
-      }
-      if (error.message.includes('user rejected')) {
-        console.error('Transaction was rejected by the wallet');
-      }
-    }
-  }
+  console.log('createDeposit tx hash:', hash);
 }
 
 main().catch((e) => {
-  console.error('Fatal error:', e);
+  console.error(e);
   process.exit(1);
 });

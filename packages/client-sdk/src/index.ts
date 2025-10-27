@@ -1,4 +1,4 @@
-// Breaking SDK export: single modern client (contracts v2.1 + indexer)
+// Breaking SDK export: single modern client (v3 contracts + indexer)
 export { Zkp2pClient } from './client/Zkp2pClient';
 
 // Public indexer types
@@ -25,6 +25,6 @@ export * from './errors';
 export { ensureBytes32, asciiToBytes32 } from './utils/bytes32';
 export { resolvePaymentMethodHash, resolveFiatCurrencyBytes32 } from './utils/paymentResolution';
 export { resolvePaymentMethodHashFromCatalog } from './utils/paymentResolution';
-export { mapConversionRatesToOnchainV2 } from './utils/currency';
-export { getContractsV2, getPaymentMethodsCatalog, type RuntimeEnv } from './contractsV2';
-export type { PaymentMethodCatalog } from './contractsV2';
+export { mapConversionRatesToOnchainMinRate } from './utils/currency';
+export { getContracts, getPaymentMethodsCatalog, type RuntimeEnv } from './contracts';
+export type { PaymentMethodCatalog } from './contracts';

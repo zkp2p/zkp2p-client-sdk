@@ -51,7 +51,7 @@ export interface MethodCurrencyEntity {
   minConversionRate: string; // BigInt as string
 }
 
-export type IntentStatus = 'SIGNALED' | 'FULFILLED' | 'PRUNED';
+export type IntentStatus = 'SIGNALED' | 'FULFILLED' | 'PRUNED' | 'MANUALLY_RELEASED';
 
 export interface IntentEntity {
   id: string;                // chainId_intentHash
@@ -80,4 +80,3 @@ export interface DepositWithRelations extends DepositEntity {
   currencies?: MethodCurrencyEntity[];
   intents?: IntentEntity[];
 }
-

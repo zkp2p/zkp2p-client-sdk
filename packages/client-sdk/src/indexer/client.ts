@@ -52,19 +52,21 @@ export class IndexerClient {
   }
 }
 
-export type DeploymentEnv = 'PRODUCTION' | 'STAGING' | 'DEV' | 'LOCAL' | 'STAGING_TESTNET';
+export type DeploymentEnv = 'PRODUCTION' | 'PREPRODUCTION' | 'STAGING' | 'DEV' | 'LOCAL' | 'STAGING_TESTNET';
 
 export function defaultIndexerEndpoint(env: DeploymentEnv = 'PRODUCTION'): string {
   switch (env) {
     case 'PRODUCTION':
       return 'https://indexer.hyperindex.xyz/8fd74dc/v1/graphql';
+    case 'PREPRODUCTION':
+      return 'https://indexer.hyperindex.xyz/186c193/v1/graphql';
     case 'STAGING':
-      return 'https://indexer.dev.hyperindex.xyz/6d3d2dc/v1/graphql';
+      return 'https://indexer.dev.hyperindex.xyz/3b6e163/v1/graphql';
     case 'DEV':
     case 'LOCAL':
     case 'STAGING_TESTNET':
       // Not used by consumers; map to staging endpoint by default
-      return 'https://indexer.dev.hyperindex.xyz/6d3d2dc/v1/graphql';
+      return 'https://indexer.dev.hyperindex.xyz/3b6e163/v1/graphql';
     default:
       return 'https://indexer.hyperindex.xyz/8fd74dc/v1/graphql';
   }

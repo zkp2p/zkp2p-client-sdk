@@ -1,158 +1,58 @@
 /**
- * Enhanced Get Quote Example - Demonstrates v1.0.0 features
- * Shows usage of constants, currency types, and platform metadata
+ * Get Quote (V3) Example
  */
-
-import { 
-  Zkp2pClient,
-  Currency,
-  SUPPORTED_CHAIN_IDS,
-  PAYMENT_PLATFORMS,
-  PLATFORM_METADATA,
-  currencyInfo,
-  type PaymentPlatformType,
-  type CurrencyType,
-  type QuoteRequest
-} from '@zkp2p/client-sdk';
+import { Zkp2pClient, PLATFORM_METADATA, PAYMENT_PLATFORMS, currencyInfo, type PaymentPlatformType, type CurrencyType, Currency, type QuoteRequest } from '@zkp2p/client-sdk';
 import { createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { base } from 'viem/chains';
 
 async function main() {
   const apiKey = process.env.ZKP2P_API_KEY || '';
-  const privateKey = process.env.PRIVATE_KEY as `0x${string}` || '0x';
+  const privateKey = (process.env.PRIVATE_KEY || '0x') as `0x${string}`;
   const rpcUrl = process.env.RPC_URL || `https://base-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_KEY}`;
-
   if (!apiKey) throw new Error('Set ZKP2P_API_KEY');
 
-  console.log('ZKP2P Client SDK v1.0.0 - Get Quote Enhanced Example\n');
+  console.log('ZKP2P Client SDK - Get Quote (V3)');
 
-  // Display supported platforms using new constants
-  console.log('Supported Payment Platforms:');
-  PAYMENT_PLATFORMS.forEach(platform => {
-    const meta = PLATFORM_METADATA[platform];
-    console.log(`  ${meta.displayName} - Requires ${meta.requiredProofs} proof(s)`);
+  // Show platforms
+  console.log('Platforms:');
+  PAYMENT_PLATFORMS.forEach((p) => {
+    const meta = PLATFORM_METADATA[p];
+    console.log(`  - ${meta.displayName}`);
   });
 
-  // Display some supported currencies
-  console.log('\nSample Supported Currencies:');
-  const sampleCurrencies: CurrencyType[] = [Currency.USD, Currency.EUR, Currency.GBP, Currency.JPY];
-  sampleCurrencies.forEach(code => {
-    const info = currencyInfo[code];
-    console.log(`  ${info.currencySymbol} ${code} - ${info.currencyName} (${info.countryCode})`);
-  });
+  // Wallet client
+  const account = privateKey !== '0x' ? privateKeyToAccount(privateKey) : undefined;
+  const walletClient = createWalletClient({ account, chain: base, transport: http(rpcUrl) });
 
-  // Setup wallet client with account if private key provided
-  let walletClient;
-  if (privateKey && privateKey !== '0x') {
-    const account = privateKeyToAccount(privateKey);
-    walletClient = createWalletClient({ 
-      account,
-      chain: base, 
-      transport: http(rpcUrl) 
-    });
-    console.log(`\nUsing account: ${account.address}`);
-  } else {
-    walletClient = createWalletClient({ 
-      chain: base, 
-      transport: http(rpcUrl) 
-    });
-    console.log('\nNo private key provided - using read-only mode');
-  }
+  const client = new Zkp2pClient({ walletClient, chainId: base.id, runtimeEnv: 'production', baseApiUrl: 'https://api.zkp2p.xyz', apiKey });
 
-  // Initialize client with v1.0.0 features
-  const client = new Zkp2pClient({ 
-    walletClient, 
-    apiKey, 
-    chainId: SUPPORTED_CHAIN_IDS.BASE_MAINNET, // Using new constant
-    rpcUrl,
-    timeouts: {
-      api: 30000,
-      transaction: 60000,
-    }
-  });
-
-  console.log(`\nConnected to chain: Base Mainnet (${SUPPORTED_CHAIN_IDS.BASE_MAINNET})`);
-  console.log(`USDC Address: ${client.getUsdcAddress()}`);
-
-  // Get quotes for multiple platforms
   const platforms: PaymentPlatformType[] = ['wise', 'revolut', 'venmo'];
   const selectedCurrency: CurrencyType = Currency.USD;
   const amount = '100';
 
-  console.log(`\nFetching quotes for ${amount} ${selectedCurrency}...`);
-  console.log(`Platforms: ${platforms.join(', ')}`);
+  const req: QuoteRequest = {
+    paymentPlatforms: platforms,
+    fiatCurrency: selectedCurrency,
+    user: walletClient.account?.address || '0x0000000000000000000000000000000000000001',
+    recipient: walletClient.account?.address || '0x0000000000000000000000000000000000000002',
+    destinationChainId: base.id,
+    destinationToken: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+    amount,
+  };
 
-  try {
-    const quoteRequest: QuoteRequest = {
-      paymentPlatforms: platforms,
-      fiatCurrency: selectedCurrency,
-      user: walletClient.account?.address || '0x0000000000000000000000000000000000000001',
-      recipient: '0x0000000000000000000000000000000000000002',
-      destinationChainId: SUPPORTED_CHAIN_IDS.BASE_MAINNET,
-      destinationToken: client.getUsdcAddress(),
-      amount,
-      // Optional: specify exact-in or exact-out
-      // amountType: 'fiat', // default
-    };
+  const quote = await client.getQuote(req);
 
-    const quote = await client.getQuote(quoteRequest);
-
-    console.log('\nQuote Response:');
-    console.log(`Total quotes found: ${quote.quotes.length}`);
-    console.log(`Response time: ${Date.now()}ms`);
-
-    // Display each quote with platform metadata
-    quote.quotes.forEach((q, idx) => {
-      const platformMeta = PLATFORM_METADATA[q.paymentPlatform as PaymentPlatformType];
-      console.log(`\nQuote #${idx + 1}:`);
-      console.log(`  Platform: ${platformMeta.displayName}`);
-      console.log(`  Amount: ${q.amount} ${selectedCurrency}`);
-      console.log(`  Conversion Rate: ${q.conversionRate}`);
-      console.log(`  Deposit ID: ${q.depositId}`);
-      console.log(`  Depositor: ${q.depositor}`);
-      console.log(`  Required Proofs: ${platformMeta.requiredProofs}`);
-      
-      // Display deposit data if available
-      if (q.depositData) {
-        console.log(`  Deposit Data:`, q.depositData);
-      }
-    });
-
-    // Display fees
-    if (quote.fees) {
-      console.log('\nFees:');
-      console.log(`  Platform Fee: ${quote.fees.platformFee || 0}%`);
-      console.log(`  Gas Fee: ${quote.fees.gasFee || 0}`);
-    }
-
-    // Full raw response for debugging
-    if (process.env.DEBUG) {
-      console.log('\nFull Response (Debug Mode):');
-      console.log(JSON.stringify(quote, null, 2));
-    }
-
-  } catch (error) {
-    console.error('\nError fetching quote:', error);
-    if (error instanceof Error) {
-      console.error('Error message:', error.message);
-      console.error('Stack:', error.stack);
-    }
-  }
-
-  // Demonstrate other API methods (read-only)
-  console.log('\nAdditional SDK Capabilities:');
-  console.log('  - createDeposit(): Create liquidity deposits');
-  console.log('  - signalIntent(): Signal trading intent');
-  console.log('  - fulfillIntent(): Submit payment proofs');
-  console.log('  - withdrawDeposit(): Withdraw deposits');
-  console.log('  - cancelIntent(): Cancel pending intents');
-  console.log('  - validatePayeeDetails(): Validate payee information');
-  console.log('  - getAccountDeposits(): Get account deposits');
-  console.log('  - getAccountIntent(): Get current intent');
+  console.log(`Found ${quote.responseObject.quotes.length} quotes`);
+  quote.responseObject.quotes.forEach((q, i) => {
+    const meta = PLATFORM_METADATA[q.paymentMethod as PaymentPlatformType];
+    console.log(`Quote #${i + 1}: ${meta?.displayName || q.paymentMethod}`);
+    console.log(`  Fiat: ${q.fiatAmountFormatted}, Token: ${q.tokenAmountFormatted}`);
+    if (q.payeeData) console.log('  Payee Data:', q.payeeData);
+  });
 }
 
 main().catch((e) => {
-  console.error('Fatal error:', e);
+  console.error(e);
   process.exit(1);
 });
