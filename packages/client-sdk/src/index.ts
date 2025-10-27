@@ -24,8 +24,8 @@ export * from './errors';
 // Optional utilities
 export { ensureBytes32, asciiToBytes32 } from './utils/bytes32';
 export { resolvePaymentMethodHash, resolveFiatCurrencyBytes32 } from './utils/paymentResolution';
-export { resolvePaymentMethodHashFromCatalog } from './utils/paymentResolution';
-export { mapConversionRatesToOnchainMinRate, Currency, currencyInfo } from './utils/currency';
+export { resolvePaymentMethodHashFromCatalog, resolvePaymentMethodNameFromHash } from './utils/paymentResolution';
+export { mapConversionRatesToOnchainMinRate, Currency, currencyInfo, getCurrencyInfoFromHash, getCurrencyInfoFromCountryCode, getCurrencyCodeFromHash, isSupportedCurrencyHash } from './utils/currency';
 export type { CurrencyType, CurrencyData } from './utils/currency';
 export { getContracts, getPaymentMethodsCatalog, getGatingServiceAddress, type RuntimeEnv } from './contracts';
 export type { PaymentMethodCatalog } from './contracts';

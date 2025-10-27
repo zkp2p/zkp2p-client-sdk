@@ -215,11 +215,17 @@ This hook is only available in the browser. For SSR, conditionally render compon
 You can resolve bytes32 values conveniently:
 
 ```ts
-import { resolvePaymentMethodHash, resolveFiatCurrencyBytes32 } from '@zkp2p/client-sdk';
+import { resolvePaymentMethodHash, resolveFiatCurrencyBytes32, resolvePaymentMethodNameFromHash, getCurrencyInfoFromHash } from '@zkp2p/client-sdk';
+import { getPaymentMethodsCatalog } from '@zkp2p/client-sdk';
 
 // Staging uses mainnet with a separate contract set
 const paymentMethod = resolvePaymentMethodHash('wise', { env: 'staging', network: 'base' });
 const usd = resolveFiatCurrencyBytes32('USD');
+
+// Reverse lookups for dashboards/explorers
+const catalog = getPaymentMethodsCatalog(8453, 'production');
+const name = resolvePaymentMethodNameFromHash(paymentMethod, catalog); // 'wise'
+const usdInfo = getCurrencyInfoFromHash(usd); // { currencyCode: 'USD', currencySymbol: '$', ... }
 ```
 
 ### Node Examples

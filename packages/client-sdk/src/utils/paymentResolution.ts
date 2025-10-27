@@ -1,4 +1,5 @@
 import { ensureBytes32, asciiToBytes32 } from './bytes32';
+import type { PaymentMethodCatalog } from '../contracts';
 
 // Optional JSON maps from @zkp2p/contracts-v2 (only provided on some envs)
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -75,4 +76,19 @@ export function resolvePaymentMethodHashFromCatalog(
       ? `Unknown processorName: ${processorName}. Available: ${available}`
       : `Unknown processorName: ${processorName}. The payment methods catalog is empty or unavailable.`
   );
+}
+
+/**
+ * Reverse-lookup the processor name from a paymentMethod hash using the provided catalog.
+ */
+export function resolvePaymentMethodNameFromHash(
+  hash: string,
+  catalog: PaymentMethodCatalog
+): string | undefined {
+  if (!hash) return undefined;
+  const target = ensureBytes32(hash) as `0x${string}`;
+  for (const [name, entry] of Object.entries(catalog || {})) {
+    if (entry?.paymentMethodHash?.toLowerCase() === target.toLowerCase()) return name;
+  }
+  return undefined;
 }

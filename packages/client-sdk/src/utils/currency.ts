@@ -126,3 +126,28 @@ export function mapConversionRatesToOnchainMinRate(
     })
   );
 }
+
+// Reverse lookups for dashboards/explorers
+export function getCurrencyInfoFromHash(hash: string): CurrencyData | undefined {
+  if (!hash) return undefined;
+  const h = hash.toLowerCase();
+  for (const key of Object.keys(currencyInfo) as Array<keyof typeof currencyInfo>) {
+    const info = currencyInfo[key];
+    if (info?.currencyCodeHash?.toLowerCase() === h) return info;
+  }
+  return undefined;
+}
+
+export function getCurrencyInfoFromCountryCode(code: string): CurrencyData | undefined {
+  if (!code) return undefined;
+  const upper = code.toUpperCase() as CurrencyType;
+  return currencyInfo[upper];
+}
+
+export function getCurrencyCodeFromHash(hash: string): string | undefined {
+  return getCurrencyInfoFromHash(hash)?.currencyCode;
+}
+
+export function isSupportedCurrencyHash(hash: string): boolean {
+  return Boolean(getCurrencyInfoFromHash(hash));
+}
