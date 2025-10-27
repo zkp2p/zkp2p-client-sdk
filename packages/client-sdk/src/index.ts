@@ -31,3 +31,4 @@ export { getContracts, getPaymentMethodsCatalog, getGatingServiceAddress, type R
 export type { PaymentMethodCatalog } from './contracts';
 export { PAYMENT_PLATFORMS, PLATFORM_METADATA } from './constants';
 export type { PaymentPlatformType } from './types';
+export { enrichPvDepositView, enrichPvIntentView } from './utils/protocolViewerParsers';

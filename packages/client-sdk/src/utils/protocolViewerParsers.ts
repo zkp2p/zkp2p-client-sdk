@@ -134,3 +134,35 @@ export function parseIntentView(raw: any): PV_IntentView {
   };
 }
 
+// Enrichment helpers for dashboards/explorers
+import { getPaymentMethodsCatalog, type RuntimeEnv } from '../contracts';
+import { resolvePaymentMethodNameFromHash } from './paymentResolution';
+import { getCurrencyInfoFromHash } from './currency';
+
+export function enrichPvDepositView(view: PV_DepositView, chainId: number, env: RuntimeEnv = 'production') {
+  const catalog = getPaymentMethodsCatalog(chainId, env);
+  return {
+    ...view,
+    paymentMethods: view.paymentMethods.map((pm) => ({
+      ...pm,
+      processorName: resolvePaymentMethodNameFromHash(pm.paymentMethod, catalog),
+      currencies: pm.currencies.map((c) => ({
+        ...c,
+        currencyInfo: getCurrencyInfoFromHash(c.code),
+      })),
+    })),
+  };
+}
+
+export function enrichPvIntentView(view: PV_IntentView, chainId: number, env: RuntimeEnv = 'production') {
+  const catalog = getPaymentMethodsCatalog(chainId, env);
+  return {
+    ...view,
+    intent: {
+      ...view.intent,
+      processorName: resolvePaymentMethodNameFromHash(view.intent.paymentMethod, catalog),
+      currencyInfo: getCurrencyInfoFromHash(view.intent.fiatCurrency),
+    },
+    deposit: enrichPvDepositView(view.deposit as any, chainId, env),
+  } as any;
+}
