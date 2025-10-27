@@ -6,7 +6,7 @@
  *   PAYMENT_METHODS (comma-separated names), HASHED_ONCHAIN_IDS (comma-separated),
  *   CURRENCIES_JSON (e.g., [{"code":"USD","minConversionRate":"1000000"}])
  */
-import { Zkp2pClient, resolvePaymentMethodHashFromCatalog, getPaymentMethodsCatalog, resolveFiatCurrencyBytes32 } from '@zkp2p/client-sdk';
+import { Zkp2pClient, resolvePaymentMethodHashFromCatalog, getPaymentMethodsCatalog, resolveFiatCurrencyBytes32, getGatingServiceAddress } from '@zkp2p/client-sdk';
 import { createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { base } from 'viem/chains';
@@ -30,7 +30,8 @@ async function main() {
   if (METHODS.length && HASHES.length && METHODS.length === HASHES.length) {
     const catalog = getPaymentMethodsCatalog(base.id, 'production');
     const methodHashes = METHODS.map((m) => resolvePaymentMethodHashFromCatalog(m, catalog));
-    const paymentMethodData = HASHES.map((h) => ({ intentGatingService: client.getDeployedAddresses().escrow, payeeDetails: h, data: '0x' as `0x${string}` }));
+    const gating = getGatingServiceAddress(base.id, 'production');
+    const paymentMethodData = HASHES.map((h) => ({ intentGatingService: gating, payeeDetails: h, data: '0x' as `0x${string}` }));
     const tx1 = await client.addPaymentMethods({ depositId: DEPOSIT_ID, paymentMethods: methodHashes, paymentMethodData });
     console.log('addPaymentMethods tx:', tx1);
   }
@@ -60,4 +61,3 @@ main().catch((e) => {
   process.exit(1);
 });
 /* eslint-disable no-console */
-

@@ -15,6 +15,7 @@ import { apiGetPayeeDetails, apiGetQuote } from '../adapters/api';
 import { getGatingServiceAddress, getPaymentMethodsCatalog } from '../contracts';
 import { resolveFiatCurrencyBytes32, resolvePaymentMethodHashFromCatalog } from '../utils/paymentResolution';
 import type { QuoteRequest, QuoteResponse } from '../types';
+import { ERC20_ABI } from '../utils/erc20';
 
 export type Zkp2pNextOptions = {
   walletClient: WalletClient;
@@ -113,6 +114,23 @@ export class Zkp2pClient {
   }
 
   // ---------- Write methods (Contracts v3, orchestrator-only) ----------
+
+  /**
+   * Ensure ERC20 allowance for Escrow (spender) is sufficient for the given amount.
+   * If insufficient, approves either the exact amount or MaxUint256 when maxApprove is true.
+   */
+  async ensureAllowance(params: { token: Address; amount: bigint; spender?: Address; maxApprove?: boolean; txOverrides?: Record<string, unknown> }): Promise<{ hadAllowance: boolean; hash?: Hash }> {
+    const owner = this.walletClient.account?.address as Address | undefined;
+    if (!owner) throw new Error('Wallet client is missing account');
+    const spender = params.spender ?? this.escrowAddress;
+    const allowance = (await this.publicClient.readContract({ address: params.token, abi: ERC20_ABI as any, functionName: 'allowance', args: [owner, spender] })) as bigint;
+    if (allowance >= params.amount) return { hadAllowance: true };
+    const MAX = (1n << 256n) - 1n;
+    const value = params.maxApprove ? MAX : params.amount;
+    const { request } = await this.publicClient.simulateContract({ address: params.token, abi: ERC20_ABI as any, functionName: 'approve', args: [spender, value], account: this.walletClient.account!, ...(params.txOverrides ?? {}) });
+    const hash = (await this.walletClient.writeContract(request)) as Hash;
+    return { hadAllowance: false, hash };
+  }
 
   async createDeposit(params: {
     token: Address;
