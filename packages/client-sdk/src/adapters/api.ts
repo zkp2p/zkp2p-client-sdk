@@ -43,6 +43,16 @@ function createHeaders(apiKey?: string, authToken?: string): Record<string, stri
   return headers;
 }
 
+// Normalize base API URL to avoid duplicate version segments (e.g., avoid /v1/v1)
+function withApiBase(baseApiUrl: string): string {
+  const trimmed = (baseApiUrl || '').trim();
+  // remove trailing slashes
+  let base = trimmed.replace(/\/+$/, '');
+  // remove trailing /v1 if a caller accidentally includes it
+  base = base.replace(/\/v1$/i, '');
+  return base;
+}
+
 /**
  * Base fetch wrapper with common error handling and retry logic
  */
@@ -150,7 +160,7 @@ export async function apiGetIntentsByRecipient(
 ): Promise<GetIntentsByRecipientResponse> {
   const endpoint = `/v1/orders/recipient/${req.recipientAddress}${buildStatusQuery(req.status)}`;
   const data = await apiFetch<GetIntentsByRecipientResponse>({
-    url: `${baseApiUrl.replace(/\/$/, '')}${endpoint}`,
+    url: `${withApiBase(baseApiUrl)}${endpoint}`,
     method: 'GET',
     apiKey,
     authToken,
@@ -169,7 +179,7 @@ export async function apiListPayees(
 ): Promise<ListPayeesResponse> {
   const endpoint = processorName ? `/v1/makers?processorName=${encodeURIComponent(processorName)}` : '/v1/makers';
   const data = await apiFetch<ListPayeesResponse>({
-    url: `${baseApiUrl.replace(/\/$/, '')}${endpoint}`,
+    url: `${withApiBase(baseApiUrl)}${endpoint}`,
     method: 'GET',
     apiKey,
     authToken,
@@ -187,7 +197,7 @@ export async function apiGetDepositSpread(
   timeoutMs?: number
 ) {
   const data = await apiFetch<any>({
-    url: `${baseApiUrl.replace(/\/$/, '')}/v1/deposits/${depositId}/spread`,
+    url: `${withApiBase(baseApiUrl)}/v1/deposits/${depositId}/spread`,
     method: 'GET',
     apiKey,
     authToken,
@@ -203,7 +213,7 @@ export async function apiListDepositSpreads(
   timeoutMs?: number
 ) {
   const data = await apiFetch<any>({
-    url: `${baseApiUrl.replace(/\/$/, '')}/v1/deposits/spreads`,
+    url: `${withApiBase(baseApiUrl)}/v1/deposits/spreads`,
     method: 'GET',
     apiKey,
     authToken,
@@ -220,7 +230,7 @@ export async function apiGetSpreadsByDepositIds(
   timeoutMs?: number
 ) {
   const data = await apiFetch<any>({
-    url: `${baseApiUrl.replace(/\/$/, '')}/v1/deposits/spreads/bulk`,
+    url: `${withApiBase(baseApiUrl)}/v1/deposits/spreads/bulk`,
     method: 'POST',
     body: { depositIds },
     apiKey,
@@ -238,7 +248,7 @@ export async function apiCreateSpread(
   timeoutMs?: number
 ) {
   const data = await apiFetch<any>({
-    url: `${baseApiUrl.replace(/\/$/, '')}/v1/deposits/spreads`,
+    url: `${withApiBase(baseApiUrl)}/v1/deposits/spreads`,
     method: 'POST',
     body,
     apiKey,
@@ -257,7 +267,7 @@ export async function apiUpdateSpread(
   timeoutMs?: number
 ) {
   const data = await apiFetch<any>({
-    url: `${baseApiUrl.replace(/\/$/, '')}/v1/deposits/${depositId}/spread`,
+    url: `${withApiBase(baseApiUrl)}/v1/deposits/${depositId}/spread`,
     method: 'PUT',
     body,
     apiKey,
@@ -276,7 +286,7 @@ export async function apiUpsertSpread(
   timeoutMs?: number
 ) {
   const data = await apiFetch<any>({
-    url: `${baseApiUrl.replace(/\/$/, '')}/v1/deposits/${depositId}/spread`,
+    url: `${withApiBase(baseApiUrl)}/v1/deposits/${depositId}/spread`,
     method: 'POST',
     body,
     apiKey,
@@ -294,7 +304,7 @@ export async function apiDeleteSpread(
   timeoutMs?: number
 ) {
   return apiFetch({
-    url: `${baseApiUrl.replace(/\/$/, '')}/v1/deposits/${depositId}/spread`,
+    url: `${withApiBase(baseApiUrl)}/v1/deposits/${depositId}/spread`,
     method: 'DELETE',
     apiKey,
     authToken,
@@ -330,7 +340,7 @@ export async function apiGetQuote(
   }
   const isExactFiat = req.isExactFiat !== false;
   const endpoint = isExactFiat ? 'exact-fiat' : 'exact-token';
-  let url = `${baseApiUrl.replace(/\/$/, '')}/v1/quote/${endpoint}`;
+  let url = `${withApiBase(baseApiUrl)}/v1/quote/${endpoint}`;
   if (req.quotesToReturn) url += `?quotesToReturn=${req.quotesToReturn}`;
 
   const requestBody: Record<string, unknown> = {
@@ -425,7 +435,7 @@ export async function apiGetOwnerDeposits(
 ): Promise<GetOwnerDepositsResponse> {
   const statusQuery = req.status ? `?status=${encodeURIComponent(req.status)}` : '';
   const data = await apiFetch<GetOwnerDepositsResponse>({
-    url: `${baseApiUrl.replace(/\/$/, '')}/v1/deposits/maker/${req.ownerAddress}${statusQuery}`,
+    url: `${withApiBase(baseApiUrl)}/v1/deposits/maker/${req.ownerAddress}${statusQuery}`,
     method: 'GET',
     apiKey,
     authToken,
@@ -442,7 +452,7 @@ export async function apiGetOwnerIntents(
   timeoutMs?: number
 ): Promise<GetOwnerIntentsResponse> {
   const data = await apiFetch<GetOwnerIntentsResponse>({
-    url: `${baseApiUrl.replace(/\/$/, '')}/v1/orders/maker/${req.ownerAddress}`,
+    url: `${withApiBase(baseApiUrl)}/v1/orders/maker/${req.ownerAddress}`,
     method: 'GET',
     apiKey,
     authToken,
@@ -463,7 +473,7 @@ export async function apiGetIntentsByDeposit(
 ): Promise<GetIntentsByDepositResponse> {
   const endpoint = `/v1/orders/deposit/${req.depositId}${buildStatusQuery(req.status)}`;
   const data = await apiFetch<GetIntentsByDepositResponse>({
-    url: `${baseApiUrl.replace(/\/$/, '')}${endpoint}`,
+    url: `${withApiBase(baseApiUrl)}${endpoint}`,
     method: 'GET',
     apiKey,
     authToken,
@@ -484,7 +494,7 @@ export async function apiGetIntentsByTaker(
 ): Promise<GetIntentsByTakerResponse> {
   const endpoint = `/v1/orders/taker/${req.takerAddress}${buildStatusQuery(req.status)}`;
   const data = await apiFetch<GetIntentsByTakerResponse>({
-    url: `${baseApiUrl.replace(/\/$/, '')}${endpoint}`,
+    url: `${withApiBase(baseApiUrl)}${endpoint}`,
     method: 'GET',
     apiKey,
     authToken,
@@ -504,7 +514,7 @@ export async function apiGetIntentByHash(
   timeoutMs?: number
 ): Promise<GetIntentByHashResponse> {
   const data = await apiFetch<GetIntentByHashResponse>({
-    url: `${baseApiUrl.replace(/\/$/, '')}/v1/orders/${req.intentHash}`,
+    url: `${withApiBase(baseApiUrl)}/v1/orders/${req.intentHash}`,
     method: 'GET',
     apiKey,
     authToken,
@@ -526,7 +536,7 @@ export async function apiGetDepositById(
   timeoutMs?: number
 ): Promise<GetDepositByIdResponse> {
   const data = await apiFetch<GetDepositByIdResponse>({
-    url: `${baseApiUrl.replace(/\/$/, '')}/v1/deposits/${req.depositId}`,
+    url: `${withApiBase(baseApiUrl)}/v1/deposits/${req.depositId}`,
     method: 'GET',
     apiKey,
     authToken,
@@ -546,7 +556,7 @@ export async function apiGetDepositsOrderStats(
   timeoutMs?: number
 ): Promise<GetDepositsOrderStatsResponse> {
   return apiFetch<GetDepositsOrderStatsResponse>({
-    url: `${baseApiUrl.replace(/\/$/, '')}/v1/deposits/order-stats`,
+    url: `${withApiBase(baseApiUrl)}/v1/deposits/order-stats`,
     method: 'POST',
     body: { depositIds: req.depositIds },
     apiKey,

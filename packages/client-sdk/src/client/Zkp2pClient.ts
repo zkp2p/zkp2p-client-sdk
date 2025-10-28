@@ -14,6 +14,7 @@ import { ethers } from 'ethers';
 import { apiGetPayeeDetails, apiGetQuote, apiPostDepositDetails } from '../adapters/api';
 import { getGatingServiceAddress, getPaymentMethodsCatalog } from '../contracts';
 import { resolveFiatCurrencyBytes32, resolvePaymentMethodHashFromCatalog } from '../utils/paymentResolution';
+import { currencyKeccak256 } from '../utils/keccak';
 import type { QuoteRequest, QuoteResponse, PostDepositDetailsRequest } from '../types';
 import { ERC20_ABI } from '../utils/erc20';
 
@@ -178,13 +179,14 @@ export class Zkp2pClient {
     const paymentMethodData = hashedOnchainIds.map((hid) => ({ intentGatingService, payeeDetails: hid, data: '0x' as `0x${string}` }));
 
     // Validate currency support per processor when catalog lists allowed currencies
+    // Note: catalog stores keccak256 hashes of currency codes, not ASCII-bytes32
     params.conversionRates.forEach((group, i) => {
       const key = params.processorNames[i]?.toLowerCase();
       const allowed = methods[key!]?.currencies?.map((c) => c.toLowerCase());
       if (allowed && allowed.length) {
         for (const { currency } of group) {
-          const codeBytes32 = resolveFiatCurrencyBytes32(String(currency)).toLowerCase();
-          if (!allowed.includes(codeBytes32)) {
+          const codeHash = currencyKeccak256(String(currency).toUpperCase()).toLowerCase();
+          if (!allowed.includes(codeHash)) {
             throw new Error(`Currency ${currency} not supported by ${params.processorNames[i]}. Allowed: ${allowed.join(', ')}`);
           }
         }
