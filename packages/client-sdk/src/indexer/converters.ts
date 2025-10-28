@@ -50,6 +50,7 @@ export function convertIndexerDepositToEscrowView(deposit: DepositWithRelations,
   const uniqueIntentHashes = new Set((deposit.intents ?? []).map(i => i.intentHash));
   const remaining = toBigInt(deposit.remainingDeposits);
   const outstanding = toBigInt(deposit.outstandingIntentAmount);
+  const available = deposit.availableLiquidity != null ? toBigInt(deposit.availableLiquidity) : remaining;
 
   return {
     depositId: toBigInt(deposit.depositId),
@@ -63,7 +64,7 @@ export function convertIndexerDepositToEscrowView(deposit: DepositWithRelations,
       outstandingIntentAmount: outstanding,
       intentHashes: Array.from(uniqueIntentHashes),
     },
-    availableLiquidity: remaining + outstanding,
+    availableLiquidity: available,
     verifiers,
   };
 }

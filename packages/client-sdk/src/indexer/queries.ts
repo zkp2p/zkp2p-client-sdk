@@ -120,6 +120,7 @@ export const INTENTS_QUERY = /* GraphQL */ `
       conversionRate
       status
       signalTimestamp
+      expiryTime
       fulfillTimestamp
       pruneTimestamp
       updatedAt
@@ -130,4 +131,3 @@ export const INTENTS_QUERY = /* GraphQL */ `
     }
   }
 `;
-
