@@ -11,7 +11,6 @@ export interface DepositEntity {
   depositId: string;         // BigInt as string
   depositor: string;
   token: string;
-  amount: string;            // BigInt as string
   remainingDeposits: string; // BigInt as string
   intentAmountMin: string;   // BigInt as string
   intentAmountMax: string;   // BigInt as string
@@ -20,6 +19,7 @@ export interface DepositEntity {
   outstandingIntentAmount: string; // BigInt as string
   availableLiquidity: string;      // BigInt as string
   totalAmountTaken?: string;       // BigInt as string
+  totalWithdrawn?: string;         // BigInt as string
   totalIntents: number;
   signaledIntents: number;
   fulfilledIntents: number;

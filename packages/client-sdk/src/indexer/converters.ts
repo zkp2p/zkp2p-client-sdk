@@ -52,12 +52,14 @@ export function convertIndexerDepositToEscrowView(deposit: DepositWithRelations,
   const outstanding = toBigInt(deposit.outstandingIntentAmount);
   const available = deposit.availableLiquidity != null ? toBigInt(deposit.availableLiquidity) : remaining;
 
+  const depositAmount = remaining + outstanding + toBigInt(deposit.totalAmountTaken ?? 0) + toBigInt(deposit.totalWithdrawn ?? 0);
+
   return {
     depositId: toBigInt(deposit.depositId),
     deposit: {
       depositor: normalizeAddress(deposit.depositor),
       token: normalizeAddress(deposit.token),
-      depositAmount: toBigInt(deposit.amount),
+      depositAmount,
       intentAmountRange: { min: toBigInt(deposit.intentAmountMin), max: toBigInt(deposit.intentAmountMax) },
       acceptingIntents: Boolean(deposit.acceptingIntents),
       remainingDepositAmount: remaining,

@@ -9,7 +9,6 @@ const DEPOSIT_FIELDS = `
   depositId
   depositor
   token
-  amount
   remainingDeposits
   intentAmountMin
   intentAmountMax
@@ -18,6 +17,7 @@ const DEPOSIT_FIELDS = `
   outstandingIntentAmount
   availableLiquidity
   totalAmountTaken
+  totalWithdrawn
   totalIntents
   signaledIntents
   fulfilledIntents
