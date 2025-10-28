@@ -127,6 +127,14 @@ export class Zkp2pClient {
     return fetchFulfillmentAndPayment(this.indexer, intentHash);
   }
 
+  resolvePayeeHash(params: { escrowAddress?: string | null; depositId?: string | number | bigint | null; paymentMethodHash?: string | null }): Promise<string | null> {
+    return this.deposits.resolvePayeeHash(params);
+  }
+
+  getDepositsByPayeeHash(payeeHash: string, options: { paymentMethodHash?: string; limit?: number; includeIntents?: boolean; intentStatuses?: IntentStatus[] } = {}): Promise<DepositWithRelations[]> {
+    return this.deposits.fetchDepositsByPayeeHash(payeeHash, options);
+  }
+
   // ---------- Write methods (Contracts v3, orchestrator-only) ----------
 
   /**

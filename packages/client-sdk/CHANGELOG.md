@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [Conventional Commits](https://www.conventionalcommits.org/).
 
+## [5.1.0] - 2025-10-28
+
+### Added
+- Indexer helpers: payee-hash lookups (`fetchDepositsByPayeeHash`, `resolvePayeeHash`) and GraphQL query for payment methods to match downstream client usage.
+- SDK surface exports for `apiValidatePayeeDetails`, `apiPostDepositDetails`, and `apiGetPayeeDetails` so apps can reuse the REST adapters without private imports.
+
+### Changed
+- `Zkp2pClient` now exposes `getDepositsByPayeeHash` and `resolvePayeeHash` to align with `zkp2p-v2-client` workflows.
+
 ## [4.0.0] - 2025-10-27
 
 ### Breaking

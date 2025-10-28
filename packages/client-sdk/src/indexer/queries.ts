@@ -74,6 +74,25 @@ export const DEPOSIT_RELATIONS_QUERY = /* GraphQL */ `
   }
 `;
 
+export const PAYMENT_METHODS_BY_PAYEE_HASH_QUERY = /* GraphQL */ `
+  query GetPaymentMethodsByPayeeHash(
+    $where: DepositPaymentMethod_bool_exp!
+    $limit: Int
+  ) {
+    DepositPaymentMethod(where: $where, limit: $limit) {
+      id
+      chainId
+      depositIdOnContract
+      depositId
+      paymentMethodHash
+      verifierAddress
+      intentGatingService
+      payeeDetailsHash
+      active
+    }
+  }
+`;
+
 export const DEPOSIT_WITH_RELATIONS_QUERY = /* GraphQL */ `
   query GetDepositWithRelations($id: String!) {
     Deposit_by_pk(id: $id) {

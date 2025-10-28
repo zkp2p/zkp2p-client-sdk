@@ -7,6 +7,7 @@ import {
   INTENTS_QUERY,
   EXPIRED_INTENTS_QUERY,
   INTENT_FULFILLMENTS_QUERY,
+  PAYMENT_METHODS_BY_PAYEE_HASH_QUERY,
 } from './queries';
 import type {
   DepositEntity,
@@ -17,6 +18,7 @@ import type {
   DepositWithRelations,
   IntentFulfilledEntity,
 } from './types';
+import { createCompositeDepositId } from './converters';
 
 export type DepositOrderField =
   | 'remainingDeposits'
@@ -227,5 +229,57 @@ export class IndexerDepositService {
     });
 
     return result.Orchestrator_V21_IntentFulfilled ?? [];
+  }
+
+  async resolvePayeeHash(params: { escrowAddress?: string | null; depositId?: string | number | bigint | null; paymentMethodHash?: string | null }): Promise<string | null> {
+    try {
+      const { escrowAddress, depositId, paymentMethodHash } = params;
+      if (!escrowAddress || depositId === null || depositId === undefined || !paymentMethodHash) return null;
+      const compositeId = createCompositeDepositId(
+        escrowAddress,
+        typeof depositId === 'bigint' ? depositId : depositId?.toString() ?? ''
+      );
+      const detail = await this.fetchDepositWithRelations(compositeId, { includeIntents: false });
+      if (!detail?.paymentMethods?.length) return null;
+      const target = paymentMethodHash.toLowerCase();
+      const match = detail.paymentMethods.find(pm => (pm.paymentMethodHash ?? '').toLowerCase() === target);
+      return match?.payeeDetailsHash ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  async fetchDepositsByPayeeHash(payeeHash: string, options: { paymentMethodHash?: string; limit?: number; includeIntents?: boolean; intentStatuses?: IntentStatus[] } = {}): Promise<DepositWithRelations[]> {
+    if (!payeeHash) return [];
+    const normalizedHash = payeeHash.toLowerCase();
+
+    const where: Record<string, unknown> = {
+      payeeDetailsHash: { _ilike: normalizedHash },
+    };
+    if (options.paymentMethodHash) {
+      where.paymentMethodHash = { _eq: options.paymentMethodHash.toLowerCase?.() ?? options.paymentMethodHash };
+    }
+
+    const result = await this.client.query<{ DepositPaymentMethod?: DepositPaymentMethodEntity[] }>({
+      query: PAYMENT_METHODS_BY_PAYEE_HASH_QUERY,
+      variables: { where, limit: options.limit },
+    });
+
+    const seen = new Set<string>();
+    const depositIds: string[] = [];
+    for (const pm of result.DepositPaymentMethod ?? []) {
+      const id = pm.depositId;
+      if (!id) continue;
+      const key = id.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      depositIds.push(id);
+    }
+
+    if (!depositIds.length) return [];
+    return this.fetchDepositsByIdsWithRelations(depositIds, {
+      includeIntents: options.includeIntents,
+      intentStatuses: options.intentStatuses,
+    });
   }
 }
