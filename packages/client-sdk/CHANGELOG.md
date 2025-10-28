@@ -130,3 +130,13 @@ See README for detailed migration guide and new API usage examples.
 - createDeposit posts deposit details to API to resolve hashedOnchainIds internally.
 - retainOnEmpty defaults to `false` to avoid viem ABI boolean undefined issues.
 - Hooks and examples updated to match new signatures.
+## [5.0.2] - 2025-10-27
+
+### Fixed
+- Currency validation: compare keccak256 currency hashes (catalog format) instead of ASCII bytes32; prevents false “unsupported currency” errors in createDeposit.
+- API base handling: avoid duplicate version segments (no more `/v1/v1` when callers include `/v1` in `baseApiUrl`).
+
+## [5.0.1] - 2025-10-27
+
+### Fixed
+- ESM-safe catalog loading: statically import paymentMethods JSON so Vite/browser bundlers include the data (no dynamic `require`).
