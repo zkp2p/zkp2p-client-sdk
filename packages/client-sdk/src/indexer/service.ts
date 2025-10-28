@@ -2,7 +2,7 @@ import { IndexerClient } from './client';
 import { DEPOSITS_QUERY, DEPOSITS_BY_IDS_QUERY, DEPOSIT_RELATIONS_QUERY, DEPOSIT_WITH_RELATIONS_QUERY, INTENTS_QUERY } from './queries';
 import type { DepositEntity, DepositPaymentMethodEntity, MethodCurrencyEntity, IntentEntity, IntentStatus, DepositWithRelations } from './types';
 
-export type DepositOrderField = 'availableLiquidity' | 'updatedAt' | 'timestamp' | 'amount';
+export type DepositOrderField = 'availableLiquidity' | 'remainingDeposits' | 'updatedAt' | 'timestamp' | 'amount';
 export type OrderDirection = 'asc' | 'desc';
 
 export type DepositFilter = Partial<{
@@ -33,7 +33,8 @@ function groupByDepositId<T extends { depositId: string | null | undefined }>(it
 }
 
 const DEFAULT_LIMIT = 100;
-const DEFAULT_ORDER_FIELD: DepositOrderField = 'availableLiquidity';
+// Default to a schema-safe column for ordering
+const DEFAULT_ORDER_FIELD: DepositOrderField = 'updatedAt';
 
 export class IndexerDepositService {
   constructor(private client: IndexerClient) {}
@@ -46,13 +47,17 @@ export class IndexerDepositService {
     if (filter.chainId) where.chainId = { _eq: filter.chainId };
     if (filter.escrowAddress) where.escrowAddress = { _ilike: filter.escrowAddress };
     if (filter.acceptingIntents !== undefined) where.acceptingIntents = { _eq: filter.acceptingIntents };
-    if (filter.minLiquidity) where.availableLiquidity = { _gte: filter.minLiquidity };
+    // Some indexer deployments may not support filtering by computed availableLiquidity.
+    // Fallback to remainingDeposits to keep queries schema-compatible.
+    if (filter.minLiquidity) where.remainingDeposits = { _gte: filter.minLiquidity };
     return Object.keys(where).length ? where : undefined;
   }
 
   private buildOrderBy(pagination?: PaginationOptions): Array<Record<string, 'asc' | 'desc'>> {
-    const field = pagination?.orderBy ?? DEFAULT_ORDER_FIELD;
+    let field = pagination?.orderBy ?? DEFAULT_ORDER_FIELD;
     const direction = pagination?.orderDirection === 'asc' ? 'asc' : 'desc';
+    // Map non-orderable or computed fields to supported columns
+    if (field === 'availableLiquidity') field = 'remainingDeposits';
     return [{ [field]: direction } as any];
   }
 
@@ -161,4 +166,3 @@ export class IndexerDepositService {
     return { ...base, intents };
   }
 }
-
