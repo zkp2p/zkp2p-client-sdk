@@ -1,8 +1,30 @@
 import { IndexerClient } from './client';
-import { DEPOSITS_QUERY, DEPOSITS_BY_IDS_QUERY, DEPOSIT_RELATIONS_QUERY, DEPOSIT_WITH_RELATIONS_QUERY, INTENTS_QUERY } from './queries';
-import type { DepositEntity, DepositPaymentMethodEntity, MethodCurrencyEntity, IntentEntity, IntentStatus, DepositWithRelations } from './types';
+import {
+  DEPOSITS_QUERY,
+  DEPOSITS_BY_IDS_QUERY,
+  DEPOSIT_RELATIONS_QUERY,
+  DEPOSIT_WITH_RELATIONS_QUERY,
+  INTENTS_QUERY,
+  EXPIRED_INTENTS_QUERY,
+  INTENT_FULFILLMENTS_QUERY,
+} from './queries';
+import type {
+  DepositEntity,
+  DepositPaymentMethodEntity,
+  MethodCurrencyEntity,
+  IntentEntity,
+  IntentStatus,
+  DepositWithRelations,
+  IntentFulfilledEntity,
+} from './types';
 
-export type DepositOrderField = 'remainingDeposits' | 'updatedAt' | 'timestamp';
+export type DepositOrderField =
+  | 'remainingDeposits'
+  | 'outstandingIntentAmount'
+  | 'totalAmountTaken'
+  | 'totalWithdrawn'
+  | 'updatedAt'
+  | 'timestamp';
 export type OrderDirection = 'asc' | 'desc';
 
 export type DepositFilter = Partial<{
@@ -10,6 +32,7 @@ export type DepositFilter = Partial<{
   depositor: string;
   chainId: number;
   escrowAddress: string;
+  escrowAddresses: string[];
   minLiquidity: string;
   acceptingIntents: boolean;
 }>;
@@ -33,8 +56,7 @@ function groupByDepositId<T extends { depositId: string | null | undefined }>(it
 }
 
 const DEFAULT_LIMIT = 100;
-// Default to a schema-safe column for ordering
-const DEFAULT_ORDER_FIELD: DepositOrderField = 'updatedAt';
+const DEFAULT_ORDER_FIELD: NonNullable<PaginationOptions['orderBy']> = 'remainingDeposits';
 
 export class IndexerDepositService {
   constructor(private client: IndexerClient) {}
@@ -45,7 +67,11 @@ export class IndexerDepositService {
     if (filter.status) where.status = { _eq: filter.status };
     if (filter.depositor) where.depositor = { _ilike: filter.depositor };
     if (filter.chainId) where.chainId = { _eq: filter.chainId };
-    if (filter.escrowAddress) where.escrowAddress = { _ilike: filter.escrowAddress };
+    if (filter.escrowAddresses && filter.escrowAddresses.length) {
+      where.escrowAddress = { _in: filter.escrowAddresses };
+    } else if (filter.escrowAddress) {
+      where.escrowAddress = { _ilike: filter.escrowAddress };
+    }
     if (filter.acceptingIntents !== undefined) where.acceptingIntents = { _eq: filter.acceptingIntents };
     // Filter by remainingDeposits; this is schema-stable across deployments.
     if (filter.minLiquidity) where.remainingDeposits = { _gte: filter.minLiquidity };
@@ -53,7 +79,7 @@ export class IndexerDepositService {
   }
 
   private buildOrderBy(pagination?: PaginationOptions): Array<Record<string, 'asc' | 'desc'>> {
-    const field = pagination?.orderBy ?? DEFAULT_ORDER_FIELD;
+    const field: NonNullable<PaginationOptions['orderBy']> = pagination?.orderBy ?? DEFAULT_ORDER_FIELD;
     const direction = pagination?.orderDirection === 'asc' ? 'asc' : 'desc';
     return [{ [field]: direction } as any];
   }
@@ -90,7 +116,10 @@ export class IndexerDepositService {
     return result.Intent ?? [];
   }
 
-  private async attachRelations(deposits: DepositEntity[], options: { includeIntents?: boolean; intentStatuses?: IntentStatus[] } = {}): Promise<DepositWithRelations[]> {
+  private async attachRelations(
+    deposits: DepositEntity[],
+    options: { includeIntents?: boolean; intentStatuses?: IntentStatus[] } = {}
+  ): Promise<DepositWithRelations[]> {
     if (!deposits.length) return [];
     const depositIds = deposits.map(d => d.id);
     const [{ paymentMethodsByDeposit, currenciesByDeposit }, intents] = await Promise.all([
@@ -122,7 +151,11 @@ export class IndexerDepositService {
     return result.Deposit ?? [];
   }
 
-  async fetchDepositsWithRelations(filter?: DepositFilter, pagination?: PaginationOptions, options: { includeIntents?: boolean; intentStatuses?: IntentStatus[] } = {}): Promise<DepositWithRelations[]> {
+  async fetchDepositsWithRelations(
+    filter?: DepositFilter,
+    pagination?: PaginationOptions,
+    options: { includeIntents?: boolean; intentStatuses?: IntentStatus[] } = {}
+  ): Promise<DepositWithRelations[]> {
     const deposits = await this.fetchDeposits(filter, pagination);
     return this.attachRelations(deposits, options);
   }
@@ -133,12 +166,15 @@ export class IndexerDepositService {
     return result.Deposit ?? [];
   }
 
-  async fetchDepositsByIdsWithRelations(ids: string[], options: { includeIntents?: boolean; intentStatuses?: IntentStatus[] } = {}): Promise<DepositWithRelations[]> {
+  async fetchDepositsByIdsWithRelations(
+    ids: string[],
+    options: { includeIntents?: boolean; intentStatuses?: IntentStatus[] } = {}
+  ): Promise<DepositWithRelations[]> {
     const deposits = await this.fetchDepositsByIds(ids);
     return this.attachRelations(deposits, options);
   }
 
-  async fetchIntentsForDeposits(depositIds: string[], statuses: IntentStatus[] = ['SIGNALED']): Promise<IntentEntity[]> {
+  async fetchIntentsForDeposits(depositIds: string[], statuses?: IntentStatus[]): Promise<IntentEntity[]> {
     if (!depositIds.length) return [];
     return this.fetchIntents({ depositIds, statuses });
   }
@@ -161,5 +197,35 @@ export class IndexerDepositService {
     if (!options.includeIntents) return base;
     const intents = await this.fetchIntents({ depositIds: [deposit.id], statuses: options.intentStatuses });
     return { ...base, intents };
+  }
+
+  async fetchExpiredIntents(params: { now: bigint | string; depositIds: string[]; limit?: number }): Promise<IntentEntity[]> {
+    const depositIds = params.depositIds.map(id => id.toLowerCase());
+    if (!depositIds.length) return [];
+
+    const result = await this.client.query<{ Intent?: IntentEntity[] }>({
+      query: EXPIRED_INTENTS_QUERY,
+      variables: {
+        now: typeof params.now === 'bigint' ? params.now.toString() : params.now,
+        limit: params.limit ?? 1000,
+        depositIds,
+      },
+    });
+
+    return result.Intent ?? [];
+  }
+
+  async fetchFulfilledIntentEvents(intentHashes: string[]): Promise<IntentFulfilledEntity[]> {
+    if (!intentHashes.length) return [];
+
+    const uniqueHashes = Array.from(new Set(intentHashes)).filter(Boolean);
+    if (!uniqueHashes.length) return [];
+
+    const result = await this.client.query<{ Orchestrator_V21_IntentFulfilled?: IntentFulfilledEntity[] }>({
+      query: INTENT_FULFILLMENTS_QUERY,
+      variables: { intentHashes: uniqueHashes },
+    });
+
+    return result.Orchestrator_V21_IntentFulfilled ?? [];
   }
 }

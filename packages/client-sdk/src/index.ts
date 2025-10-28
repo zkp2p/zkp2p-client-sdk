@@ -6,7 +6,14 @@ export type {
   DepositEntity as IndexerDeposit,
   IntentEntity as IndexerIntent,
   DepositWithRelations as IndexerDepositWithRelations,
+  IntentFulfilledEntity as IndexerIntentFulfilled,
 } from './indexer/types';
+export {
+  fetchFulfillmentAndPayment as fetchIndexerFulfillmentAndPayment,
+  type FulfillmentRecord as IndexerFulfillmentRecord,
+  type PaymentVerifiedRecord as IndexerPaymentVerifiedRecord,
+  type FulfillmentAndPaymentResponse as IndexerFulfillmentAndPaymentResponse,
+} from './indexer/intentVerification';
 
 // Generic utilities and errors
 export { logger, setLogLevel, type LogLevel } from './utils/logger';

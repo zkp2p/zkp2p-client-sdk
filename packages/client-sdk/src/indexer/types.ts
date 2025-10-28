@@ -17,8 +17,9 @@ export interface DepositEntity {
   acceptingIntents: boolean;
   status: DepositStatus;
   outstandingIntentAmount: string; // BigInt as string
-  totalAmountTaken?: string;       // BigInt as string
-  totalWithdrawn?: string;         // BigInt as string
+  totalAmountTaken: string;        // BigInt as string
+  totalWithdrawn: string;          // BigInt as string
+  successRateBps?: number;
   totalIntents: number;
   signaledIntents: number;
   fulfilledIntents: number;
@@ -66,6 +67,7 @@ export interface IntentEntity {
   conversionRate: string;    // BigInt as string
   status: IntentStatus;
   signalTimestamp: string;   // seconds as string
+  expiryTime?: string;
   fulfillTimestamp?: string | null;
   pruneTimestamp?: string | null;
   updatedAt?: string | null;
@@ -79,4 +81,10 @@ export interface DepositWithRelations extends DepositEntity {
   paymentMethods?: DepositPaymentMethodEntity[];
   currencies?: MethodCurrencyEntity[];
   intents?: IntentEntity[];
+}
+
+export interface IntentFulfilledEntity {
+  intentHash: string;
+  isManualRelease: boolean;
+  fundsTransferredTo?: string | null;
 }

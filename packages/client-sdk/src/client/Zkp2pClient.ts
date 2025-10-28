@@ -5,7 +5,8 @@ import type { Abi } from 'abitype';
 
 import { defaultIndexerEndpoint, IndexerClient } from '../indexer/client';
 import { IndexerDepositService, type DepositFilter, type PaginationOptions } from '../indexer/service';
-import type { DepositEntity, DepositWithRelations, IntentEntity, IntentStatus } from '../indexer/types';
+import type { DepositEntity, DepositWithRelations, IntentEntity, IntentStatus, IntentFulfilledEntity } from '../indexer/types';
+import { fetchFulfillmentAndPayment, type FulfillmentAndPaymentResponse } from '../indexer/intentVerification';
 import { getContracts, type RuntimeEnv } from '../contracts';
 import { apiSignIntentV2 } from '../adapters/verification';
 import { apiCreatePaymentAttestation } from '../adapters/attestation';
@@ -112,6 +113,18 @@ export class Zkp2pClient {
 
   getOwnerIntents(owner: string, statuses?: IntentStatus[]): Promise<IntentEntity[]> {
     return this.deposits.fetchIntentsByOwner(owner, statuses);
+  }
+
+  getExpiredIntents(params: { now: bigint | string; depositIds: string[]; limit?: number }): Promise<IntentEntity[]> {
+    return this.deposits.fetchExpiredIntents(params);
+  }
+
+  getFulfilledIntentEvents(intentHashes: string[]): Promise<IntentFulfilledEntity[]> {
+    return this.deposits.fetchFulfilledIntentEvents(intentHashes);
+  }
+
+  getFulfillmentAndPayment(intentHash: string): Promise<FulfillmentAndPaymentResponse> {
+    return fetchFulfillmentAndPayment(this.indexer, intentHash);
   }
 
   // ---------- Write methods (Contracts v3, orchestrator-only) ----------

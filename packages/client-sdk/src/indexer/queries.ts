@@ -17,6 +17,7 @@ const DEPOSIT_FIELDS = `
   outstandingIntentAmount
   totalAmountTaken
   totalWithdrawn
+  successRateBps
   totalIntents
   signaledIntents
   fulfilledIntents
@@ -50,7 +51,7 @@ export const DEPOSITS_BY_IDS_QUERY = /* GraphQL */ `
 
 export const DEPOSIT_RELATIONS_QUERY = /* GraphQL */ `
   query GetDepositRelations($depositIds: [String!]) {
-    DepositPaymentMethod(where: { depositId: { _in: $depositIds }, active: { _eq: true } }) {
+    DepositPaymentMethod(where: { depositId: { _in: $depositIds } }) {
       id
       chainId
       depositIdOnContract
@@ -78,7 +79,7 @@ export const DEPOSIT_WITH_RELATIONS_QUERY = /* GraphQL */ `
     Deposit_by_pk(id: $id) {
       ${DEPOSIT_FIELDS}
     }
-    DepositPaymentMethod(where: { depositId: { _eq: $id }, active: { _eq: true } }) {
+    DepositPaymentMethod(where: { depositId: { _eq: $id } }) {
       id
       chainId
       depositIdOnContract
@@ -129,6 +130,72 @@ export const INTENTS_QUERY = /* GraphQL */ `
       fulfillTxHash
       pruneTxHash
       paymentMethodHash
+    }
+  }
+`;
+
+export const EXPIRED_INTENTS_QUERY = /* GraphQL */ `
+  query GetExpiredIntents(
+    $now: numeric!
+    $limit: Int
+    $depositIds: [String!]
+  ) {
+    Intent(
+      where: {
+        status: { _eq: "SIGNALED" }
+        expiryTime: { _lt: $now }
+        depositId: { _in: $depositIds }
+      }
+      order_by: { expiryTime: asc }
+      limit: $limit
+    ) {
+      id
+      intentHash
+      depositId
+      owner
+      toAddress
+      amount
+      expiryTime
+      updatedAt
+      paymentMethodHash
+    }
+  }
+`;
+
+export const INTENT_FULFILLMENTS_QUERY = /* GraphQL */ `
+  query GetFulfilledIntents($intentHashes: [String!]) {
+    Orchestrator_V21_IntentFulfilled(
+      where: { intentHash: { _in: $intentHashes } }
+    ) {
+      intentHash
+      isManualRelease
+      fundsTransferredTo
+    }
+  }
+`;
+
+export const FULFILLMENT_AND_PAYMENT_QUERY = /* GraphQL */ `
+  query PaymentVerificationForFulfilledIntent($intentHash: String!) {
+    Orchestrator_V21_IntentFulfilled(
+      where: { intentHash: { _eq: $intentHash } }
+    ) {
+      id
+      intentHash
+      amount
+      isManualRelease
+      fundsTransferredTo
+    }
+    UnifiedVerifier_V21_PaymentVerified(
+      where: { intentHash: { _eq: $intentHash } }
+    ) {
+      id
+      intentHash
+      method
+      currency
+      amount
+      timestamp
+      paymentId
+      payeeId
     }
   }
 `;
