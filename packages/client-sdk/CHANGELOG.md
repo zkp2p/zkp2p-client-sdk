@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and [Conventional Commits](https://www.conventionalcommits.org/).
 
-## [6.1.0] - 2025-10-28
+## [6.1.1] - 2025-10-28
 
 ### Added
 - Indexer helpers: payee-hash lookups (`fetchDepositsByPayeeHash`, `resolvePayeeHash`) and GraphQL query for payment methods to match downstream client usage.
