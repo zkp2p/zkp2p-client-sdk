@@ -2,7 +2,7 @@ import { IndexerClient } from './client';
 import { DEPOSITS_QUERY, DEPOSITS_BY_IDS_QUERY, DEPOSIT_RELATIONS_QUERY, DEPOSIT_WITH_RELATIONS_QUERY, INTENTS_QUERY } from './queries';
 import type { DepositEntity, DepositPaymentMethodEntity, MethodCurrencyEntity, IntentEntity, IntentStatus, DepositWithRelations } from './types';
 
-export type DepositOrderField = 'availableLiquidity' | 'remainingDeposits' | 'updatedAt' | 'timestamp' | 'amount';
+export type DepositOrderField = 'remainingDeposits' | 'updatedAt' | 'timestamp';
 export type OrderDirection = 'asc' | 'desc';
 
 export type DepositFilter = Partial<{
@@ -47,17 +47,14 @@ export class IndexerDepositService {
     if (filter.chainId) where.chainId = { _eq: filter.chainId };
     if (filter.escrowAddress) where.escrowAddress = { _ilike: filter.escrowAddress };
     if (filter.acceptingIntents !== undefined) where.acceptingIntents = { _eq: filter.acceptingIntents };
-    // Some indexer deployments may not support filtering by computed availableLiquidity.
-    // Fallback to remainingDeposits to keep queries schema-compatible.
+    // Filter by remainingDeposits; this is schema-stable across deployments.
     if (filter.minLiquidity) where.remainingDeposits = { _gte: filter.minLiquidity };
     return Object.keys(where).length ? where : undefined;
   }
 
   private buildOrderBy(pagination?: PaginationOptions): Array<Record<string, 'asc' | 'desc'>> {
-    let field = pagination?.orderBy ?? DEFAULT_ORDER_FIELD;
+    const field = pagination?.orderBy ?? DEFAULT_ORDER_FIELD;
     const direction = pagination?.orderDirection === 'asc' ? 'asc' : 'desc';
-    // Map non-orderable or computed fields to supported columns
-    if (field === 'availableLiquidity') field = 'remainingDeposits';
     return [{ [field]: direction } as any];
   }
 

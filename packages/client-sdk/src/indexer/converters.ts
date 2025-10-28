@@ -23,7 +23,7 @@ export function createCompositeDepositId(escrowAddress: string, depositId: strin
 }
 
 export function convertIndexerDepositToEscrowView(deposit: DepositWithRelations, _chainId: number, _escrowAddress: string): EscrowDepositView {
-  const paymentMethods = deposit.paymentMethods ?? [];
+  const paymentMethods = (deposit.paymentMethods ?? []).filter(pm => (pm as any).active !== false);
   const currencies = deposit.currencies ?? [];
 
   const currenciesByPaymentMethod = new Map<string, typeof currencies>();
@@ -50,7 +50,6 @@ export function convertIndexerDepositToEscrowView(deposit: DepositWithRelations,
   const uniqueIntentHashes = new Set((deposit.intents ?? []).map(i => i.intentHash));
   const remaining = toBigInt(deposit.remainingDeposits);
   const outstanding = toBigInt(deposit.outstandingIntentAmount);
-  const available = deposit.availableLiquidity != null ? toBigInt(deposit.availableLiquidity) : remaining;
 
   const depositAmount = remaining + outstanding + toBigInt(deposit.totalAmountTaken ?? 0) + toBigInt(deposit.totalWithdrawn ?? 0);
 
@@ -66,14 +65,13 @@ export function convertIndexerDepositToEscrowView(deposit: DepositWithRelations,
       outstandingIntentAmount: outstanding,
       intentHashes: Array.from(uniqueIntentHashes),
     },
-    availableLiquidity: available,
     verifiers,
   };
 }
 
 export function convertDepositsForLiquidity(deposits: DepositWithRelations[], chainId: number, escrowAddress: string): EscrowDepositView[] {
   return deposits
-    .filter(d => d.depositor && d.depositor.toLowerCase() !== ZERO && d.acceptingIntents && toBigInt(d.availableLiquidity) > 0n && d.status === 'ACTIVE')
+    .filter(d => d.depositor && d.depositor.toLowerCase() !== ZERO && d.acceptingIntents && toBigInt(d.remainingDeposits) > 0n && d.status === 'ACTIVE')
     .map(d => convertIndexerDepositToEscrowView(d, chainId, escrowAddress));
 }
 

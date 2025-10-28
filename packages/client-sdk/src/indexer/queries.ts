@@ -15,7 +15,6 @@ const DEPOSIT_FIELDS = `
   acceptingIntents
   status
   outstandingIntentAmount
-  availableLiquidity
   totalAmountTaken
   totalWithdrawn
   totalIntents
@@ -51,7 +50,7 @@ export const DEPOSITS_BY_IDS_QUERY = /* GraphQL */ `
 
 export const DEPOSIT_RELATIONS_QUERY = /* GraphQL */ `
   query GetDepositRelations($depositIds: [String!]) {
-    DepositPaymentMethod(where: { depositId: { _in: $depositIds } }) {
+    DepositPaymentMethod(where: { depositId: { _in: $depositIds }, active: { _eq: true } }) {
       id
       chainId
       depositIdOnContract
@@ -60,6 +59,7 @@ export const DEPOSIT_RELATIONS_QUERY = /* GraphQL */ `
       verifierAddress
       intentGatingService
       payeeDetailsHash
+      active
     }
     MethodCurrency(where: { depositId: { _in: $depositIds } }) {
       id
@@ -78,7 +78,7 @@ export const DEPOSIT_WITH_RELATIONS_QUERY = /* GraphQL */ `
     Deposit_by_pk(id: $id) {
       ${DEPOSIT_FIELDS}
     }
-    DepositPaymentMethod(where: { depositId: { _eq: $id } }) {
+    DepositPaymentMethod(where: { depositId: { _eq: $id }, active: { _eq: true } }) {
       id
       chainId
       depositIdOnContract
@@ -87,6 +87,7 @@ export const DEPOSIT_WITH_RELATIONS_QUERY = /* GraphQL */ `
       verifierAddress
       intentGatingService
       payeeDetailsHash
+      active
     }
     MethodCurrency(where: { depositId: { _eq: $id } }) {
       id

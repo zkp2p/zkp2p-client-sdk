@@ -17,7 +17,6 @@ export interface DepositEntity {
   acceptingIntents: boolean;
   status: DepositStatus;
   outstandingIntentAmount: string; // BigInt as string
-  availableLiquidity: string;      // BigInt as string
   totalAmountTaken?: string;       // BigInt as string
   totalWithdrawn?: string;         // BigInt as string
   totalIntents: number;
@@ -39,6 +38,7 @@ export interface DepositPaymentMethodEntity {
   verifierAddress: string;
   intentGatingService: string;
   payeeDetailsHash: string;
+  active: boolean;
 }
 
 export interface MethodCurrencyEntity {

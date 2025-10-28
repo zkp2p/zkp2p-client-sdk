@@ -40,7 +40,6 @@ export interface EscrowVerifierDataView {
 export interface EscrowDepositView {
   depositId: bigint;
   deposit: EscrowDeposit;
-  availableLiquidity: bigint;
   verifiers: EscrowVerifierDataView[];
 }
 
