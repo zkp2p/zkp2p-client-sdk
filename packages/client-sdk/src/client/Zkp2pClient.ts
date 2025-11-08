@@ -573,58 +573,80 @@ export class Zkp2pClient {
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
+  // Breaking API: minimal inputs. Derives everything from intentHash.
   async fulfillIntent(params: {
     intentHash: `0x${string}`;
-    zkTlsProof: string; // stringified proof JSON
-    platform: string;
-    actionType: string;
-    amount: string; // decimal string
-    timestampMs: string;
-    fiatCurrency: `0x${string}`;
-    conversionRate: string; // 1e18-scaled decimal string
-    payeeDetails: `0x${string}`;
-    timestampBufferMs: string;
-    verifyingContract?: Address;
+    proof: any | string; // extension-produced proof (object or stringified)
+    timestampBufferMs?: string; // note: attestation service should default; we pass a sane default for now
     attestationServiceUrl?: string;
+    verifyingContract?: Address;
     postIntentHookData?: `0x${string}`;
     txOverrides?: Record<string, unknown>;
+    callbacks?: { onAttestationStart?: () => void; onTxSent?: (hash: Hash) => void; onTxMined?: (hash: Hash) => void };
   }): Promise<Hash> {
     if (!this.orchestratorAddress || !this.orchestratorAbi) throw new Error('Orchestrator not available');
-    const attUrl = (params.attestationServiceUrl ?? this.defaultAttestationService());
-    const paymentMethod = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(params.platform));
+
+    const intentHash: `0x${string}` = params.intentHash;
+    const attUrl: string = (params.attestationServiceUrl ?? this.defaultAttestationService());
+    const verifyingContract = (params.verifyingContract ?? this.unifiedPaymentVerifier) as Address | undefined;
+    // Derive intent inputs via indexer/ProtocolViewer (source of truth)
+    const inputs = await this.getFulfillIntentInputs(intentHash);
+    const amount = inputs.amount;
+    const fiatCurrency = inputs.fiatCurrency;
+    const conversionRate = inputs.conversionRate;
+    const payeeDetails = inputs.payeeDetails;
+    const timestampMs = inputs.intentTimestampMs;
+    const paymentMethodHash = inputs.paymentMethodHash || '0x';
+    const timestampBufferMs = params.timestampBufferMs ?? '300000'; // note: service should default; keep explicit for now
+
+    // Map paymentMethodHash -> platform/actionType for Attestation Service endpoint
+    const catalog = getPaymentMethodsCatalog(this.chainId, this.runtimeEnv);
+    const { resolvePaymentMethodNameFromHash } = await import('../utils/paymentResolution');
+    const platformName = resolvePaymentMethodNameFromHash(paymentMethodHash, catalog);
+    if (!platformName) throw new Error('Unknown paymentMethodHash for this network/env; update SDK catalogs.');
+    const { resolvePlatformMethod } = await import('../extension/platformConfig');
+    const cfg = resolvePlatformMethod(platformName as any);
+    const platform = cfg.actionPlatform;
+    const actionType = cfg.actionType;
+
+    const zkTlsProof = typeof params.proof === 'string' ? params.proof : JSON.stringify(params.proof);
     const payload = {
       proofType: 'reclaim',
-      proof: params.zkTlsProof,
+      proof: zkTlsProof,
       chainId: this.chainId,
-      verifyingContract: params.verifyingContract ?? this.unifiedPaymentVerifier,
+      verifyingContract,
       intent: {
-        intentHash: params.intentHash,
-        amount: params.amount,
-        timestampMs: params.timestampMs,
-        paymentMethod,
-        fiatCurrency: params.fiatCurrency,
-        conversionRate: params.conversionRate,
-        payeeDetails: params.payeeDetails,
-        timestampBufferMs: params.timestampBufferMs,
+        intentHash,
+        amount,
+        timestampMs,
+        paymentMethod: paymentMethodHash,
+        fiatCurrency,
+        conversionRate,
+        payeeDetails,
+        timestampBufferMs,
       },
     } as Record<string, unknown>;
 
-    const att = await apiCreatePaymentAttestation(payload, attUrl, params.platform, params.actionType);
+    params?.callbacks?.onAttestationStart?.();
+    const att = await apiCreatePaymentAttestation(payload, attUrl, platform, actionType);
     const paymentProof = encodePaymentAttestation(att);
     const verificationData = encodeVerifyPaymentData({
-      intentHash: params.intentHash,
+      intentHash,
       paymentProof,
       data: encodeAddressAsBytes(att.responseObject.signer),
     });
 
     const args = [{
       paymentProof,
-      intentHash: params.intentHash,
+      intentHash,
       verificationData,
       postIntentHookData: (params.postIntentHookData ?? '0x') as `0x${string}`,
     }];
     const { request } = await this.publicClient.simulateContract({ address: this.orchestratorAddress, abi: this.orchestratorAbi, functionName: 'fulfillIntent', args, account: this.walletClient.account!, ...(params.txOverrides ?? {}) });
-    return (await this.walletClient.writeContract(request)) as Hash;
+    const txHash = (await this.walletClient.writeContract(request as any)) as Hash;
+    params?.callbacks?.onTxSent?.(txHash);
+    // We do not wait for receipt here; caller can wait or use callback if we later add it
+    return txHash;
   }
 
   private defaultAttestationService(): string {
@@ -806,73 +828,74 @@ export class Zkp2pClient {
     };
   }
 
-  // /**
-  //  * Resolve intent parameters required for fulfillIntent from on-chain views or the indexer.
-  //  * Returns amount, fiatCurrency, conversionRate, and payeeDetails (hashed on-chain id).
-  //  */
-  // async getFulfillIntentInputs(intentHash: `0x${string}`): Promise<{
-  //   amount: string;
-  //   fiatCurrency: `0x${string}`;
-  //   conversionRate: string;
-  //   payeeDetails: `0x${string}`;
-  //   intentTimestampMs: string; // on-chain snapshot timestamp in ms
-  // }> {
-  //   // 1) Try ProtocolViewer when available
-  //   try {
-  //     if (this.protocolViewerAddress && this.protocolViewerAbi) {
-  //       const view = await this.getPvIntent(intentHash);
-  //       const pmHash = (view.intent.paymentMethod as string).toLowerCase();
-  //       const matched = (view.deposit.paymentMethods || []).find((pm: any) => (pm.paymentMethod as string)?.toLowerCase?.() === pmHash);
-  //       const payee = matched?.verificationData?.payeeDetails as `0x${string}` | undefined;
-  //       if (payee) {
-  //         return {
-  //           amount: (view.intent.amount as bigint).toString(),
-  //           fiatCurrency: view.intent.fiatCurrency as `0x${string}`,
-  //           conversionRate: (view.intent.conversionRate as bigint).toString(),
-  //           payeeDetails: payee,
-  //           intentTimestampMs: (BigInt(view.intent.timestamp as any) * 1000n).toString()
-  //         };
-  //       }
-  //     }
-  //   } catch {/* fall through */ }
+  /**
+   * Resolve intent parameters required for fulfillIntent from on-chain views or the indexer.
+   * Returns amount, fiatCurrency, conversionRate, and payeeDetails (hashed on-chain id).
+   */
+  async getFulfillIntentInputs(intentHash: `0x${string}`): Promise<{
+    amount: string;
+    fiatCurrency: `0x${string}`;
+    conversionRate: string;
+    payeeDetails: `0x${string}`;
+    intentTimestampMs: string; // on-chain snapshot timestamp in ms
+    paymentMethodHash: `0x${string}`;
+  }> {
+    // 1) Try ProtocolViewer when available
+    try {
+      if (this.protocolViewerAddress && this.protocolViewerAbi) {
+        const view = await this.getPvIntent(intentHash);
+        const pmHash = (view.intent.paymentMethod as string).toLowerCase();
+        const matched = (view.deposit.paymentMethods || []).find((pm: any) => (pm.paymentMethod as string)?.toLowerCase?.() === pmHash);
+        const payee = matched?.verificationData?.payeeDetails as `0x${string}` | undefined;
+        if (payee) {
+          return {
+            amount: (view.intent.amount as bigint).toString(),
+            fiatCurrency: view.intent.fiatCurrency as `0x${string}`,
+            conversionRate: (view.intent.conversionRate as bigint).toString(),
+            payeeDetails: payee,
+            intentTimestampMs: (BigInt(view.intent.timestamp as any) * 1000n).toString()
+          };
+        }
+      }
+    } catch {/* fall through */ }
 
-  //   // 2) Fallback: indexer — fetch intent + deposit relations to recover payeeDetails
-  //   const query = /* GraphQL */ `
-  //     query GetIntentMinimal($hash: String!) {
-  //       Intent(where: { intentHash: { _eq: $hash } }, limit: 1) {
-  //         amount
-  //         fiatCurrency
-  //         conversionRate
-  //         paymentMethodHash
-  //         depositId
-  //         signalTimestamp
-  //       }
-  //     }
-  //   `;
-  //   const res = await this.indexer.query<{ Intent?: Array<{ amount: string; fiatCurrency: string; conversionRate: string; paymentMethodHash?: string | null; depositId: string; signalTimestamp?: string }> }>({
-  //     query,
-  //     variables: { hash: intentHash.toLowerCase() },
-  //   });
-  //   const rec = res?.Intent?.[0];
-  //   if (!rec) throw new Error('Intent not found on indexer');
-  //   console.log('rec', rec);
-  //   if (!rec.signalTimestamp) throw new Error('Intent signal timestamp not found on indexer');
-  //   const deposit = await this.deposits.fetchDepositWithRelations(rec.depositId, { includeIntents: false });
-  //   let payee: string | undefined;
-  //   const pmHashLower = (rec.paymentMethodHash || '').toLowerCase();
-  //   for (const pm of deposit?.paymentMethods || []) {
-  //     if ((pm.paymentMethodHash || '').toLowerCase() === pmHashLower) {
-  //       payee = pm.payeeDetailsHash;
-  //       break;
-  //     }
-  //   }
-  //   if (!payee) throw new Error('Payee details not found for intent');
-  //   return {
-  //     amount: rec.amount,
-  //     fiatCurrency: rec.fiatCurrency as `0x${string}`,
-  //     conversionRate: rec.conversionRate,
-  //     payeeDetails: payee as `0x${string}`,
-  //     intentTimestampMs: (BigInt(rec.signalTimestamp) * 1000n).toString()
-  //   };
-  // }
+    // 2) Fallback: indexer — fetch intent + deposit relations to recover payeeDetails
+    const query = /* GraphQL */ `
+      query GetIntentMinimal($hash: String!) {
+        Intent(where: { intentHash: { _eq: $hash } }, limit: 1) {
+          amount
+          fiatCurrency
+          conversionRate
+          paymentMethodHash
+          depositId
+          signalTimestamp
+        }
+      }
+    `;
+    const res = await this.indexer.query<{ Intent?: Array<{ amount: string; fiatCurrency: string; conversionRate: string; paymentMethodHash?: string | null; depositId: string; signalTimestamp?: string }> }>({
+      query,
+      variables: { hash: intentHash.toLowerCase() },
+    });
+    const rec = res?.Intent?.[0];
+    if (!rec) throw new Error('Intent not found on indexer');
+    if (!rec.signalTimestamp) throw new Error('Intent signal timestamp not found on indexer');
+    const deposit = await this.deposits.fetchDepositWithRelations(rec.depositId, { includeIntents: false });
+    let payee: string | undefined;
+    const pmHashLower = (rec.paymentMethodHash || '').toLowerCase();
+    for (const pm of deposit?.paymentMethods || []) {
+      if ((pm.paymentMethodHash || '').toLowerCase() === pmHashLower) {
+        payee = pm.payeeDetailsHash;
+        break;
+      }
+    }
+    if (!payee) throw new Error('Payee details not found for intent');
+    return {
+      amount: rec.amount,
+      fiatCurrency: rec.fiatCurrency as `0x${string}`,
+      conversionRate: rec.conversionRate,
+      payeeDetails: payee as `0x${string}`,
+      intentTimestampMs: (BigInt(rec.signalTimestamp) * 1000n).toString(),
+      paymentMethodHash: (rec.paymentMethodHash || '0x0000000000000000000000000000000000000000000000000000000000000000') as `0x${string}`,
+    };
+  }
 }
