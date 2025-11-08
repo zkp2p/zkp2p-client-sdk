@@ -13,11 +13,11 @@ export default defineConfig({
   treeshake: true,
   target: 'es2020',
   platform: 'browser',
-  // Ensure deep imports from @zkp2p/contracts-v2 are resolved at runtime by the consumer,
-  // so addresses/ABIs are not baked at publish time and stay up to date.
+  // Resolve only non-JSON deep imports from @zkp2p/contracts-v2 at runtime.
+  // Keep JSON (abis, paymentMethods) bundled to avoid Node ESM import assertion issues.
   external: [
     '@zkp2p/contracts-v2',
-    '@zkp2p/contracts-v2/*',
-    '@zkp2p/contracts-v2/**',
+    '@zkp2p/contracts-v2/addresses/*',
+    '@zkp2p/contracts-v2/constants/*',
   ],
 });
