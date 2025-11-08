@@ -853,7 +853,8 @@ export class Zkp2pClient {
             fiatCurrency: view.intent.fiatCurrency as `0x${string}`,
             conversionRate: (view.intent.conversionRate as bigint).toString(),
             payeeDetails: payee,
-            intentTimestampMs: (BigInt(view.intent.timestamp as any) * 1000n).toString()
+            intentTimestampMs: (BigInt(view.intent.timestamp as any) * 1000n).toString(),
+            paymentMethodHash: view.intent.paymentMethod as `0x${string}`,
           };
         }
       }
