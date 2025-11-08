@@ -82,17 +82,6 @@ export class Zkp2pClient {
     const maybeUsdc = (addresses as any).usdc as Address | undefined;
     if (maybeUsdc) (this as any)._usdcAddress = maybeUsdc;
 
-    // // Fallback: if contracts-v2 mapping returned empty strings, attempt known constants by chain/env
-    // const needEscrowFallback = !this.isValidHexAddress(this.escrowAddress as any);
-    // if (needEscrowFallback) {
-    //   const set = (DEPLOYED_ADDRESSES as any)[this.chainId];
-    //   const envSet = (this.runtimeEnv === 'staging' ? set?.staging : set?.production) ?? set;
-    //   const fallbackEscrow = envSet?.escrow as Address | undefined;
-    //   const fallbackUsdc = envSet?.usdc as Address | undefined;
-    //   if (this.isValidHexAddress(fallbackEscrow)) (this as any).escrowAddress = fallbackEscrow;
-    //   if (this.isValidHexAddress(fallbackUsdc)) (this as any)._usdcAddress = fallbackUsdc;
-    // }
-
     // indexer
     const endpoint = opts.indexerUrl ?? defaultIndexerEndpoint(this.runtimeEnv === 'staging' ? 'STAGING' : 'PRODUCTION');
     this.indexer = new IndexerClient(endpoint);
@@ -513,46 +502,6 @@ export class Zkp2pClient {
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
-  // private async ensureContractsForSignal(depositId: bigint | string) {
-  //   // Escrow: try to resolve from indexer using chainId + depositId
-  //   if (!this.isValidHexAddress(this.escrowAddress as any)) {
-  //     const depId = typeof depositId === 'bigint' ? depositId.toString() : String(depositId);
-  //     try {
-  //       const query = /* GraphQL */ `
-  //         query GetEscrowByDepositId($chainId: Int!, $depositId: String!) {
-  //           Deposit(where: { chainId: { _eq: $chainId }, depositId: { _eq: $depositId } }, limit: 1) {
-  //             escrowAddress
-  //           }
-  //         }
-  //       `;
-  //       const res = await this.indexer.query<{ Deposit: Array<{ escrowAddress: string }> }>({
-  //         query,
-  //         variables: { chainId: this.chainId, depositId: depId },
-  //       });
-  //       const esc = res?.Deposit?.[0]?.escrowAddress as Address | undefined;
-  //       if (this.isValidHexAddress(esc)) (this as any).escrowAddress = esc;
-  //     } catch {/* ignore */ }
-  //   }
-
-  //   // Orchestrator: try to resolve from latest intents on this chain
-  //   if (!this.isValidHexAddress(this.orchestratorAddress as any)) {
-  //     try {
-  //       const query = /* GraphQL */ `
-  //         query GetLatestIntent($chainId: Int!) {
-  //           Intent(where: { chainId: { _eq: $chainId } }, order_by: { signalTimestamp: desc }, limit: 1) {
-  //             orchestratorAddress
-  //           }
-  //         }
-  //       `;
-  //       const res = await this.indexer.query<{ Intent: Array<{ orchestratorAddress: string }> }>({
-  //         query,
-  //         variables: { chainId: this.chainId },
-  //       });
-  //       const orch = res?.Intent?.[0]?.orchestratorAddress as Address | undefined;
-  //       if (this.isValidHexAddress(orch)) (this as any).orchestratorAddress = orch;
-  //     } catch {/* ignore */ }
-  //   }
-  // }
 
   async cancelIntent(params: { intentHash: `0x${string}`; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     if (!this.orchestratorAddress || !this.orchestratorAbi) throw new Error('Orchestrator not available');
@@ -774,44 +723,6 @@ export class Zkp2pClient {
     const { parseIntentView } = await import('../utils/protocolViewerParsers');
     return parseIntentView(raw);
   }
-
-  // /**
-  //  * Best-effort address hydration from the indexer. Useful when contracts-v2 address JSONs are outdated
-  //  * in the local environment. This will not throw; it only sets addresses when confidently discovered.
-  //  */
-  // async hydrateContracts(): Promise<void> {
-  //   // Escrow from latest deposit
-  //   if (!this.isValidHexAddress(this.escrowAddress as any)) {
-  //     try {
-  //       const query = /* GraphQL */ `
-  //         query GetLatestDeposit($chainId: Int!) {
-  //           Deposit(where: { chainId: { _eq: $chainId } }, order_by: { timestamp: desc }, limit: 1) {
-  //             escrowAddress
-  //           }
-  //         }
-  //       `;
-  //       const res = await this.indexer.query<{ Deposit: Array<{ escrowAddress: string }> }>({ query, variables: { chainId: this.chainId } });
-  //       const esc = res?.Deposit?.[0]?.escrowAddress as Address | undefined;
-  //       if (this.isValidHexAddress(esc)) (this as any).escrowAddress = esc;
-  //     } catch {/* ignore */ }
-  //   }
-
-  //   // Orchestrator from latest intent
-  //   if (!this.isValidHexAddress(this.orchestratorAddress as any)) {
-  //     try {
-  //       const query = /* GraphQL */ `
-  //         query GetLatestIntent($chainId: Int!) {
-  //           Intent(where: { chainId: { _eq: $chainId } }, order_by: { signalTimestamp: desc }, limit: 1) {
-  //             orchestratorAddress
-  //           }
-  //         }
-  //       `;
-  //       const res = await this.indexer.query<{ Intent: Array<{ orchestratorAddress: string }> }>({ query, variables: { chainId: this.chainId } });
-  //       const orch = res?.Intent?.[0]?.orchestratorAddress as Address | undefined;
-  //       if (this.isValidHexAddress(orch)) (this as any).orchestratorAddress = orch;
-  //     } catch {/* ignore */ }
-  //   }
-  // }
 
   // ---------- Convenience ----------
   getUsdcAddress(): Address | undefined {
