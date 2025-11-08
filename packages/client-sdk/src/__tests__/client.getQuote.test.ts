@@ -167,6 +167,8 @@ describe('Zkp2pClient.getQuote', () => {
     });
   });
 
+  
+
   it('should handle missing payee details gracefully', async () => {
     const mockQuoteResponse = {
       success: true,
@@ -638,5 +640,67 @@ describe('Zkp2pClient.getQuote', () => {
 
     // Verify quote was returned without payeeData
     expect(result.responseObject.quotes[0]?.payeeData).toBeUndefined();
+  });
+
+  it('defaults escrowAddresses to native escrow when not provided', async () => {
+    const mockQuoteResponse = {
+      success: true,
+      message: 'Success',
+      responseObject: {
+        fiat: { currencyCode: 'USD', currencyName: 'US Dollar', currencySymbol: '$', countryCode: 'US' },
+        token: { token: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', symbol: 'USDC', name: 'USD Coin', decimals: 6, chainId: 8453 },
+        quotes: [],
+        fees: { zkp2pFee: '0.00', zkp2pFeeFormatted: '0.00 USDC', swapFee: '0', swapFeeFormatted: '0 USDC' },
+      },
+      statusCode: 200,
+    };
+    vi.mocked(api.apiGetQuote).mockResolvedValue(mockQuoteResponse as any);
+
+    await client.getQuote({
+      paymentPlatforms: ['venmo'],
+      fiatCurrency: 'USD',
+      user: '0x123',
+      recipient: '0x456',
+      destinationChainId: 8453,
+      destinationToken: 'USDC',
+      amount: '50',
+    });
+
+    expect(api.apiGetQuote).toHaveBeenCalledTimes(1);
+    const forwarded = vi.mocked(api.apiGetQuote).mock.calls[0]?.[0] as any;
+    expect(Array.isArray(forwarded.escrowAddresses)).toBe(true);
+    expect(forwarded.escrowAddresses?.length).toBe(1);
+    expect(forwarded.escrowAddress).toBeUndefined();
+  });
+
+  it('preserves caller-provided escrowAddresses (no clobber)', async () => {
+    const mockQuoteResponse = {
+      success: true,
+      message: 'Success',
+      responseObject: {
+        fiat: { currencyCode: 'USD', currencyName: 'US Dollar', currencySymbol: '$', countryCode: 'US' },
+        token: { token: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', symbol: 'USDC', name: 'USD Coin', decimals: 6, chainId: 8453 },
+        quotes: [],
+        fees: { zkp2pFee: '0.00', zkp2pFeeFormatted: '0.00 USDC', swapFee: '0', swapFeeFormatted: '0 USDC' },
+      },
+      statusCode: 200,
+    };
+    vi.mocked(api.apiGetQuote).mockResolvedValue(mockQuoteResponse as any);
+
+    const customEscrows = ['0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'];
+    await client.getQuote({
+      paymentPlatforms: ['venmo'],
+      fiatCurrency: 'USD',
+      user: '0x123',
+      recipient: '0x456',
+      destinationChainId: 8453,
+      destinationToken: 'USDC',
+      amount: '50',
+      escrowAddresses: customEscrows,
+    } as any);
+
+    expect(api.apiGetQuote).toHaveBeenCalledTimes(1);
+    const forwarded = vi.mocked(api.apiGetQuote).mock.calls[0]?.[0] as any;
+    expect(forwarded.escrowAddresses).toEqual(customEscrows);
   });
 });

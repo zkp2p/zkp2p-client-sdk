@@ -18,6 +18,7 @@ import { resolveFiatCurrencyBytes32, resolvePaymentMethodHashFromCatalog } from 
 import { currencyKeccak256 } from '../utils/keccak';
 import type { QuoteRequest, QuoteResponse, PostDepositDetailsRequest } from '../types';
 import { ERC20_ABI } from '../utils/erc20';
+import { DEPLOYED_ADDRESSES } from '../utils/constants';
 
 export type Zkp2pNextOptions = {
   walletClient: WalletClient;
@@ -81,6 +82,17 @@ export class Zkp2pClient {
     const maybeUsdc = (addresses as any).usdc as Address | undefined;
     if (maybeUsdc) (this as any)._usdcAddress = maybeUsdc;
 
+    // // Fallback: if contracts-v2 mapping returned empty strings, attempt known constants by chain/env
+    // const needEscrowFallback = !this.isValidHexAddress(this.escrowAddress as any);
+    // if (needEscrowFallback) {
+    //   const set = (DEPLOYED_ADDRESSES as any)[this.chainId];
+    //   const envSet = (this.runtimeEnv === 'staging' ? set?.staging : set?.production) ?? set;
+    //   const fallbackEscrow = envSet?.escrow as Address | undefined;
+    //   const fallbackUsdc = envSet?.usdc as Address | undefined;
+    //   if (this.isValidHexAddress(fallbackEscrow)) (this as any).escrowAddress = fallbackEscrow;
+    //   if (this.isValidHexAddress(fallbackUsdc)) (this as any)._usdcAddress = fallbackUsdc;
+    // }
+
     // indexer
     const endpoint = opts.indexerUrl ?? defaultIndexerEndpoint(this.runtimeEnv === 'staging' ? 'STAGING' : 'PRODUCTION');
     this.indexer = new IndexerClient(endpoint);
@@ -91,6 +103,11 @@ export class Zkp2pClient {
     this.apiKey = opts.apiKey;
     this.authorizationToken = opts.authorizationToken;
     this.apiTimeoutMs = opts.timeouts?.api ?? 15000;
+  }
+
+  private isValidHexAddress(addr?: string | null): boolean {
+    if (typeof addr !== 'string') return false;
+    return /^0x[0-9a-fA-F]{40}$/.test(addr);
   }
 
   // ---------- Read methods (Indexer) ----------
@@ -423,7 +440,7 @@ export class Zkp2pClient {
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
-  
+
 
   async signalIntent(params: {
     depositId: bigint | string;
@@ -441,6 +458,8 @@ export class Zkp2pClient {
     signatureExpiration?: bigint | string;
     txOverrides?: Record<string, unknown>;
   }): Promise<Hash> {
+    // Resolve missing addresses opportunistically before sending
+    // await this.ensureContractsForSignal(params.depositId);
     if (!this.orchestratorAddress || !this.orchestratorAbi) throw new Error('Orchestrator not available');
     const catalog = getPaymentMethodsCatalog(this.chainId, this.runtimeEnv);
     const paymentMethod = resolvePaymentMethodHashFromCatalog(params.processorName, catalog);
@@ -494,7 +513,46 @@ export class Zkp2pClient {
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
-  
+  // private async ensureContractsForSignal(depositId: bigint | string) {
+  //   // Escrow: try to resolve from indexer using chainId + depositId
+  //   if (!this.isValidHexAddress(this.escrowAddress as any)) {
+  //     const depId = typeof depositId === 'bigint' ? depositId.toString() : String(depositId);
+  //     try {
+  //       const query = /* GraphQL */ `
+  //         query GetEscrowByDepositId($chainId: Int!, $depositId: String!) {
+  //           Deposit(where: { chainId: { _eq: $chainId }, depositId: { _eq: $depositId } }, limit: 1) {
+  //             escrowAddress
+  //           }
+  //         }
+  //       `;
+  //       const res = await this.indexer.query<{ Deposit: Array<{ escrowAddress: string }> }>({
+  //         query,
+  //         variables: { chainId: this.chainId, depositId: depId },
+  //       });
+  //       const esc = res?.Deposit?.[0]?.escrowAddress as Address | undefined;
+  //       if (this.isValidHexAddress(esc)) (this as any).escrowAddress = esc;
+  //     } catch {/* ignore */ }
+  //   }
+
+  //   // Orchestrator: try to resolve from latest intents on this chain
+  //   if (!this.isValidHexAddress(this.orchestratorAddress as any)) {
+  //     try {
+  //       const query = /* GraphQL */ `
+  //         query GetLatestIntent($chainId: Int!) {
+  //           Intent(where: { chainId: { _eq: $chainId } }, order_by: { signalTimestamp: desc }, limit: 1) {
+  //             orchestratorAddress
+  //           }
+  //         }
+  //       `;
+  //       const res = await this.indexer.query<{ Intent: Array<{ orchestratorAddress: string }> }>({
+  //         query,
+  //         variables: { chainId: this.chainId },
+  //       });
+  //       const orch = res?.Intent?.[0]?.orchestratorAddress as Address | undefined;
+  //       if (this.isValidHexAddress(orch)) (this as any).orchestratorAddress = orch;
+  //     } catch {/* ignore */ }
+  //   }
+  // }
 
   async cancelIntent(params: { intentHash: `0x${string}`; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     if (!this.orchestratorAddress || !this.orchestratorAbi) throw new Error('Orchestrator not available');
@@ -579,7 +637,12 @@ export class Zkp2pClient {
   async getQuote(req: QuoteRequest, opts?: { baseApiUrl?: string; timeoutMs?: number }): Promise<QuoteResponse> {
     const baseApiUrl = (opts?.baseApiUrl ?? this.baseApiUrl ?? 'https://api.zkp2p.xyz').replace(/\/$/, '');
     const timeoutMs = opts?.timeoutMs ?? this.apiTimeoutMs;
-    const quote = await apiGetQuote(req, baseApiUrl, timeoutMs);
+    // Include the native escrow only when caller did not provide filters
+    const reqWithEscrow = { ...(req as any) } as QuoteRequest & { escrowAddresses?: string[] };
+    if ((!reqWithEscrow.escrowAddresses || reqWithEscrow.escrowAddresses.length === 0) && this.escrowAddress) {
+      reqWithEscrow.escrowAddresses = [this.escrowAddress as string];
+    }
+    const quote = await apiGetQuote(reqWithEscrow as any, baseApiUrl, timeoutMs);
     // Enrich with payee details when auth is available
     const canEnrich = Boolean(this.apiKey || this.authorizationToken);
     const headersApiKey = this.apiKey;
@@ -690,6 +753,44 @@ export class Zkp2pClient {
     return parseIntentView(raw);
   }
 
+  // /**
+  //  * Best-effort address hydration from the indexer. Useful when contracts-v2 address JSONs are outdated
+  //  * in the local environment. This will not throw; it only sets addresses when confidently discovered.
+  //  */
+  // async hydrateContracts(): Promise<void> {
+  //   // Escrow from latest deposit
+  //   if (!this.isValidHexAddress(this.escrowAddress as any)) {
+  //     try {
+  //       const query = /* GraphQL */ `
+  //         query GetLatestDeposit($chainId: Int!) {
+  //           Deposit(where: { chainId: { _eq: $chainId } }, order_by: { timestamp: desc }, limit: 1) {
+  //             escrowAddress
+  //           }
+  //         }
+  //       `;
+  //       const res = await this.indexer.query<{ Deposit: Array<{ escrowAddress: string }> }>({ query, variables: { chainId: this.chainId } });
+  //       const esc = res?.Deposit?.[0]?.escrowAddress as Address | undefined;
+  //       if (this.isValidHexAddress(esc)) (this as any).escrowAddress = esc;
+  //     } catch {/* ignore */ }
+  //   }
+
+  //   // Orchestrator from latest intent
+  //   if (!this.isValidHexAddress(this.orchestratorAddress as any)) {
+  //     try {
+  //       const query = /* GraphQL */ `
+  //         query GetLatestIntent($chainId: Int!) {
+  //           Intent(where: { chainId: { _eq: $chainId } }, order_by: { signalTimestamp: desc }, limit: 1) {
+  //             orchestratorAddress
+  //           }
+  //         }
+  //       `;
+  //       const res = await this.indexer.query<{ Intent: Array<{ orchestratorAddress: string }> }>({ query, variables: { chainId: this.chainId } });
+  //       const orch = res?.Intent?.[0]?.orchestratorAddress as Address | undefined;
+  //       if (this.isValidHexAddress(orch)) (this as any).orchestratorAddress = orch;
+  //     } catch {/* ignore */ }
+  //   }
+  // }
+
   // ---------- Convenience ----------
   getUsdcAddress(): Address | undefined {
     return this._usdcAddress;
@@ -704,4 +805,74 @@ export class Zkp2pClient {
       usdc: this._usdcAddress,
     };
   }
+
+  // /**
+  //  * Resolve intent parameters required for fulfillIntent from on-chain views or the indexer.
+  //  * Returns amount, fiatCurrency, conversionRate, and payeeDetails (hashed on-chain id).
+  //  */
+  // async getFulfillIntentInputs(intentHash: `0x${string}`): Promise<{
+  //   amount: string;
+  //   fiatCurrency: `0x${string}`;
+  //   conversionRate: string;
+  //   payeeDetails: `0x${string}`;
+  //   intentTimestampMs: string; // on-chain snapshot timestamp in ms
+  // }> {
+  //   // 1) Try ProtocolViewer when available
+  //   try {
+  //     if (this.protocolViewerAddress && this.protocolViewerAbi) {
+  //       const view = await this.getPvIntent(intentHash);
+  //       const pmHash = (view.intent.paymentMethod as string).toLowerCase();
+  //       const matched = (view.deposit.paymentMethods || []).find((pm: any) => (pm.paymentMethod as string)?.toLowerCase?.() === pmHash);
+  //       const payee = matched?.verificationData?.payeeDetails as `0x${string}` | undefined;
+  //       if (payee) {
+  //         return {
+  //           amount: (view.intent.amount as bigint).toString(),
+  //           fiatCurrency: view.intent.fiatCurrency as `0x${string}`,
+  //           conversionRate: (view.intent.conversionRate as bigint).toString(),
+  //           payeeDetails: payee,
+  //           intentTimestampMs: (BigInt(view.intent.timestamp as any) * 1000n).toString()
+  //         };
+  //       }
+  //     }
+  //   } catch {/* fall through */ }
+
+  //   // 2) Fallback: indexer — fetch intent + deposit relations to recover payeeDetails
+  //   const query = /* GraphQL */ `
+  //     query GetIntentMinimal($hash: String!) {
+  //       Intent(where: { intentHash: { _eq: $hash } }, limit: 1) {
+  //         amount
+  //         fiatCurrency
+  //         conversionRate
+  //         paymentMethodHash
+  //         depositId
+  //         signalTimestamp
+  //       }
+  //     }
+  //   `;
+  //   const res = await this.indexer.query<{ Intent?: Array<{ amount: string; fiatCurrency: string; conversionRate: string; paymentMethodHash?: string | null; depositId: string; signalTimestamp?: string }> }>({
+  //     query,
+  //     variables: { hash: intentHash.toLowerCase() },
+  //   });
+  //   const rec = res?.Intent?.[0];
+  //   if (!rec) throw new Error('Intent not found on indexer');
+  //   console.log('rec', rec);
+  //   if (!rec.signalTimestamp) throw new Error('Intent signal timestamp not found on indexer');
+  //   const deposit = await this.deposits.fetchDepositWithRelations(rec.depositId, { includeIntents: false });
+  //   let payee: string | undefined;
+  //   const pmHashLower = (rec.paymentMethodHash || '').toLowerCase();
+  //   for (const pm of deposit?.paymentMethods || []) {
+  //     if ((pm.paymentMethodHash || '').toLowerCase() === pmHashLower) {
+  //       payee = pm.payeeDetailsHash;
+  //       break;
+  //     }
+  //   }
+  //   if (!payee) throw new Error('Payee details not found for intent');
+  //   return {
+  //     amount: rec.amount,
+  //     fiatCurrency: rec.fiatCurrency as `0x${string}`,
+  //     conversionRate: rec.conversionRate,
+  //     payeeDetails: payee as `0x${string}`,
+  //     intentTimestampMs: (BigInt(rec.signalTimestamp) * 1000n).toString()
+  //   };
+  // }
 }
