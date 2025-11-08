@@ -16,7 +16,9 @@
     "lint": "npm --prefix packages/client-sdk run lint",
     "test": "npm --prefix packages/client-sdk run test",
     "release": "npm --prefix packages/client-sdk run release",
-    "docs": "npm --prefix packages/client-sdk run docs"
+    "docs": "npm --prefix packages/client-sdk run docs",
+    "examples:inspect": "tsx examples/node-scripts/inspect-client.ts",
+    "examples:get-quote": "tsx examples/node-scripts/get-quote.ts"
   },
   "files": [
     "packages/client-sdk/dist",
@@ -45,5 +47,10 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "devDependencies": {
+    "@zkp2p/client-sdk": "file:packages/client-sdk",
+    "tsx": "^4.20.0",
+    "viem": "^2.37.3"
   }
 }

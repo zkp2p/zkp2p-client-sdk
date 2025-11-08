@@ -41,3 +41,5 @@ coverage/
 /zkp2p-react-native-sdk-REFERENCE
 CLIENT_SDK_PLAN.md
 
+
+.yarn/cache
