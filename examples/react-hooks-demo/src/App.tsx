@@ -227,10 +227,10 @@ function ZKP2PDemo() {
     });
 
     // Automatically fulfill intent if proofs were generated
-    if (result?.proofs && intentResponse?.intentHash) {
+    if (result?.proofs?.length && intentResponse?.intentHash) {
       await fulfillIntent({
         intentHash: intentResponse.intentHash as `0x${string}`,
-        paymentProofs: result.proofs.map((proof) => ({ proof })),
+        proof: result.proofs[0],
       });
     }
   };
