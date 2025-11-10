@@ -96,6 +96,23 @@ const client = new Zkp2pClient({ walletClient, chainId: base.id, runtimeEnv: 'pr
 const deposits = await client.getDepositsWithRelations({ status: 'ACTIVE', acceptingIntents: true }, { limit: 50 }, { includeIntents: true });
 ```
 
+### Get Quote (with optional escrow filter)
+
+```ts
+// Request quotes; when escrowAddresses is omitted, the client defaults to its native escrow
+const quote = await client.getQuote({
+  paymentPlatforms: ['venmo', 'cashapp'],
+  fiatCurrency: 'USD',
+  user: '0xUser',
+  recipient: '0xRecipient',
+  destinationChainId: 8453,
+  destinationToken: '0xUSDC',
+  amount: '100',
+  // Optional: restrict to specific escrows
+  // escrowAddresses: ['0xEscrow1', '0xEscrow2']
+});
+```
+
 ### ProtocolViewer On-chain Reads (optional)
 
 These helpers call the on-chain ProtocolViewer contract when available (Base Sepolia/Staging).
@@ -141,20 +158,22 @@ await client.signalIntent({
 
 ### Fulfill Intent via Attestation Service
 
+Breaking (vX): fulfillIntent now only needs `intentHash` and a proof. The SDK derives the rest (amount, fiatCurrency, conversionRate, payeeDetails, payment method) from the intent via the indexer.
+
 ```ts
-const hash = await client.fulfillIntent({
-  intentHash: '0xIntent',
-  zkTlsProof: JSON.stringify(proofObj), // zkTLS proof JSON string
-  platform: 'wise',
-  actionType: 'payment',
-  amount: '1000000',
-  timestampMs: String(Date.now()),
-  fiatCurrency: '0x…',
-  conversionRate: '1000000',
-  payeeDetails: '0x…',
-  timestampBufferMs: '600000',
+// `proof` can be an object from the extension or a stringified JSON
+const txHash = await client.fulfillIntent({
+  intentHash: '0xIntentHash',
+  proof,
+  // Optional: timestampBufferMs (default 5 minutes = 300000)
+  // Optional: attestationServiceUrl, verifyingContract, postIntentHookData, txOverrides
+  // Optional callbacks: onAttestationStart, onTxSent, onTxMined
 });
 ```
+
+Notes:
+- The SDK maps the intent’s `paymentMethodHash` to the Attestation Service endpoint; no `platform` input is required.
+- If the Payment Methods Catalog is out of date for your network/env, update the SDK or report the missing mapping.
 
 ### Maker Deposit Management (Escrow v3)
 
@@ -237,6 +256,9 @@ See `examples/node-scripts`:
 - `fulfill-intent-orchestrator.ts`
 - `release-funds-to-payer.ts`
 - `cancel-intent.ts`
+
+Additional example:
+- `inspect-client.ts` — prints resolved addresses and indexer URL for quick sanity checks
 
 Run with ts-node or compile locally; provide env vars (see headers of each file).
 

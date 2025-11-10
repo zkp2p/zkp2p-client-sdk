@@ -196,6 +196,8 @@ export type QuoteRequest = {
   quotesToReturn?: number;
   amount: string;
   isExactFiat?: boolean;
+  /** Optional filter: limit quotes to these escrow contracts */
+  escrowAddresses?: string[];
 };
 
 export type FiatResponse = { currencyCode: string; currencyName: string; currencySymbol: string; countryCode: string };
