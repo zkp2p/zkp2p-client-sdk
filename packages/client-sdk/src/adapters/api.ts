@@ -43,13 +43,15 @@ function createHeaders(apiKey?: string, authToken?: string): Record<string, stri
   return headers;
 }
 
-// Normalize base API URL to avoid duplicate version segments (e.g., avoid /v1/v1)
+// Normalize base API URL to avoid duplicate version segments (e.g., avoid /v1/v1, /v2/v2)
 function withApiBase(baseApiUrl: string): string {
   const trimmed = (baseApiUrl || '').trim();
   // remove trailing slashes
   let base = trimmed.replace(/\/+$/, '');
   // remove trailing /v1 if a caller accidentally includes it
   base = base.replace(/\/v1$/i, '');
+  // remove trailing /v2 if a caller accidentally includes it
+  base = base.replace(/\/v2$/i, '');
   return base;
 }
 
