@@ -25,7 +25,7 @@ import type {
   GetDepositByIdResponse,
   GetDepositsOrderStatsRequest,
   GetDepositsOrderStatsResponse,
-  GetIntentsByRecipientRequest, 
+  GetIntentsByRecipientRequest,
   GetIntentsByRecipientResponse,
   DepositIntentStatistics,
   ListPayeesResponse,
@@ -340,7 +340,7 @@ export async function apiGetQuote(
   }
   const isExactFiat = req.isExactFiat !== false;
   const endpoint = isExactFiat ? 'exact-fiat' : 'exact-token';
-  let url = `${withApiBase(baseApiUrl)}/v1/quote/${endpoint}`;
+  let url = `${withApiBase(baseApiUrl)}/v2/quote/${endpoint}`;
   if (req.quotesToReturn) url += `?quotesToReturn=${req.quotesToReturn}`;
 
   const requestBody: Record<string, unknown> = {
