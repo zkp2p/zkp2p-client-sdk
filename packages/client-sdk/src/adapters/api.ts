@@ -333,7 +333,9 @@ export async function apiPostDepositDetails(
 export async function apiGetQuote(
   req: QuoteRequest,
   baseApiUrl: string,
-  timeoutMs?: number
+  timeoutMs?: number,
+  apiKey?: string,
+  authToken?: string
 ): Promise<QuoteResponse> {
   if (req.quotesToReturn !== undefined) {
     if (!Number.isInteger(req.quotesToReturn) || (req.quotesToReturn as number) < 1) {
@@ -358,6 +360,8 @@ export async function apiGetQuote(
     url,
     method: 'POST',
     body: requestBody,
+    apiKey,
+    authToken,
     timeoutMs,
   });
 }

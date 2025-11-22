@@ -613,7 +613,7 @@ export class Zkp2pClient {
     if ((!reqWithEscrow.escrowAddresses || reqWithEscrow.escrowAddresses.length === 0) && this.escrowAddress) {
       reqWithEscrow.escrowAddresses = [this.escrowAddress as string];
     }
-    const quote = await apiGetQuote(reqWithEscrow as any, baseApiUrl, timeoutMs);
+    const quote = await apiGetQuote(reqWithEscrow as any, baseApiUrl, timeoutMs, this.apiKey, this.authorizationToken);
     // Enrich with payee details when auth is available
     const canEnrich = Boolean(this.apiKey || this.authorizationToken);
     const headersApiKey = this.apiKey;
