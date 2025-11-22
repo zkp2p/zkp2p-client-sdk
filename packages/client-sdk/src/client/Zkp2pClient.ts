@@ -12,7 +12,7 @@ import { apiSignIntentV2 } from '../adapters/verification';
 import { apiCreatePaymentAttestation } from '../adapters/attestation';
 import { encodeAddressAsBytes, encodePaymentAttestation, encodeVerifyPaymentData } from '../utils/encode';
 import { ethers } from 'ethers';
-import { apiGetPayeeDetails, apiGetQuote, apiPostDepositDetails } from '../adapters/api';
+import { apiGetQuote, apiPostDepositDetails } from '../adapters/api';
 import { getGatingServiceAddress, getPaymentMethodsCatalog } from '../contracts';
 import { resolveFiatCurrencyBytes32, resolvePaymentMethodHashFromCatalog } from '../utils/paymentResolution';
 import { currencyKeccak256 } from '../utils/keccak';
@@ -614,23 +614,12 @@ export class Zkp2pClient {
       reqWithEscrow.escrowAddresses = [this.escrowAddress as string];
     }
     const quote = await apiGetQuote(reqWithEscrow as any, baseApiUrl, timeoutMs, this.apiKey, this.authorizationToken);
-    // Enrich with payee details when auth is available
-    const canEnrich = Boolean(this.apiKey || this.authorizationToken);
-    const headersApiKey = this.apiKey;
-    if (canEnrich) {
-      const quotes = quote?.responseObject?.quotes ?? [];
-      for (const q of quotes) {
-        const intent: any = q.intent;
-        const processorName = intent?.processorName;
-        const hashedOnchainId = intent?.payeeDetails;
-        if (!processorName || !hashedOnchainId) continue;
-        try {
-          const res = await apiGetPayeeDetails({ hashedOnchainId, processorName }, headersApiKey!, baseApiUrl, this.authorizationToken, timeoutMs);
-          const data = res?.responseObject?.depositData;
-          if (data && typeof q === 'object') (q as any).payeeData = data;
-        } catch {
-          // ignore enrichment failures
-        }
+    // Prefer maker.depositData returned by quote API; keep payeeData for backward compat
+    const quotes = quote?.responseObject?.quotes ?? [];
+    for (const q of quotes) {
+      const maker = (q as any)?.maker;
+      if (maker?.depositData && typeof q === 'object') {
+        (q as any).payeeData = maker.depositData;
       }
     }
     return quote;

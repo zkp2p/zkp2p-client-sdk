@@ -33,7 +33,7 @@ describe('Zkp2pClient.getQuote', () => {
     });
   });
 
-  it('should enrich quotes with payee details when available', async () => {
+  it('should surface maker.depositData into payeeData when available', async () => {
     const mockQuoteResponse = {
       success: true,
       message: 'Success',
@@ -59,6 +59,15 @@ describe('Zkp2pClient.getQuote', () => {
               fiatCurrencyCode: 'USD',
               chainId: '8453',
             },
+            maker: {
+              processorName: 'venmo',
+              depositData: {
+                venmoUsername: '@alice-venmo',
+                email: 'alice@example.com',
+              },
+              hashedOnchainId: 'hashed-id-1',
+              isBusiness: false,
+            },
           },
           {
             fiatAmount: '200',
@@ -78,6 +87,15 @@ describe('Zkp2pClient.getQuote', () => {
               fiatCurrencyCode: 'USD',
               chainId: '8453',
             },
+            maker: {
+              processorName: 'cashapp',
+              depositData: {
+                cashappUsername: '$bob-cash',
+                phone: '+1234567890',
+              },
+              hashedOnchainId: 'hashed-id-2',
+              isBusiness: true,
+            },
           },
         ],
         fees: { zkp2pFee: '0.01', zkp2pFeeFormatted: '0.01 USDC', swapFee: '0', swapFeeFormatted: '0 USDC' },
@@ -85,45 +103,8 @@ describe('Zkp2pClient.getQuote', () => {
       statusCode: 200,
     };
 
-    const mockPayeeDetails1 = {
-      success: true,
-      message: 'Success',
-      responseObject: {
-        id: 1,
-        processorName: 'venmo',
-        depositData: {
-          venmoUsername: '@alice-venmo',
-          email: 'alice@example.com',
-        },
-        hashedOnchainId: 'hashed-id-1',
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-01T00:00:00.000Z',
-      },
-      statusCode: 200,
-    };
-
-    const mockPayeeDetails2 = {
-      success: true,
-      message: 'Success',
-      responseObject: {
-        id: 2,
-        processorName: 'cashapp',
-        depositData: {
-          cashappUsername: '$bob-cash',
-          phone: '+1234567890',
-        },
-        hashedOnchainId: 'hashed-id-2',
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-01T00:00:00.000Z',
-      },
-      statusCode: 200,
-    };
-
     // Mock API responses
     vi.mocked(api.apiGetQuote).mockResolvedValue(mockQuoteResponse);
-    vi.mocked(api.apiGetPayeeDetails)
-      .mockResolvedValueOnce(mockPayeeDetails1)
-      .mockResolvedValueOnce(mockPayeeDetails2);
 
     // Call getQuote
     const result = await client.getQuote({
@@ -139,24 +120,7 @@ describe('Zkp2pClient.getQuote', () => {
     // Verify apiGetQuote was called
     expect(api.apiGetQuote).toHaveBeenCalledTimes(1);
 
-    // Verify apiGetPayeeDetails was called for each quote
-    expect(api.apiGetPayeeDetails).toHaveBeenCalledTimes(2);
-    expect(api.apiGetPayeeDetails).toHaveBeenCalledWith(
-      { hashedOnchainId: 'hashed-id-1', processorName: 'venmo' },
-      mockApiKey,
-      expect.any(String),
-      undefined,
-      expect.any(Number)
-    );
-    expect(api.apiGetPayeeDetails).toHaveBeenCalledWith(
-      { hashedOnchainId: 'hashed-id-2', processorName: 'cashapp' },
-      mockApiKey,
-      expect.any(String),
-      undefined,
-      expect.any(Number)
-    );
-
-    // Verify quotes were enriched with payee data (entire depositData object)
+    // Verify payeeData pulled from maker.depositData (no extra API hits)
     expect(result.responseObject.quotes[0]?.payeeData).toEqual({
       venmoUsername: '@alice-venmo',
       email: 'alice@example.com',
@@ -165,6 +129,7 @@ describe('Zkp2pClient.getQuote', () => {
       cashappUsername: '$bob-cash',
       phone: '+1234567890',
     });
+    expect(api.apiGetPayeeDetails).not.toHaveBeenCalled();
   });
 
   
@@ -204,7 +169,6 @@ describe('Zkp2pClient.getQuote', () => {
 
     // Mock API responses
     vi.mocked(api.apiGetQuote).mockResolvedValue(mockQuoteResponse);
-    vi.mocked(api.apiGetPayeeDetails).mockRejectedValue(new Error('Not found'));
 
     // Call getQuote
     const result = await client.getQuote({
@@ -217,11 +181,9 @@ describe('Zkp2pClient.getQuote', () => {
       amount: '100',
     });
 
-    // Verify apiGetPayeeDetails was attempted
-    expect(api.apiGetPayeeDetails).toHaveBeenCalledTimes(1);
-
     // Verify quote was returned without payeeData
     expect(result.responseObject.quotes[0]?.payeeData).toBeUndefined();
+    expect(api.apiGetPayeeDetails).not.toHaveBeenCalled();
   });
 
   it('should work with authorization token instead of API key', async () => {
@@ -266,6 +228,14 @@ describe('Zkp2pClient.getQuote', () => {
               fiatCurrencyCode: 'USD',
               chainId: '8453',
             },
+            maker: {
+              processorName: 'venmo',
+              depositData: {
+                venmoUsername: '@alice-venmo',
+                email: 'alice@example.com',
+              },
+              hashedOnchainId: 'hashed-id-1',
+            },
           },
         ],
         fees: { zkp2pFee: '0.01', zkp2pFeeFormatted: '0.01 USDC', swapFee: '0', swapFeeFormatted: '0 USDC' },
@@ -273,26 +243,8 @@ describe('Zkp2pClient.getQuote', () => {
       statusCode: 200,
     };
 
-    const mockPayeeDetails = {
-      success: true,
-      message: 'Success',
-      responseObject: {
-        id: 1,
-        processorName: 'venmo',
-        depositData: {
-          venmoUsername: '@alice-venmo',
-          email: 'alice@example.com',
-        },
-        hashedOnchainId: 'hashed-id-1',
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-01T00:00:00.000Z',
-      },
-      statusCode: 200,
-    };
-
     // Mock API responses
     vi.mocked(api.apiGetQuote).mockResolvedValue(mockQuoteResponse);
-    vi.mocked(api.apiGetPayeeDetails).mockResolvedValue(mockPayeeDetails);
 
     // Call getQuote
     const result = await clientWithAuthToken.getQuote({
@@ -305,20 +257,12 @@ describe('Zkp2pClient.getQuote', () => {
       amount: '100',
     });
 
-    // Verify apiGetPayeeDetails was called with authorization token
-    expect(api.apiGetPayeeDetails).toHaveBeenCalledWith(
-      { hashedOnchainId: 'hashed-id-1', processorName: 'venmo' },
-      '', // Empty API key since we're using authorization token
-      expect.any(String),
-      mockAuthToken,
-      expect.any(Number)
-    );
-
-    // Verify quote was enriched with payeeData
+    // Verify quote carries maker data without extra calls
     expect(result.responseObject.quotes[0]?.payeeData).toEqual({
       venmoUsername: '@alice-venmo',
       email: 'alice@example.com',
     });
+    expect(api.apiGetPayeeDetails).not.toHaveBeenCalled();
   });
 
   it('should not fetch payee details when neither API key nor authorization token is available', async () => {
@@ -416,6 +360,17 @@ describe('Zkp2pClient.getQuote', () => {
               fiatCurrencyCode: 'USD',
               chainId: '8453',
             },
+            maker: {
+              processorName: 'revolut',
+              depositData: {
+                revolutTag: '@alice.revolut',
+                email: 'alice@example.com',
+                phoneNumber: '+1234567890',
+                country: 'US',
+                additionalInfo: 'Some extra data',
+              },
+              hashedOnchainId: 'hashed-id-1',
+            },
           },
         ],
         fees: { zkp2pFee: '0.01', zkp2pFeeFormatted: '0.01 USDC', swapFee: '0', swapFeeFormatted: '0 USDC' },
@@ -423,29 +378,8 @@ describe('Zkp2pClient.getQuote', () => {
       statusCode: 200,
     };
 
-    const mockPayeeDetails = {
-      success: true,
-      message: 'Success',
-      responseObject: {
-        id: 1,
-        processorName: 'revolut',
-        depositData: {
-          revolutTag: '@alice.revolut',
-          email: 'alice@example.com',
-          phoneNumber: '+1234567890',
-          country: 'US',
-          additionalInfo: 'Some extra data',
-        },
-        hashedOnchainId: 'hashed-id-1',
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-01T00:00:00.000Z',
-      },
-      statusCode: 200,
-    };
-
     // Mock API responses
     vi.mocked(api.apiGetQuote).mockResolvedValue(mockQuoteResponse);
-    vi.mocked(api.apiGetPayeeDetails).mockResolvedValue(mockPayeeDetails);
 
     // Call getQuote
     const result = await client.getQuote({
@@ -494,6 +428,11 @@ describe('Zkp2pClient.getQuote', () => {
               fiatCurrencyCode: 'USD',
               chainId: '8453',
             },
+            maker: {
+              processorName: 'venmo',
+              depositData: {},
+              hashedOnchainId: 'hashed-id-1',
+            },
           },
         ],
         fees: { zkp2pFee: '0.01', zkp2pFeeFormatted: '0.01 USDC', swapFee: '0', swapFeeFormatted: '0 USDC' },
@@ -501,23 +440,8 @@ describe('Zkp2pClient.getQuote', () => {
       statusCode: 200,
     };
 
-    const mockPayeeDetails = {
-      success: true,
-      message: 'Success',
-      responseObject: {
-        id: 1,
-        processorName: 'venmo',
-        depositData: {},
-        hashedOnchainId: 'hashed-id-1',
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-01T00:00:00.000Z',
-      },
-      statusCode: 200,
-    };
-
     // Mock API responses
     vi.mocked(api.apiGetQuote).mockResolvedValue(mockQuoteResponse);
-    vi.mocked(api.apiGetPayeeDetails).mockResolvedValue(mockPayeeDetails);
 
     // Call getQuote
     const result = await client.getQuote({
