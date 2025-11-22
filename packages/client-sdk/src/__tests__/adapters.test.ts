@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { 
-  apiGetQuote, 
+import {
+  apiGetQuote,
   apiValidatePayeeDetails,
   apiPostDepositDetails,
   apiGetOwnerDeposits,
@@ -95,6 +95,78 @@ describe('api adapters', () => {
 
     const headers = (fetchMock.mock.calls[0]?.[1] as RequestInit | undefined)?.headers as Record<string, string> | undefined;
     expect(headers?.['x-api-key']).toBe(apiKey);
+  });
+
+  it('normalizes maker fields on quote responses', async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          message: 'ok',
+          success: true,
+          responseObject: {
+            fiat: { currencyCode: 'USD', currencyName: 'US Dollar', currencySymbol: '$', countryCode: 'US' },
+            token: { token: '0xusdc', symbol: 'USDC', name: 'USD Coin', decimals: 6, chainId: 8453 },
+            quotes: [
+              {
+                fiatAmount: '100',
+                fiatAmountFormatted: '$100.00',
+                tokenAmount: '100000000',
+                tokenAmountFormatted: '100.00',
+                paymentMethod: 'Venmo',
+                payeeAddress: '0x123',
+                conversionRate: '1.00',
+                intent: {
+                  depositId: 'deposit-1',
+                  processorName: 'venmo',
+                  amount: '100000000',
+                  toAddress: '0x123',
+                  payeeDetails: 'hashed-id-1',
+                  processorIntentData: {},
+                  fiatCurrencyCode: 'USD',
+                  chainId: '8453',
+                },
+                maker: {
+                  id: 3,
+                  processorName: 'venmo',
+                  depositData: { venmoUsername: 'richardl3291' },
+                  hashedOnchainId: '0x92d3',
+                  hashedHashedOnchainId: '0xd4ce',
+                  isBusiness: false,
+                  revoked: false,
+                  createdAt: '2024-12-07T02:33:01.260Z',
+                },
+              },
+            ],
+            fees: { zkp2pFee: '0.01', zkp2pFeeFormatted: '0.01 USDC', swapFee: '0', swapFeeFormatted: '0 USDC' },
+          },
+          statusCode: 200,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    (globalThis as any).fetch = fetchMock;
+
+    const res = await apiGetQuote(
+      {
+        paymentPlatforms: ['venmo'],
+        fiatCurrency: 'USD',
+        user: '0xuser',
+        recipient: '0xrecip',
+        destinationChainId: 8453,
+        destinationToken: '0xusdc',
+        amount: '5',
+      },
+      'https://api.example'
+    );
+
+    const maker = res.responseObject.quotes[0]?.maker;
+    expect(maker).toEqual({
+      processorName: 'venmo',
+      depositData: { venmoUsername: 'richardl3291' },
+      isBusiness: false,
+      hashedOnchainId: '0x92d3',
+    });
+    expect((maker as any)?.hashedHashedOnchainId).toBeUndefined();
   });
 
   it('calls /makers/validate and parses response', async () => {
@@ -396,14 +468,14 @@ describe('api adapters', () => {
       expect(res.responseObject[0].totalIntents).toBe(10);
       expect(fetchMock).toHaveBeenCalledWith(
         'https://api.example/v1/deposits/order-stats',
-        expect.objectContaining({ 
+        expect.objectContaining({
           method: 'POST',
           body: JSON.stringify({ depositIds: [1, 2, 3] })
         })
       );
     });
 
-    
+
 
     it('fetches intents by recipient with status filter', async () => {
       const mockResponse = { success: true, message: 'ok', statusCode: 200, responseObject: [] };

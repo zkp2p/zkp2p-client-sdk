@@ -363,6 +363,25 @@ export async function apiGetQuote(
     apiKey,
     authToken,
     timeoutMs,
+  }).then((data) => {
+    // Surface only the allowed maker fields per quote
+    const quotes = (data as any)?.responseObject?.quotes;
+    if (Array.isArray(quotes)) {
+      data.responseObject.quotes = quotes.map((q: any) => {
+        if (q?.maker && typeof q.maker === 'object') {
+          const { processorName, depositData, isBusiness, hashedOnchainId } = q.maker;
+          const maker = {
+            ...(processorName !== undefined ? { processorName } : {}),
+            ...(depositData !== undefined ? { depositData } : {}),
+            ...(isBusiness !== undefined ? { isBusiness } : {}),
+            ...(hashedOnchainId !== undefined ? { hashedOnchainId } : {}),
+          };
+          return { ...q, maker };
+        }
+        return q;
+      });
+    }
+    return data;
   });
 }
 

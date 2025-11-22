@@ -202,6 +202,12 @@ export type QuoteRequest = {
 
 export type FiatResponse = { currencyCode: string; currencyName: string; currencySymbol: string; countryCode: string };
 export type TokenResponse = { token: string; decimals: number; name: string; symbol: string; chainId: number };
+export type QuoteMakerResponse = {
+  processorName: string;
+  depositData: Record<string, string>;
+  isBusiness?: boolean;
+  hashedOnchainId: string;
+};
 /**
  * Intent details within a quote response
  */
@@ -233,6 +239,7 @@ export type QuoteSingleResponse = {
   conversionRate: string;
   intent: QuoteIntentResponse;
   payeeData?: Record<string, string>;
+  maker?: QuoteMakerResponse;
 };
 export type QuoteFeesResponse = { zkp2pFee: string; zkp2pFeeFormatted: string; swapFee: string; swapFeeFormatted: string };
 export type QuoteResponse = {
