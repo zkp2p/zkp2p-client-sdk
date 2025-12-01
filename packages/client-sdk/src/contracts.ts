@@ -4,9 +4,9 @@
 import type { Abi } from 'abitype';
 
 // Typed imports from @zkp2p/contracts-v2 (module declarations provided in src/@types)
-import baseAddresses from '@zkp2p/contracts-v2/addresses/base';
-import baseSepoliaAddresses from '@zkp2p/contracts-v2/addresses/baseSepolia';
-import baseStagingAddresses from '@zkp2p/contracts-v2/addresses/baseStaging';
+import baseAddressesRaw from '@zkp2p/contracts-v2/addresses/base';
+import baseSepoliaAddressesRaw from '@zkp2p/contracts-v2/addresses/baseSepolia';
+import baseStagingAddressesRaw from '@zkp2p/contracts-v2/addresses/baseStaging';
 
 import EscrowBase from '@zkp2p/contracts-v2/abis/base/Escrow.json';
 import OrchestratorBase from '@zkp2p/contracts-v2/abis/base/Orchestrator.json';
@@ -23,13 +23,65 @@ import OrchestratorBaseStaging from '@zkp2p/contracts-v2/abis/baseStaging/Orches
 import UnifiedPaymentVerifierBaseStaging from '@zkp2p/contracts-v2/abis/baseStaging/UnifiedPaymentVerifier.json';
 import ProtocolViewerBaseStaging from '@zkp2p/contracts-v2/abis/baseStaging/ProtocolViewer.json';
 
-import baseConstants from '@zkp2p/contracts-v2/constants/base';
-import baseStagingConstants from '@zkp2p/contracts-v2/constants/baseStaging';
+import baseConstantsRaw from '@zkp2p/contracts-v2/constants/base';
+import baseStagingConstantsRaw from '@zkp2p/contracts-v2/constants/baseStaging';
 // Payment methods catalogs (JSON). Import statically so ESM bundlers include the data.
 // These modules are present in @zkp2p/contracts-v2; tsconfig sets resolveJsonModule: true
-import basePaymentMethods from '@zkp2p/contracts-v2/paymentMethods/base.json';
-import baseSepoliaPaymentMethods from '@zkp2p/contracts-v2/paymentMethods/baseSepolia.json';
-import baseStagingPaymentMethods from '@zkp2p/contracts-v2/paymentMethods/baseStaging.json';
+import basePaymentMethodsRaw from '@zkp2p/contracts-v2/paymentMethods/base.json';
+import baseSepoliaPaymentMethodsRaw from '@zkp2p/contracts-v2/paymentMethods/baseSepolia.json';
+import baseStagingPaymentMethodsRaw from '@zkp2p/contracts-v2/paymentMethods/baseStaging.json';
+
+// Normalize ESM/CJS deep import shapes at runtime
+function unwrapAddresses(mod: any): { name?: string; chainId?: number; contracts?: Record<string, `0x${string}`> } {
+  if (!mod) return {} as any;
+  // Common shapes: { contracts: {...} }, { default: { contracts: {...} } }
+  if (mod.contracts) return mod;
+  if (mod.default?.contracts) return mod.default;
+  // Some bundles emit { default: [Getter] } circular; attempt access
+  try {
+    const d = typeof mod.default === 'function' ? mod.default() : mod.default;
+    if (d?.contracts) return d;
+  } catch {}
+  return mod as any;
+}
+
+function unwrapMethods(mod: any): { methods?: Record<string, { paymentMethodHash: `0x${string}`; currencies?: `0x${string}`[] }> } {
+  if (!mod) return {} as any;
+  if (mod.methods) return mod;
+  if (mod.default?.methods) return mod.default;
+  try {
+    const d = typeof mod.default === 'function' ? mod.default() : mod.default;
+    if (d?.methods) return d;
+  } catch {}
+  return mod as any;
+}
+
+const baseAddresses = unwrapAddresses(baseAddressesRaw) as any;
+const baseSepoliaAddresses = unwrapAddresses(baseSepoliaAddressesRaw) as any;
+const baseStagingAddresses = unwrapAddresses(baseStagingAddressesRaw) as any;
+const basePaymentMethods = unwrapMethods(basePaymentMethodsRaw) as any;
+const baseSepoliaPaymentMethods = unwrapMethods(baseSepoliaPaymentMethodsRaw) as any;
+const baseStagingPaymentMethods = unwrapMethods(baseStagingPaymentMethodsRaw) as any;
+const baseConstants = ((): any => {
+  const m: any = baseConstantsRaw as any;
+  if (m?.USDC) return m;
+  if (m?.default?.USDC) return m.default;
+  try {
+    const d = typeof m?.default === 'function' ? m.default() : m?.default;
+    if (d?.USDC) return d;
+  } catch {}
+  return m;
+})();
+const baseStagingConstants = ((): any => {
+  const m: any = baseStagingConstantsRaw as any;
+  if (m?.USDC) return m;
+  if (m?.default?.USDC) return m.default;
+  try {
+    const d = typeof m?.default === 'function' ? m.default() : m?.default;
+    if (d?.USDC) return d;
+  } catch {}
+  return m;
+})();
 
 export type V2ContractAddresses = {
   escrow: `0x${string}`;

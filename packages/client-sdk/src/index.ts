@@ -1,6 +1,4 @@
-// Offramp SDK - Deposit management and liquidity provision for Peer
-export { Zkp2pClient as OfframpClient } from './client/Zkp2pClient';
-// Backwards-compatible alias
+// Breaking SDK export: single modern client (v3 contracts + indexer)
 export { Zkp2pClient } from './client/Zkp2pClient';
 
 // Public indexer types
@@ -45,6 +43,15 @@ export type {
 
 // Generic utilities and errors
 export { logger, setLogLevel, type LogLevel } from './utils/logger';
+export {
+  encodeProofAsBytes,
+  encodeTwoProofs,
+  encodeManyProofs,
+  encodeProofAndPaymentMethodAsBytes,
+  assembleProofBytes,
+  intentHashHexToDecimalString,
+  type ReclaimProof,
+} from './utils/proofEncoding';
 export * from './errors';
 
 // Optional utilities

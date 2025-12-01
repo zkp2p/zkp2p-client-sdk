@@ -1,6 +1,7 @@
-// Minimal initial type surface for Offramp SDK
+// Minimal initial type surface; will be expanded by porting from RN SDK
 import type { Address, Hash, WalletClient } from 'viem';
 import type { CurrencyType } from '../utils/currency';
+import type { ReclaimProof } from '../utils/proofEncoding';
 
 /**
  * Timeout configuration for different operation types
@@ -10,6 +11,10 @@ export type TimeoutConfig = {
   api?: number;
   /** Transaction timeout in milliseconds (default: 60000) */
   transaction?: number;
+  /** Proof generation timeout in milliseconds (default: 120000) */
+  proofGeneration?: number;
+  /** Extension communication timeout in milliseconds (default: 60000) */
+  extension?: number;
 };
 
 export type Zkp2pClientOptions = {
@@ -35,29 +40,21 @@ export type Zkp2pClientOptions = {
 export type ActionCallback = (params: { hash: Hash; data?: unknown }) => void;
 
 /**
- * Parameters for fulfilling an intent with payment attestation
+ * Parameters for fulfilling an intent with payment proofs
  */
 export type FulfillIntentParams = {
+  /** Array of payment proofs from the provider */
+  paymentProofs: ProofData[];
   /** Hash of the intent to fulfill */
   intentHash: Hash;
-  /** Attestation proof - object or stringified JSON from attestation service */
-  proof: Record<string, unknown> | string;
-  /** Optional attestation timestamp buffer override in milliseconds */
-  timestampBufferMs?: number | string;
-  /** Override the attestation service base URL */
-  attestationServiceUrl?: string;
-  /** Override the verifying contract (defaults to UnifiedPaymentVerifier) */
-  verifyingContract?: Address;
-  /** Optional hook payload passed to orchestrator */
-  postIntentHookData?: `0x${string}`;
-  /** Optional viem transaction overrides */
-  txOverrides?: Record<string, unknown>;
-  /** Optional lifecycle callbacks */
-  callbacks?: {
-    onAttestationStart?: () => void;
-    onTxSent?: (hash: Hash) => void;
-    onTxMined?: (hash: Hash) => void;
-  };
+  /** Optional payment method identifier */
+  paymentMethod?: number;
+  /** Callback when transaction is successfully sent */
+  onSuccess?: ActionCallback;
+  /** Callback when an error occurs */
+  onError?: (error: Error) => void;
+  /** Callback when transaction is mined */
+  onMined?: ActionCallback;
 };
 
 /**
@@ -205,6 +202,12 @@ export type QuoteRequest = {
 
 export type FiatResponse = { currencyCode: string; currencyName: string; currencySymbol: string; countryCode: string };
 export type TokenResponse = { token: string; decimals: number; name: string; symbol: string; chainId: number };
+export type QuoteMakerResponse = {
+  processorName: string;
+  depositData: Record<string, string>;
+  isBusiness?: boolean;
+  hashedOnchainId: string;
+};
 /**
  * Intent details within a quote response
  */
@@ -236,6 +239,7 @@ export type QuoteSingleResponse = {
   conversionRate: string;
   intent: QuoteIntentResponse;
   payeeData?: Record<string, string>;
+  maker?: QuoteMakerResponse;
 };
 export type QuoteFeesResponse = { zkp2pFee: string; zkp2pFeeFormatted: string; swapFee: string; swapFeeFormatted: string };
 export type QuoteResponse = {
@@ -317,6 +321,18 @@ export type CancelIntentParams = {
   onMined?: ActionCallback;
 };
 
+/**
+ * Payment proof data structure
+ */
+export interface ProofData {
+  /** Type of proof (currently only 'reclaim' supported) */
+  proofType: 'reclaim';
+  /** The actual proof object from Reclaim protocol */
+  proof: ReclaimProof;
+}
+
+// Re-export ReclaimProof for consumers
+export type { ReclaimProof };
 
 // Historical Event Types (for deposits and intents)
 export type DepositStatus = 'ACTIVE' | 'WITHDRAWN' | 'CLOSED';
@@ -497,6 +513,56 @@ export const PAYMENT_PLATFORMS = [
 ] as const;
 export type PaymentPlatformType = typeof PAYMENT_PLATFORMS[number];
 
+// Extension types (ported structure)
+export type ExtensionEventMessage = {
+  origin: string;
+  data: {
+    type: string;
+    status: string;
+    proofId?: string;
+    platform?: string;
+    requestHistory?: {
+      notaryRequests?: ExtensionNotaryProofRequest[];
+      notaryRequest?: ExtensionNotaryProofRequest;
+    };
+  };
+};
+
+export type ExtensionEventVersionMessage = { origin: string; data: { type: string; status: string; version: string } };
+
+export type ExtensionRequestMetadataMessage = {
+  origin: string;
+  data: { type: string; status: string; metadata: ExtensionRequestMetadata[]; platform: string; expiresAt: number; requestId: string };
+};
+
+export type ExtensionRequestMetadata = {
+  recipient?: string;
+  amount?: string;
+  date?: string;
+  currency?: string;
+  paymentId?: string;
+  type?: string;
+  recipientName?: string;
+  originalIndex: number;
+  hidden: boolean;
+};
+
+export type ExtensionNotaryProofRequest = {
+  body: string;
+  headers: string;
+  id: string;
+  maxTranscriptSize: number;
+  method: string;
+  notaryUrl: string;
+  proof: any;
+  secretHeaders: string[];
+  secretResps: string[];
+  status: string;
+  url: string;
+  verification: any;
+  metadata: any;
+  websocketProxyUrl: string;
+};
 
 // On-chain views
 export type { EscrowDepositView, EscrowIntentView } from './escrowViews';

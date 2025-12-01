@@ -2,7 +2,7 @@
 # Domain types
 
 type Deposit {
-  id: ID!  # escrowAddress_depositId
+  id: ID! # escrowAddress_depositId
   chainId: Int!
   escrowAddress: String!
 
@@ -10,31 +10,29 @@ type Deposit {
   depositId: BigInt!
   depositor: String!
   token: String!
-  
+
   # Deposit details (can be updated)
   intentAmountMin: BigInt!
   intentAmountMax: BigInt!
   acceptingIntents: Boolean!
-  status: String!  # ACTIVE | CLOSED
-  
+  status: String! # ACTIVE | CLOSED
   # Deposit amounts used for quote calculations
   # Notes/identities:
   # - balance = remainingDeposits + outstandingIntentAmount
   # - grossDeposited (all-time) = remainingDeposits + outstandingIntentAmount + totalAmountTaken + totalWithdrawn
-  remainingDeposits: BigInt!        # Total USDC immediately available to be taken / withdrawn
-  outstandingIntentAmount: BigInt!  # Total USDC locked in pending intents
-  totalAmountTaken: BigInt!         # Total USDC taken by intents (incl. manual release)
-  totalWithdrawn: BigInt!           # Total USDC withdrawn via DepositWithdrawn events
-
-  # Intent counters 
+  remainingDeposits: BigInt! # Total USDC immediately available to be taken / withdrawn
+  outstandingIntentAmount: BigInt! # Total USDC locked in pending intents
+  totalAmountTaken: BigInt! # Total USDC taken by intents (incl. manual release)
+  totalWithdrawn: BigInt! # Total USDC withdrawn via DepositWithdrawn events
+  # Intent counters
   totalIntents: Int!
   signaledIntents: Int!
   fulfilledIntents: Int!
   prunedIntents: Int!
-  
+
   # Quality signal (basis points 0–10000; new deposits start at 10000)
   successRateBps: Int!
-  
+
   # Metadata
   blockNumber: BigInt!
   timestamp: BigInt!
@@ -43,7 +41,7 @@ type Deposit {
 }
 
 type DepositPaymentMethod {
-  id: ID!  # escrowAddress_depositId_paymentMethodHash
+  id: ID! # escrowAddress_depositId_paymentMethodHash
   chainId: Int!
 
   # Corresponding Deposit details
@@ -59,7 +57,7 @@ type DepositPaymentMethod {
 }
 
 type MethodCurrency {
-  id: ID!  # escrowAddress_depositId_paymentMethodHash_currencyCode
+  id: ID! # escrowAddress_depositId_paymentMethodHash_currencyCode
   chainId: Int!
 
   # Corresponding Deposit details
@@ -69,21 +67,19 @@ type MethodCurrency {
   # Payment method details
   paymentMethodHash: String!
   currencyCode: String!
-  minConversionRate: BigInt!  # Currently contract emits this field as conversionRate; todo: update it on contract 
+  minConversionRate: BigInt! # Currently contract emits this field as conversionRate; todo: update it on contract
 }
 
 type Intent {
-  id: ID!  # chainId_intentHash
+  id: ID! # chainId_intentHash
   intentHash: String!
   orchestratorAddress: String!
-  
+
   # Corresponding Deposit details
-  depositId: String! # escrowAddress_depositId (foreign key)  
-  
+  depositId: String! # escrowAddress_depositId (foreign key)
   # Verifier details
   verifier: String!
   paymentMethodHash: String # Association to payment method
-  
   # Recipient details
   owner: String!
   toAddress: String!
@@ -92,8 +88,7 @@ type Intent {
   amount: BigInt!
   fiatCurrency: String!
   conversionRate: BigInt!
-  status: String!  # SIGNALED | FULFILLED | PRUNED | MANUALLY_RELEASED
-  
+  status: String! # SIGNALED | FULFILLED | PRUNED | MANUALLY_RELEASED
   # Tx hashes and timestamps
   signalTxHash: String!
   signalTimestamp: BigInt!
@@ -104,149 +99,6 @@ type Intent {
   expiryTime: BigInt!
   updatedAt: BigInt!
 }
-
-# Per-owner aggregates used by Curator to compute tiers (v0: stats only)
-type TakerStats {
-  id: ID!              # chainId_owner (owner lowercased)
-  chainId: Int!
-  owner: String!
-
-  # Lifetime counters
-  lifetimeSignaledCount: Int!
-  lifetimeFulfilledCount: Int!
-  lifetimeManualReleaseCount: Int!
-  lifetimePruneCount: Int!
-  totalCancelledVolume: BigInt!
-  totalFulfilledVolume: BigInt!
-  lockScore: BigInt!
-
-  # Current state
-  lastIntentAt: BigInt
-  firstSeenAt: BigInt
-
-  # Metadata
-  updatedAt: BigInt!
-}
-
-type MakerStats {
-  id: ID!              # chainId_maker (maker lowercased)
-  chainId: Int!
-  maker: String!
-
-  totalAmountTaken: BigInt!
-  grossDeposited: BigInt!
-  totalWithdrawn: BigInt!
-  outstandingIntentAmount: BigInt!
-
-  activeDepositCount: Int!
-  totalDepositCount: Int!
-
-  fulfilledIntents: Int!
-  prunedIntents: Int!
-  signaledIntents: Int!
-  totalIntents: Int!
-  manualReleaseCount: Int!
-
-  successRateBps: Int!
-  realizedProfitUsdCents: BigInt!
-  aprBps: Int
-
-  firstSeenAt: BigInt
-  updatedAt: BigInt!
-}
-
-type MakerPlatformStats {
-  id: ID!              # chainId_maker_paymentMethodHash
-  chainId: Int!
-  maker: String!
-  paymentMethodHash: String!
-
-  totalAmountTaken: BigInt!
-  fulfilledIntents: Int!
-  prunedIntents: Int!
-  manualReleaseCount: Int!
-  realizedProfitUsdCents: BigInt!
-  computedProfitSnapshots: Int!
-  updatedAt: BigInt!
-}
-
-type MakerCurrencyStats {
-  id: ID!              # chainId_maker_currencyCode
-  chainId: Int!
-  maker: String!
-  currencyCode: String!
-
-  totalAmountTaken: BigInt!
-  fulfilledIntents: Int!
-  prunedIntents: Int!
-  manualReleaseCount: Int!
-  updatedAt: BigInt!
-}
-
-type PriceSnapshot {
-  id: ID!              # currencyCode_timestampHour
-  currencyCode: String!
-  timestampDay: BigInt!
-  rateUsd: BigInt!
-  ratePrecision: Int!
-  provider: String!
-  source: String!
-  status: String!
-  effectiveAt: BigInt!
-  retrievedAt: BigInt!
-  createdAt: BigInt!
-  updatedAt: BigInt!
-}
-
-type MakerProfitSnapshot {
-  id: ID!              # intentId
-  chainId: Int!
-  maker: String!
-  intentId: String!
-  depositId: String!
-  fiatCurrency: String!
-  quoteConversionRate: BigInt!
-  oracleRate: BigInt
-  spreadBps: Int
-  amount: BigInt!
-  notionalFiatUsdCents: BigInt
-  feeUsd: BigInt
-  realizedProfitUsdCents: BigInt
-  priceSnapshotId: String
-  status: String!
-  createdAt: BigInt!
-  updatedAt: BigInt!
-}
-
-"""
-Denormalized view that joins Deposit, MethodCurrency, and DepositPaymentMethod for rate-first quoting.
-"""
-type QuoteCandidate {
-  id: ID!  # escrowAddress_depositId_paymentMethodHash_currencyCode
-  chainId: Int!
-  depositIdOnContract: BigInt!
-  depositId: String!
-  escrowAddress: String!
-  depositor: String!
-  token: String!
-  paymentMethodHash: String!
-  currencyCode: String!
-  minConversionRate: BigInt!
-  availableTokenAmount: BigInt!
-  maxQuoteableFiat: BigInt!
-  intentAmountMin: BigInt!
-  intentAmountMax: BigInt!
-  successRateBps: Int!
-  payeeDetailsHash: String!
-  intentGatingService: String
-  verifierAddress: String
-  isActive: Boolean!
-  minFiatSupported: BigInt!
-  maxFiatSupported: BigInt!
-  maxFiatAvail: BigInt!
-  updatedAt: BigInt!
-}
-
 
 # Escrow V2 event entity types (only those present in sepolia_config.yaml)
 
@@ -328,8 +180,6 @@ type Escrow_V2_IntentSignaled {
   timestamp: BigInt!
 }
 
-
-
 # Escrow V2.1 + Orchestrator V2.1 event entity types
 
 type Escrow_V21_DepositPaymentMethodAdded {
@@ -352,7 +202,7 @@ type Escrow_V21_DepositCurrencyAdded {
   depositId: BigInt!
   paymentMethod: String!
   currency: String!
-  minConversionRate: BigInt!  # Currently contract emits this field as conversionRate; todo: update it on contract 
+  minConversionRate: BigInt! # Currently contract emits this field as conversionRate; todo: update it on contract
 }
 
 type Escrow_V21_DepositConversionRateUpdated {
