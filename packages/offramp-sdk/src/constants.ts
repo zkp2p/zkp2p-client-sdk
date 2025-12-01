@@ -4,8 +4,7 @@
  */
 
 // Payment platforms
-export { PAYMENT_PLATFORMS } from './types';
-export type { PaymentPlatformType } from './types';
+export { PAYMENT_PLATFORMS, type PaymentPlatformType } from './types';
 
 // Currencies
 export { Currency, currencyInfo } from './utils/currency';

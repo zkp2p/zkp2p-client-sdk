@@ -166,7 +166,7 @@ const quote = await client.getQuote({
 
 ## React Hooks
 
-The SDK provides React hooks for all deposit and intent operations:
+The SDK provides React hooks for all deposit and intent operations via a dedicated subpath:
 
 ```tsx
 import {
@@ -177,25 +177,40 @@ import {
   useSetAcceptingIntents,
   useSetIntentRange,
   useSetCurrencyMinRate,
+  useAddPaymentMethods,
+  useRemovePaymentMethod,
+  useAddCurrencies,
   useSignalIntent,
   useFulfillIntent,
   useReleaseFundsToPayer,
   usePruneExpiredIntents,
+  useSetDelegate,
+  useRemoveDelegate,
 } from '@zkp2p/offramp-sdk/react';
 
 function DepositManager({ client }) {
-  const { createDeposit, isLoading } = useCreateDeposit({ client });
+  const { createDeposit, isLoading, error } = useCreateDeposit({ client });
   const { addFunds } = useAddFunds({ client });
   const { setAcceptingIntents } = useSetAcceptingIntents({ client });
 
+  const handleCreate = async () => {
+    const result = await createDeposit({
+      token: '0xUSDC_ADDRESS',
+      amount: 10000000000n,
+      intentAmountRange: { min: 100000n, max: 1000000000n },
+      processorNames: ['wise'],
+      depositData: [{ email: 'maker@example.com' }],
+      conversionRates: [[{ currency: 'USD', conversionRate: '1.02' }]],
+    });
+    console.log('Created deposit:', result.hash);
+  };
+
   return (
     <div>
-      <button
-        disabled={isLoading}
-        onClick={() => createDeposit({ /* params */ })}
-      >
-        Create Deposit
+      <button disabled={isLoading} onClick={handleCreate}>
+        {isLoading ? 'Creating...' : 'Create Deposit'}
       </button>
+      {error && <p>Error: {error.message}</p>}
     </div>
   );
 }
@@ -346,8 +361,8 @@ import type {
 ## Contributing
 
 ```bash
-cd packages/client-sdk
-npm ci
+cd packages/offramp-sdk
+npm install
 npm run build
 npm run test
 npm run lint

@@ -10,7 +10,6 @@ import { createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { base } from 'viem/chains';
 import { Zkp2pClient } from '../../src/client/Zkp2pClient';
-import { resolvePaymentMethodHash, resolveFiatCurrencyBytes32, ensureBytes32 } from '../../src';
 
 async function main() {
   const PRIV = process.env.PRIVATE_KEY as `0x${string}`;
