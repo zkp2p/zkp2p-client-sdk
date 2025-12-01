@@ -1,42 +1,64 @@
-# zkp2p-client-sdk
+# @zkp2p/offramp-sdk
 
-[![npm version](https://img.shields.io/npm/v/@zkp2p/client-sdk.svg)](https://www.npmjs.com/package/@zkp2p/client-sdk)
+[![npm version](https://img.shields.io/npm/v/@zkp2p/offramp-sdk.svg)](https://www.npmjs.com/package/@zkp2p/offramp-sdk)
 [![GitHub Release](https://img.shields.io/github/v/release/zkp2p/zkp2p-client-sdk?display_name=tag)](https://github.com/zkp2p/zkp2p-client-sdk/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0%2B-blue)](https://www.typescriptlang.org/)
 
-Browser-first TypeScript SDK for integrating ZKP2P into web applications. ZKP2P enables trustless peer-to-peer fiat-to-crypto exchanges using zero-knowledge proofs, allowing users to on-ramp from traditional payment platforms directly to cryptocurrency without intermediaries.
+**Offramp SDK by Peer** - TypeScript SDK for deposit management, liquidity provision, and fiat off-ramping on Base.
 
 ## Features
 
-- **Multi-Platform Support**: Integrate with Wise, Venmo, Revolut, PayPal, and more
-- **35+ Fiat Currencies**: Support for USD, EUR, GBP, and many other currencies
+- **Deposit Management**: Create, configure, and manage liquidity deposits
+- **Fund Operations**: Add/remove funds, withdraw deposits
+- **Intent System**: Signal and fulfill payment intents
+- **Multi-Platform Support**: Wise, Venmo, Revolut, CashApp, PayPal, Zelle, Monzo, MercadoPago
+- **35+ Fiat Currencies**: USD, EUR, GBP, and many more
+- **React Hooks**: Full suite of hooks for seamless integration
 - **Type-Safe**: Full TypeScript support with comprehensive type definitions
-- **Browser Extension Integration**: Seamless integration with the Peerauth browser extension for proof generation
-- **Chain Agnostic**: Support for Base and other EVM-compatible chains
-- **Proven Architecture**: Built on the battle-tested core from the React Native SDK
 
 ## Installation
 
 ```bash
-npm install @zkp2p/client-sdk viem
+npm install @zkp2p/offramp-sdk viem
 ```
 
-## Quick Start (V3)
+## Quick Start
 
-```ts
-import { Zkp2pClient } from '@zkp2p/client-sdk';
+```typescript
+import { OfframpClient } from '@zkp2p/offramp-sdk';
 import { createWalletClient, custom } from 'viem';
 import { base } from 'viem/chains';
 
-// Create a viem wallet client (browser)
-const walletClient = createWalletClient({ chain: base, transport: custom(window.ethereum) });
+const walletClient = createWalletClient({
+  chain: base,
+  transport: custom(window.ethereum),
+});
 
-// Initialize the V3 client (Orchestrator + Attestation + ProtocolViewer)
-const client = new Zkp2pClient({ walletClient, chainId: base.id, runtimeEnv: 'production', baseApiUrl: 'https://api.zkp2p.xyz', apiKey: 'YOUR_API_KEY' });
+const client = new OfframpClient({
+  walletClient,
+  chainId: base.id,
+  apiKey: 'YOUR_API_KEY',
+});
 
-// Quote (HTTP)
-const quotes = await client.getQuote({
+// Create a deposit to provide liquidity
+await client.createDeposit({
+  token: '0xUSDC',
+  amount: 10000000000n,
+  intentAmountRange: { min: 100000n, max: 1000000000n },
+  processorNames: ['wise', 'revolut'],
+  depositData: [{ email: 'maker@example.com' }, { tag: '@maker' }],
+  conversionRates: [[{ currency: 'USD', conversionRate: '1.02' }]],
+});
+
+// Query deposits
+const deposits = await client.getDepositsWithRelations(
+  { status: 'ACTIVE', acceptingIntents: true },
+  { limit: 50 }
+);
+
+// Get quotes
+const quote = await client.getQuote({
   paymentPlatforms: ['wise'],
   fiatCurrency: 'USD',
   user: '0xYourAddress',
@@ -45,63 +67,34 @@ const quotes = await client.getQuote({
   destinationToken: '0xUSDC',
   amount: '100',
 });
-
-// Signal intent (Orchestrator) with ergonomic inputs
-await client.signalIntent({
-  depositId: 1n,
-  amount: 1000000n,
-  toAddress: '0xRecipientAddress',
-  processorName: 'wise',
-  fiatCurrencyCode: 'USD',
-  conversionRate: 1000000n,
-  payeeDetails: '0xHashedOnchainId',
-});
-
-// Fulfill via Attestation Service (proof is a string)
-await client.fulfillIntent({
-  intentHash: '0xIntent',
-  zkTlsProof: JSON.stringify(proofObj),
-  platform: 'wise',
-  actionType: 'payment',
-  amount: '1000000',
-  timestampMs: String(Date.now()),
-  fiatCurrency: '0xUSD_BYTES32',
-  conversionRate: '1000000',
-  payeeDetails: '0xHashedOnchainId',
-  timestampBufferMs: '600000',
-});
 ```
 
 ## Documentation
 
-- **Primary Package**: See [`packages/client-sdk/README.md`](packages/client-sdk/README.md) for comprehensive integration documentation
-- **Examples**: Check the [`examples/`](examples/) directory for:
-  - Vite React application walkthrough
-  - Node.js script for fetching quotes
-  - Browser E2E demo with extension integration
-  - Orchestrator pattern implementation
+See [`packages/client-sdk/README.md`](packages/client-sdk/README.md) for comprehensive documentation including:
 
-## Supported Platforms and Currencies
+- Complete API reference
+- React hooks usage
+- Payment method configuration
+- Currency utilities
+- Error handling
 
-### Payment Platforms
-`wise`, `venmo`, `revolut`, `cashapp`, `mercadopago`, `zelle`, `paypal`, `monzo`
+## Supported Platforms
 
-### Fiat Currencies
+| Platform     | Key           |
+|-------------|---------------|
+| Wise        | `wise`        |
+| Venmo       | `venmo`       |
+| Revolut     | `revolut`     |
+| CashApp     | `cashapp`     |
+| PayPal      | `paypal`      |
+| Zelle       | `zelle`       |
+| Monzo       | `monzo`       |
+| MercadoPago | `mercadopago` |
+
+## Fiat Currencies
+
 AED, ARS, AUD, CAD, CHF, CNY, CZK, DKK, EUR, GBP, HKD, HUF, IDR, ILS, INR, JPY, KES, MXN, MYR, NOK, NZD, PHP, PLN, RON, SAR, SEK, SGD, THB, TRY, UGX, USD, VND, ZAR
-
-## Browser Extension Integration
-
-The SDK includes a browser-only extension helper for Peerauth integration:
-
-```typescript
-import { PeerauthExtension } from '@zkp2p/client-sdk/extension';
-
-const ext = new PeerauthExtension({
-  onVersion: v => console.log('Extension version:', v)
-});
-```
-
-**Note**: For SSR frameworks, import dynamically or guard usage with `typeof window !== 'undefined'`.
 
 ## Contributing
 
@@ -109,38 +102,31 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) for details.
 
 ## Links
 
-- [npm Package](https://www.npmjs.com/package/@zkp2p/client-sdk)
+- [npm Package](https://www.npmjs.com/package/@zkp2p/offramp-sdk)
 - [GitHub Repository](https://github.com/zkp2p/zkp2p-client-sdk)
-- [ZKP2P Documentation](https://docs.zkp2p.xyz)
+- [Documentation](https://docs.zkp2p.xyz)
 
 ## Releases
 
 - Latest releases: https://github.com/zkp2p/zkp2p-client-sdk/releases
-- Changelog (root): ./CHANGELOG.md
-- Changelog (package): ./packages/client-sdk/CHANGELOG.md
+- Changelog: ./CHANGELOG.md
 
 ---
 
 ## Development
 
-### Setup
 ```bash
 cd packages/client-sdk
 npm ci
 npm run build
-```
-
-### Testing
-```bash
-cd packages/client-sdk
-npm test
+npm run test
+npm run lint
 ```
 
 ### Maintainer Notes
 - **CI/CD**: Automated typecheck, lint, build, and tests on PRs
 - **Publishing**: Automatic npm publish on `v*` tags via GitHub Actions
-- **Releases**: Use `npx release-it --ci` locally to bump version and generate changelog
