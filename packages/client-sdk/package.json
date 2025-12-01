@@ -1,7 +1,7 @@
 {
-  "name": "@zkp2p/client-sdk",
-  "version": "6.1.2",
-  "description": "Browser-first TypeScript SDK for ZKP2P with React hooks, unified authentication, and peerauth extension integration",
+  "name": "@zkp2p/offramp-sdk",
+  "version": "1.0.0",
+  "description": "Offramp SDK by Peer - TypeScript SDK for deposit management, liquidity provision, and fiat off-ramping",
   "license": "MIT",
   "main": "dist/index.cjs",
   "module": "dist/index.mjs",
@@ -11,11 +11,6 @@
     ".": {
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
-    },
-    "./extension": {
-      "types": "./dist/extension.d.ts",
-      "import": "./dist/extension.mjs",
-      "require": "./dist/extension.cjs"
     }
   },
   "scripts": {
@@ -35,17 +30,19 @@
     "LICENSE"
   ],
   "keywords": [
-    "zkp2p",
+    "peer",
+    "offramp",
     "sdk",
-    "browser",
-    "extension",
-    "peerauth",
+    "deposits",
+    "liquidity",
+    "fiat",
+    "crypto",
     "viem",
     "react",
     "react-hooks",
-    "crypto",
     "web3",
     "ethereum",
+    "base",
     "typescript"
   ],
   "repository": {
@@ -81,9 +78,7 @@
     "vitest": "^1.5.0"
   },
   "dependencies": {
-    "@zkp2p/contracts-v2": "^0.0.6",
-    "canonicalize": "^1.0.8",
-    "ethers": "^5.7.2"
+    "@zkp2p/contracts-v2": "^0.0.6"
   },
   "peerDependencies": {
     "react": ">=16.8.0",

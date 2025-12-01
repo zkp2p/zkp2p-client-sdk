@@ -3,7 +3,6 @@ export enum ErrorCode {
   NETWORK = 'NETWORK',
   API = 'API',
   CONTRACT = 'CONTRACT',
-  PROOF_GENERATION = 'PROOF_GENERATION',
   UNKNOWN = 'UNKNOWN'
 }
 
@@ -47,13 +46,6 @@ export class ContractError extends ZKP2PError {
   constructor(message: string, details?: unknown) {
     super(message, ErrorCode.CONTRACT, details);
     this.name = 'ContractError';
-  }
-}
-
-export class ProofGenerationError extends ZKP2PError {
-  constructor(message: string, details?: unknown) {
-    super(message, ErrorCode.PROOF_GENERATION, details);
-    this.name = 'ProofGenerationError';
   }
 }
 

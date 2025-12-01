@@ -11,14 +11,12 @@ import { getContracts, type RuntimeEnv } from '../contracts';
 import { apiSignIntentV2 } from '../adapters/verification';
 import { apiCreatePaymentAttestation } from '../adapters/attestation';
 import { encodeAddressAsBytes, encodePaymentAttestation, encodeVerifyPaymentData } from '../utils/encode';
-import { ethers } from 'ethers';
 import { apiGetPayeeDetails, apiGetQuote, apiPostDepositDetails } from '../adapters/api';
 import { getGatingServiceAddress, getPaymentMethodsCatalog } from '../contracts';
 import { resolveFiatCurrencyBytes32, resolvePaymentMethodHashFromCatalog } from '../utils/paymentResolution';
 import { currencyKeccak256 } from '../utils/keccak';
 import type { QuoteRequest, QuoteResponse, PostDepositDetailsRequest } from '../types';
 import { ERC20_ABI } from '../utils/erc20';
-import { DEPLOYED_ADDRESSES } from '../utils/constants';
 
 export type Zkp2pNextOptions = {
   walletClient: WalletClient;
@@ -525,7 +523,7 @@ export class Zkp2pClient {
   // Breaking API: minimal inputs. Derives everything from intentHash.
   async fulfillIntent(params: {
     intentHash: `0x${string}`;
-    proof: any | string; // extension-produced proof (object or stringified)
+    proof: Record<string, unknown> | string; // attestation proof (object or stringified)
     timestampBufferMs?: string; // note: attestation service should default; we pass a sane default for now
     attestationServiceUrl?: string;
     verifyingContract?: Address;
@@ -553,8 +551,8 @@ export class Zkp2pClient {
     const { resolvePaymentMethodNameFromHash } = await import('../utils/paymentResolution');
     const platformName = resolvePaymentMethodNameFromHash(paymentMethodHash, catalog);
     if (!platformName) throw new Error('Unknown paymentMethodHash for this network/env; update SDK catalogs.');
-    const { resolvePlatformMethod } = await import('../extension/platformConfig');
-    const cfg = resolvePlatformMethod(platformName as any);
+    const { resolvePlatformAttestationConfig } = await import('../constants');
+    const cfg = resolvePlatformAttestationConfig(platformName);
     const platform = cfg.actionPlatform;
     const actionType = cfg.actionType;
 

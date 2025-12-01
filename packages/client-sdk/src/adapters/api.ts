@@ -11,10 +11,8 @@ import type {
   ValidatePayeeDetailsResponse,
   GetOwnerDepositsRequest,
   GetOwnerDepositsResponse,
-  Deposit,
   GetOwnerIntentsRequest,
   GetOwnerIntentsResponse,
-  Intent,
   GetIntentsByDepositRequest,
   GetIntentsByDepositResponse,
   GetIntentsByTakerRequest,
@@ -25,9 +23,8 @@ import type {
   GetDepositByIdResponse,
   GetDepositsOrderStatsRequest,
   GetDepositsOrderStatsResponse,
-  GetIntentsByRecipientRequest, 
+  GetIntentsByRecipientRequest,
   GetIntentsByRecipientResponse,
-  DepositIntentStatistics,
   ListPayeesResponse,
 } from '../types';
 import { NetworkError, ValidationError } from '../errors';

@@ -1,8 +1,8 @@
 {
-  "name": "zkp2p-client-sdk-root",
+  "name": "zkp2p-offramp-sdk-root",
   "private": true,
-  "version": "0.1.0",
-  "description": "Browser-first TypeScript SDK for ZKP2P with peerauth extension integration",
+  "version": "1.0.0",
+  "description": "Offramp SDK by Peer - TypeScript SDK for deposit management, liquidity provision, and fiat off-ramping",
   "license": "MIT",
   "main": "packages/client-sdk/dist/index.cjs",
   "module": "packages/client-sdk/dist/index.mjs",
@@ -26,11 +26,12 @@
     "LICENSE"
   ],
   "keywords": [
-    "zkp2p",
+    "peer",
+    "offramp",
     "sdk",
-    "browser",
-    "extension",
-    "peerauth",
+    "deposits",
+    "liquidity",
+    "fiat",
     "viem"
   ],
   "repository": {
@@ -49,7 +50,7 @@
     "node": ">=18"
   },
   "devDependencies": {
-    "@zkp2p/client-sdk": "file:packages/client-sdk",
+    "@zkp2p/offramp-sdk": "file:packages/client-sdk",
     "tsx": "^4.20.0",
     "viem": "^2.37.3"
   }

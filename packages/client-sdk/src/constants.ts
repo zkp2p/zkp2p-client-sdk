@@ -1,5 +1,5 @@
 /**
- * Comprehensive constants export for ZKP2P SDK
+ * Comprehensive constants export for Offramp SDK by Peer
  * This file re-exports all public constants for easier access
  */
 
@@ -87,3 +87,27 @@ export const TOKEN_METADATA = {
     name: 'USD Coin',
   },
 } as const;
+
+// Attestation service platform configuration
+// Maps payment platform to action type and platform identifier for attestation endpoints
+export const PLATFORM_ATTESTATION_CONFIG: Record<string, { actionType: string; actionPlatform: string }> = {
+  wise: { actionType: 'wise_transfer', actionPlatform: 'wise' },
+  venmo: { actionType: 'venmo_send', actionPlatform: 'venmo' },
+  revolut: { actionType: 'revolut_transfer', actionPlatform: 'revolut' },
+  cashapp: { actionType: 'cashapp_send', actionPlatform: 'cashapp' },
+  mercadopago: { actionType: 'mercadopago_transfer', actionPlatform: 'mercadopago' },
+  paypal: { actionType: 'paypal_send', actionPlatform: 'paypal' },
+  monzo: { actionType: 'monzo_transfer', actionPlatform: 'monzo' },
+  zelle: { actionType: 'zelle_send', actionPlatform: 'zelle' },
+} as const;
+
+/**
+ * Resolves attestation platform configuration for a given payment platform
+ */
+export function resolvePlatformAttestationConfig(platformName: string): { actionType: string; actionPlatform: string } {
+  const config = PLATFORM_ATTESTATION_CONFIG[platformName.toLowerCase()];
+  if (!config) {
+    throw new Error(`Unknown payment platform: ${platformName}`);
+  }
+  return config;
+}
