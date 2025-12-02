@@ -4,17 +4,34 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0%2B-blue)](https://www.typescriptlang.org/)
 
-**Offramp SDK by Peer** - TypeScript SDK for deposit management, liquidity provision, and fiat off-ramping on Base.
+**Offramp SDK by Peer** - TypeScript SDK for **liquidity providers** who want to offer fiat off-ramp services on Base.
 
-## Features
+## Who Is This For?
 
-- **Deposit Management**: Create, configure, and manage liquidity deposits
-- **Fund Operations**: Add/remove funds, withdraw deposits
-- **Intent System**: Signal and fulfill payment intents
-- **Payment Methods**: Support for Wise, Venmo, Revolut, CashApp, PayPal, Zelle, Monzo, MercadoPago
-- **Multi-Currency**: Manage conversion rates across multiple fiat currencies
-- **React Hooks**: Full suite of React hooks for seamless integration
-- **Indexer Integration**: Query deposits, intents, and liquidity data
+This SDK is designed for **liquidity providers (peers)** who want to:
+- Create and manage USDC deposits that accept fiat payments
+- Configure payment methods, currencies, and conversion rates
+- Monitor deposit utilization and manage liquidity
+- Earn fees by providing off-ramp services
+
+## Core Features (Deposit Management)
+
+| Feature | Description |
+|---------|-------------|
+| **Create Deposits** | Lock USDC and define accepted payment methods |
+| **Configure Rates** | Set conversion rates per currency and payment platform |
+| **Manage Funds** | Add/remove funds, withdraw deposits |
+| **Payment Methods** | Wise, Venmo, Revolut, CashApp, PayPal, Zelle, Monzo, MercadoPago |
+| **Multi-Currency** | Support USD, EUR, GBP, and 25+ fiat currencies |
+| **Query Deposits** | Monitor deposit status via indexer or on-chain views |
+| **React Hooks** | Full suite of React hooks for frontend integration |
+
+## Supporting Features
+
+The SDK also includes supporting functionality for the broader ZKP2P ecosystem:
+
+- **Intent Operations**: `signalIntent()`, `fulfillIntent()`, `cancelIntent()` (typically used by takers/buyers)
+- **Quote API**: `getQuote()` (used by frontends to display available liquidity)
 
 ## Installation
 
@@ -121,7 +138,9 @@ const deposit = await client.getDepositById('1', { includeIntents: true });
 const payeeDeposits = await client.getDepositsByPayeeHash('0x...');
 ```
 
-### Intent Operations
+### Supporting: Intent Operations
+
+> **Note**: These methods are typically used by takers/buyers, not liquidity providers.
 
 ```typescript
 // Signal an intent to use a deposit
@@ -135,20 +154,22 @@ await client.signalIntent({
   payeeDetails: '0xPayeeHash',
 });
 
-// Fulfill an intent
+// Fulfill an intent with a payment proof
 await client.fulfillIntent({
   intentHash: '0xIntentHash',
   proof: attestationProof,
 });
 
-// Release funds back to payer
+// Release funds back to deposit owner (liquidity providers may use this)
 await client.releaseFundsToPayer({ intentHash: '0x...' });
 
 // Cancel an intent
 await client.cancelIntent({ intentHash: '0x...' });
 ```
 
-### Getting Quotes
+### Supporting: Getting Quotes
+
+> **Note**: Primarily used by frontend applications to display available liquidity.
 
 ```typescript
 const quote = await client.getQuote({
@@ -159,8 +180,6 @@ const quote = await client.getQuote({
   destinationChainId: 8453,
   destinationToken: '0xUSDC',
   amount: '100',
-  // Optional: restrict to specific escrows
-  escrowAddresses: ['0xEscrow1'],
 });
 ```
 
@@ -288,32 +307,42 @@ const catalog = getPaymentMethodsCatalog(8453, 'production');
 
 ## API Reference
 
-### Client Methods
+### Core Methods (Deposit Management)
 
-**Deposit Management:**
+**Creating & Managing Deposits:**
 - `createDeposit(params)` - Create a new liquidity deposit
-- `setAcceptingIntents(params)` - Toggle intent acceptance
-- `setIntentRange(params)` - Set min/max intent amounts
-- `setCurrencyMinRate(params)` - Set minimum conversion rate
 - `addFunds(params)` - Add funds to deposit
 - `removeFunds(params)` - Remove funds from deposit
 - `withdrawDeposit(params)` - Withdraw entire deposit
 
-**Intent Operations:**
-- `signalIntent(params)` - Signal an intent
-- `fulfillIntent(params)` - Fulfill with attestation
-- `releaseFundsToPayer(params)` - Release funds
-- `cancelIntent(params)` - Cancel an intent
-- `pruneExpiredIntents(params)` - Clean up expired intents
+**Configuring Deposits:**
+- `setAcceptingIntents(params)` - Toggle intent acceptance
+- `setIntentRange(params)` - Set min/max intent amounts
+- `setCurrencyMinRate(params)` - Set minimum conversion rate
+- `setDelegate(params)` / `removeDelegate(params)` - Manage delegates
+- `addPaymentMethods(params)` - Add payment platforms
+- `setPaymentMethodActive(params)` - Enable/disable payment methods
+- `addCurrencies(params)` / `deactivateCurrency(params)` - Manage currencies
 
-**Queries:**
-- `getDeposits(filter?, pagination?)` - Get deposits
-- `getDepositsWithRelations(filter?, pagination?, options?)` - Get deposits with relations
+**Querying Deposits:**
+- `getDeposits(filter?, pagination?)` - Get deposits from indexer
+- `getDepositsWithRelations(filter?, pagination?, options?)` - Get with payment methods
 - `getDepositById(id, options?)` - Get single deposit
 - `getDepositsByPayeeHash(hash, options?)` - Get by payee
-- `getIntentsForDeposits(ids, statuses?)` - Get intents
-- `getOwnerIntents(owner, statuses?)` - Get owner's intents
-- `getQuote(params)` - Get exchange quotes
+- `getPvDepositById(id)` - Get deposit from on-chain
+- `getPvAccountDeposits(owner)` - Get owner's deposits from on-chain
+
+### Supporting Methods
+
+**Intent Operations** (typically used by takers, not liquidity providers):
+- `signalIntent(params)` - Signal an intent to use a deposit
+- `fulfillIntent(params)` - Fulfill with attestation proof
+- `cancelIntent(params)` - Cancel an intent
+- `releaseFundsToPayer(params)` - Release funds back to deposit
+- `pruneExpiredIntents(params)` - Clean up expired intents
+
+**Quote API** (used by frontends):
+- `getQuote(params)` - Get available exchange quotes
 
 ## Error Handling
 

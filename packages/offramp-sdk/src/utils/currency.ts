@@ -1,5 +1,20 @@
 import { currencyKeccak256 } from './keccak';
 
+/**
+ * Supported fiat currency codes.
+ *
+ * Use these constants when specifying currencies in conversion rates:
+ *
+ * @example
+ * ```typescript
+ * import { Currency } from '@zkp2p/offramp-sdk';
+ *
+ * const rates = [
+ *   { currency: Currency.USD, conversionRate: '1020000000000000000' },
+ *   { currency: Currency.EUR, conversionRate: '1100000000000000000' },
+ * ];
+ * ```
+ */
 export const Currency = {
   AED: 'AED',
   ARS: 'ARS',
@@ -36,8 +51,14 @@ export const Currency = {
   ZAR: 'ZAR'
 } as const;
 
+/**
+ * Union type of all supported currency codes.
+ */
 export type CurrencyType = (typeof Currency)[keyof typeof Currency];
 
+/**
+ * Complete currency information including name, symbol, and hash.
+ */
 export type CurrencyData = {
   currency: CurrencyType;
   currencyCode: string;
@@ -47,6 +68,22 @@ export type CurrencyData = {
   countryCode: string;
 };
 
+/**
+ * Lookup table containing metadata for all supported currencies.
+ *
+ * Includes currency name, symbol, keccak256 hash (for on-chain use),
+ * and ISO country code for flag display.
+ *
+ * @example
+ * ```typescript
+ * import { currencyInfo, Currency } from '@zkp2p/offramp-sdk';
+ *
+ * const usd = currencyInfo[Currency.USD];
+ * console.log(usd.currencyName);   // "United States Dollar"
+ * console.log(usd.currencySymbol); // "$"
+ * console.log(usd.currencyCodeHash); // "0x..."
+ * ```
+ */
 export const currencyInfo: Record<CurrencyType, CurrencyData> = {
   AED: { currency: 'AED', currencyCode: 'AED', currencyName: 'United Arab Emirates Dirham', currencyCodeHash: currencyKeccak256('AED'), currencySymbol: 'د.إ', countryCode: 'ae' },
   ARS: { currency: 'ARS', currencyCode: 'ARS', currencyName: 'Argentine Peso', currencyCodeHash: currencyKeccak256('ARS'), currencySymbol: '$', countryCode: 'ar' },
@@ -83,10 +120,26 @@ export const currencyInfo: Record<CurrencyType, CurrencyData> = {
   ZAR: { currency: 'ZAR', currencyCode: 'ZAR', currencyName: 'South African Rand', currencyCodeHash: currencyKeccak256('ZAR'), currencySymbol: 'R', countryCode: 'za' },
 } as unknown as Record<CurrencyType, CurrencyData>;
 
+/**
+ * UI-friendly currency rate structure used in SDK methods.
+ */
 export type UICurrencyRate = { currency: CurrencyType; conversionRate: string };
 
+/**
+ * On-chain currency structure with bytes32 code and bigint rate.
+ */
 export type OnchainCurrency = { code: `0x${string}`; conversionRate: bigint };
 
+/**
+ * Maps UI currency rates to on-chain format.
+ *
+ * @param groups - Nested array of currency rates per payment method
+ * @param expectedGroups - Expected number of groups (for validation)
+ * @returns On-chain formatted currency arrays
+ * @throws Error if groups structure is invalid or lengths don't match
+ *
+ * @internal Used by createDeposit internally
+ */
 export function mapConversionRatesToOnchain(
   groups: UICurrencyRate[][],
   expectedGroups?: number
@@ -104,9 +157,19 @@ export function mapConversionRatesToOnchain(
   }));
 }
 
-// V2: map UI currency groups to on-chain tuple[][] with minConversionRate
+/**
+ * On-chain currency structure with minimum conversion rate (V3 escrow format).
+ */
 export type OnchainCurrencyMinRate = { code: `0x${string}`; minConversionRate: bigint };
 
+/**
+ * Maps UI currency rates to on-chain V3 escrow format with minConversionRate.
+ *
+ * @param groups - Nested array of currency rates per payment method
+ * @param expectedGroups - Expected number of groups (for validation)
+ * @returns On-chain formatted currency arrays for V3 escrow
+ * @throws Error if groups structure is invalid or lengths don't match
+ */
 export function mapConversionRatesToOnchainMinRate(
   groups: UICurrencyRate[][],
   expectedGroups?: number
@@ -127,7 +190,20 @@ export function mapConversionRatesToOnchainMinRate(
   );
 }
 
-// Reverse lookups for dashboards/explorers
+/**
+ * Looks up currency info by its keccak256 hash.
+ *
+ * @param hash - The currency code hash (0x-prefixed)
+ * @returns Currency data if found, undefined otherwise
+ *
+ * @example
+ * ```typescript
+ * const info = getCurrencyInfoFromHash('0x...');
+ * if (info) {
+ *   console.log(info.currencyCode); // "USD"
+ * }
+ * ```
+ */
 export function getCurrencyInfoFromHash(hash: string): CurrencyData | undefined {
   if (!hash) return undefined;
   const h = hash.toLowerCase();
@@ -138,16 +214,40 @@ export function getCurrencyInfoFromHash(hash: string): CurrencyData | undefined 
   return undefined;
 }
 
+/**
+ * Looks up currency info by ISO country code.
+ *
+ * @param code - The ISO country code (e.g., 'US', 'GB')
+ * @returns Currency data if found, undefined otherwise
+ */
 export function getCurrencyInfoFromCountryCode(code: string): CurrencyData | undefined {
   if (!code) return undefined;
   const upper = code.toUpperCase() as CurrencyType;
   return currencyInfo[upper];
 }
 
+/**
+ * Converts a currency hash to its ISO currency code.
+ *
+ * @param hash - The currency code hash (0x-prefixed)
+ * @returns Currency code string (e.g., 'USD') or undefined if not found
+ *
+ * @example
+ * ```typescript
+ * const code = getCurrencyCodeFromHash('0x...');
+ * console.log(code); // "USD"
+ * ```
+ */
 export function getCurrencyCodeFromHash(hash: string): string | undefined {
   return getCurrencyInfoFromHash(hash)?.currencyCode;
 }
 
+/**
+ * Checks if a currency hash is recognized by the SDK.
+ *
+ * @param hash - The currency code hash to check
+ * @returns true if the hash corresponds to a supported currency
+ */
 export function isSupportedCurrencyHash(hash: string): boolean {
   return Boolean(getCurrencyInfoFromHash(hash));
 }

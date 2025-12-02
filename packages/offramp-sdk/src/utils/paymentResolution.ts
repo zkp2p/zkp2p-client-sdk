@@ -1,3 +1,12 @@
+/**
+ * Payment method resolution utilities.
+ *
+ * These functions convert between human-readable payment platform names
+ * (e.g., 'wise', 'revolut') and their on-chain bytes32 hashes.
+ *
+ * @module paymentResolution
+ */
+
 import { ensureBytes32, asciiToBytes32 } from './bytes32';
 import type { PaymentMethodCatalog } from '../contracts';
 
@@ -25,8 +34,23 @@ function getPaymentMethodMap(env: RuntimeEnv, network: NetworkKey): Record<strin
 }
 
 /**
- * Resolve a payment method hash from a human-readable name where possible using contracts-v2 maps.
- * Falls back to keccak256(name) when maps are unavailable (be careful: this may not match on-chain mapping).
+ * Resolves a payment method hash from a human-readable name.
+ *
+ * First attempts to look up the hash from contracts-v2 payment method maps.
+ * Falls back to keccak256(name) when maps are unavailable.
+ *
+ * **Warning**: The fallback may not match on-chain mappings. Prefer using
+ * `resolvePaymentMethodHashFromCatalog` with an explicit catalog.
+ *
+ * @param nameOrBytes - Payment method name ('wise') or existing bytes32 hash
+ * @param opts.env - Runtime environment ('production' | 'staging')
+ * @param opts.network - Network key ('base' | 'base_sepolia')
+ * @returns bytes32 payment method hash
+ *
+ * @example
+ * ```typescript
+ * const hash = resolvePaymentMethodHash('wise', { env: 'production' });
+ * ```
  */
 export function resolvePaymentMethodHash(
   nameOrBytes: string,
@@ -45,7 +69,19 @@ export function resolvePaymentMethodHash(
 }
 
 /**
- * Encode a fiat currency code (e.g., 'USD', 'EUR') into bytes32 (ASCII padded).
+ * Encodes a fiat currency code into bytes32 format (ASCII right-padded).
+ *
+ * If the input is already a hex string (0x-prefixed), it's normalized to bytes32.
+ * Otherwise, the currency code is converted to uppercase ASCII bytes32.
+ *
+ * @param codeOrBytes - Currency code ('USD') or existing bytes32 hash
+ * @returns bytes32 encoded currency
+ *
+ * @example
+ * ```typescript
+ * const bytes = resolveFiatCurrencyBytes32('USD');
+ * // Returns: 0x5553440000000000000000000000000000000000000000000000000000000000
+ * ```
  */
 export function resolveFiatCurrencyBytes32(codeOrBytes: string): `0x${string}` {
   if (codeOrBytes.startsWith('0x')) return ensureBytes32(codeOrBytes) as `0x${string}`;
@@ -53,8 +89,24 @@ export function resolveFiatCurrencyBytes32(codeOrBytes: string): `0x${string}` {
 }
 
 /**
- * Resolve a payment method hash from a provided PaymentMethod catalog (typed map).
- * Throws a friendly error when the processor is not found.
+ * Resolves a payment method hash from a provided catalog.
+ *
+ * This is the recommended method for resolving payment methods as it uses
+ * the exact catalog from `getPaymentMethodsCatalog()`, ensuring consistency
+ * with on-chain registrations.
+ *
+ * @param processorName - Payment platform name ('wise', 'revolut', etc.)
+ * @param catalog - Payment method catalog from `getPaymentMethodsCatalog()`
+ * @returns bytes32 payment method hash
+ * @throws Error with available processors if not found
+ *
+ * @example
+ * ```typescript
+ * import { getPaymentMethodsCatalog, resolvePaymentMethodHashFromCatalog } from '@zkp2p/offramp-sdk';
+ *
+ * const catalog = getPaymentMethodsCatalog(8453, 'production');
+ * const hash = resolvePaymentMethodHashFromCatalog('wise', catalog);
+ * ```
  */
 export function resolvePaymentMethodHashFromCatalog(
   processorName: string,
@@ -79,7 +131,17 @@ export function resolvePaymentMethodHashFromCatalog(
 }
 
 /**
- * Reverse-lookup the processor name from a paymentMethod hash using the provided catalog.
+ * Reverse-lookup: converts a payment method hash back to its name.
+ *
+ * @param hash - The payment method hash (bytes32)
+ * @param catalog - Payment method catalog from `getPaymentMethodsCatalog()`
+ * @returns Payment platform name (e.g., 'wise') or undefined if not found
+ *
+ * @example
+ * ```typescript
+ * const name = resolvePaymentMethodNameFromHash('0x...', catalog);
+ * console.log(name); // "wise"
+ * ```
  */
 export function resolvePaymentMethodNameFromHash(
   hash: string,

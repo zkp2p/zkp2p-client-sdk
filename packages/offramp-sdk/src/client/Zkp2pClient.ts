@@ -18,45 +18,157 @@ import { currencyKeccak256 } from '../utils/keccak';
 import type { QuoteRequest, QuoteResponse, PostDepositDetailsRequest } from '../types';
 import { ERC20_ABI } from '../utils/erc20';
 
+/**
+ * Configuration options for creating a Zkp2pClient instance.
+ *
+ * @example
+ * ```typescript
+ * const options: Zkp2pNextOptions = {
+ *   walletClient,
+ *   chainId: 8453, // Base mainnet
+ *   runtimeEnv: 'production',
+ *   apiKey: 'your-api-key',
+ * };
+ * ```
+ */
 export type Zkp2pNextOptions = {
+  /** viem WalletClient instance with an account for signing transactions */
   walletClient: WalletClient;
+  /** Chain ID (8453 for Base mainnet, 84532 for Base Sepolia) */
   chainId: number;
+  /** Optional RPC URL override (defaults to wallet's chain RPC or localhost) */
   rpcUrl?: string;
-  runtimeEnv?: RuntimeEnv; // 'production' | 'staging'
-  indexerUrl?: string;     // override
-  // optional http verification (for orchestrator signal)
+  /** Runtime environment: 'production' or 'staging' (defaults to 'production') */
+  runtimeEnv?: RuntimeEnv;
+  /** Optional indexer URL override */
+  indexerUrl?: string;
+  /** Base API URL for ZKP2P services (defaults to https://api.zkp2p.xyz) */
   baseApiUrl?: string;
+  /** API key for authenticated endpoints (required for createDeposit, signalIntent) */
   apiKey?: string;
+  /** Optional bearer token for hybrid authentication */
   authorizationToken?: string;
-  timeouts?: { api?: number };
+  /** Timeout configuration */
+  timeouts?: {
+    /** API call timeout in milliseconds (default: 15000) */
+    api?: number;
+  };
 };
 
+/**
+ * SDK client for ZKP2P liquidity providers (offramp peers).
+ *
+ * This SDK is designed for **liquidity providers** who want to:
+ * - Create and manage USDC deposits that accept fiat payments
+ * - Configure payment methods, currencies, and conversion rates
+ * - Monitor deposit utilization and manage liquidity
+ *
+ * ## Core Functionality (Deposit Management)
+ *
+ * The primary use case is managing deposits as a liquidity provider:
+ *
+ * | Method | Description |
+ * |--------|-------------|
+ * | `createDeposit()` | Create a new USDC deposit |
+ * | `addFunds()` / `removeFunds()` | Adjust deposit balance |
+ * | `withdrawDeposit()` | Fully withdraw a deposit |
+ * | `setAcceptingIntents()` | Enable/disable new intents |
+ * | `setIntentRange()` | Set min/max intent amounts |
+ * | `setCurrencyMinRate()` | Update conversion rates |
+ * | `addPaymentMethods()` | Add payment platforms |
+ * | `getDeposits()` | Query your deposits |
+ *
+ * ## Supporting Functionality
+ *
+ * These methods support the broader ZKP2P ecosystem but are not the
+ * primary focus of this SDK:
+ *
+ * - **Intent Operations**: `signalIntent()`, `fulfillIntent()`, `cancelIntent()`
+ *   (typically used by takers/buyers, not liquidity providers)
+ * - **Quote API**: `getQuote()` (used by frontends to find available liquidity)
+ *
+ * @example Creating a Deposit (Primary Use Case)
+ * ```typescript
+ * import { createWalletClient, http } from 'viem';
+ * import { base } from 'viem/chains';
+ * import { privateKeyToAccount } from 'viem/accounts';
+ * import { OfframpClient } from '@zkp2p/offramp-sdk';
+ *
+ * const walletClient = createWalletClient({
+ *   account: privateKeyToAccount('0x...'),
+ *   chain: base,
+ *   transport: http(),
+ * });
+ *
+ * const client = new OfframpClient({
+ *   walletClient,
+ *   chainId: base.id,
+ *   apiKey: 'your-api-key',
+ * });
+ *
+ * // Create a 1000 USDC deposit accepting Wise payments
+ * const { hash } = await client.createDeposit({
+ *   token: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913', // USDC
+ *   amount: 1000_000000n,
+ *   intentAmountRange: { min: 10_000000n, max: 500_000000n },
+ *   processorNames: ['wise'],
+ *   depositData: [{ email: 'you@example.com' }],
+ *   conversionRates: [[
+ *     { currency: 'USD', conversionRate: '1020000000000000000' },
+ *     { currency: 'EUR', conversionRate: '1100000000000000000' },
+ *   ]],
+ * });
+ *
+ * // Monitor your deposits
+ * const deposits = await client.getDeposits({ owner: walletClient.account.address });
+ * ```
+ */
 export class Zkp2pClient {
+  /** The viem WalletClient used for signing transactions */
   readonly walletClient: WalletClient;
+  /** The viem PublicClient used for reading contract state */
   readonly publicClient: PublicClient;
+  /** The chain ID this client is configured for */
   readonly chainId: number;
+  /** Runtime environment ('production' or 'staging') */
   readonly runtimeEnv: RuntimeEnv;
 
-  // contracts v2
+  /** Escrow contract address */
   readonly escrowAddress: Address;
+  /** Escrow contract ABI */
   readonly escrowAbi: Abi;
+  /** Orchestrator contract address (handles intent signaling/fulfillment) */
   readonly orchestratorAddress?: Address;
+  /** Orchestrator contract ABI */
   readonly orchestratorAbi?: Abi;
+  /** UnifiedPaymentVerifier contract address */
   readonly unifiedPaymentVerifier?: Address;
+  /** ProtocolViewer contract address (for batch reads) */
   readonly protocolViewerAddress?: Address;
+  /** ProtocolViewer contract ABI */
   readonly protocolViewerAbi?: Abi;
 
-  // indexer
+  /** GraphQL indexer client for querying deposits and intents */
   readonly indexer: IndexerClient;
+  /** High-level deposit service built on the indexer */
   readonly deposits: IndexerDepositService;
 
-  // http verification
+  /** Base API URL for ZKP2P services */
   readonly baseApiUrl?: string;
+  /** API key for authenticated endpoints */
   readonly apiKey?: string;
+  /** Bearer token for hybrid authentication */
   readonly authorizationToken?: string;
+  /** API timeout in milliseconds */
   readonly apiTimeoutMs: number;
   private _usdcAddress?: Address;
 
+  /**
+   * Creates a new Zkp2pClient instance.
+   *
+   * @param opts - Configuration options
+   * @throws Error if walletClient is missing an account
+   */
   constructor(opts: Zkp2pNextOptions) {
     this.walletClient = opts.walletClient;
     this.chainId = opts.chainId;
@@ -97,53 +209,174 @@ export class Zkp2pClient {
     return /^0x[0-9a-fA-F]{40}$/.test(addr);
   }
 
-  // ---------- Read methods (Indexer) ----------
+  // ╔═══════════════════════════════════════════════════════════════════════════╗
+  // ║ CORE: DEPOSIT QUERIES (Indexer)                                          ║
+  // ╚═══════════════════════════════════════════════════════════════════════════╝
 
+  /**
+   * Fetches deposits from the indexer with optional filtering and pagination.
+   *
+   * @param filter - Optional filter criteria (owner, status, paymentMethodHash, etc.)
+   * @param pagination - Optional pagination options (limit, offset, orderBy)
+   * @returns Array of deposit entities
+   *
+   * @example
+   * ```typescript
+   * // Get all deposits for an owner
+   * const deposits = await client.getDeposits({ owner: '0x...' });
+   *
+   * // Get active deposits with pagination
+   * const deposits = await client.getDeposits(
+   *   { status: 'ACTIVE' },
+   *   { limit: 10, offset: 0 }
+   * );
+   * ```
+   */
   getDeposits(filter?: DepositFilter, pagination?: PaginationOptions): Promise<DepositEntity[]> {
     return this.deposits.fetchDeposits(filter, pagination);
   }
 
+  /**
+   * Fetches deposits with their related payment methods and optionally intents.
+   *
+   * @param filter - Optional filter criteria
+   * @param pagination - Optional pagination options
+   * @param options - Include related data (intents, filter by intent status)
+   * @returns Array of deposits with their relations
+   */
   getDepositsWithRelations(filter?: DepositFilter, pagination?: PaginationOptions, options?: { includeIntents?: boolean; intentStatuses?: IntentStatus[] }): Promise<DepositWithRelations[]> {
     return this.deposits.fetchDepositsWithRelations(filter, pagination, options);
   }
 
+  /**
+   * Fetches a single deposit by its ID with all related data.
+   *
+   * @param id - The deposit ID (e.g., "8453-0x123...abc-42")
+   * @param options - Include related intents and filter by status
+   * @returns The deposit with relations, or null if not found
+   *
+   * @example
+   * ```typescript
+   * const deposit = await client.getDepositById('8453-0x123...abc-42', {
+   *   includeIntents: true,
+   *   intentStatuses: ['SIGNALED'],
+   * });
+   * ```
+   */
   getDepositById(id: string, options?: { includeIntents?: boolean; intentStatuses?: IntentStatus[] }): Promise<DepositWithRelations | null> {
     return this.deposits.fetchDepositWithRelations(id, options);
   }
 
+  /**
+   * Fetches intents for multiple deposits.
+   *
+   * @param depositIds - Array of deposit IDs to query
+   * @param statuses - Intent statuses to filter by (default: ['SIGNALED'])
+   * @returns Array of intent entities
+   */
   getIntentsForDeposits(depositIds: string[], statuses: IntentStatus[] = ['SIGNALED']): Promise<IntentEntity[]> {
     return this.deposits.fetchIntentsForDeposits(depositIds, statuses);
   }
 
+  /**
+   * Fetches all intents created by a specific owner address.
+   *
+   * @param owner - The owner's Ethereum address
+   * @param statuses - Optional intent statuses to filter by
+   * @returns Array of intent entities
+   */
   getOwnerIntents(owner: string, statuses?: IntentStatus[]): Promise<IntentEntity[]> {
     return this.deposits.fetchIntentsByOwner(owner, statuses);
   }
 
+  /**
+   * Fetches intents that have expired (past their expiration timestamp).
+   *
+   * @param params.now - Current timestamp (bigint or string)
+   * @param params.depositIds - Deposit IDs to check for expired intents
+   * @param params.limit - Maximum number of results to return
+   * @returns Array of expired intent entities
+   */
   getExpiredIntents(params: { now: bigint | string; depositIds: string[]; limit?: number }): Promise<IntentEntity[]> {
     return this.deposits.fetchExpiredIntents(params);
   }
 
+  /**
+   * Fetches fulfillment events for completed intents.
+   *
+   * @param intentHashes - Array of intent hashes to look up
+   * @returns Array of fulfillment event entities
+   */
   getFulfilledIntentEvents(intentHashes: string[]): Promise<IntentFulfilledEntity[]> {
     return this.deposits.fetchFulfilledIntentEvents(intentHashes);
   }
 
+  /**
+   * Fetches both the fulfillment record and payment verification for an intent.
+   * Useful for verifying that a payment was properly attested and fulfilled.
+   *
+   * @param intentHash - The intent hash (0x-prefixed)
+   * @returns Fulfillment and payment verification records
+   */
   getFulfillmentAndPayment(intentHash: string): Promise<FulfillmentAndPaymentResponse> {
     return fetchFulfillmentAndPayment(this.indexer, intentHash);
   }
 
+  /**
+   * Resolves the payee details hash for a deposit's payment method.
+   *
+   * @param params.escrowAddress - Optional escrow contract address
+   * @param params.depositId - The deposit ID
+   * @param params.paymentMethodHash - The payment method hash
+   * @returns The payee details hash, or null if not found
+   */
   resolvePayeeHash(params: { escrowAddress?: string | null; depositId?: string | number | bigint | null; paymentMethodHash?: string | null }): Promise<string | null> {
     return this.deposits.resolvePayeeHash(params);
   }
 
+  /**
+   * Fetches deposits that match a specific payee details hash.
+   * Useful for finding all deposits associated with a particular payee.
+   *
+   * @param payeeHash - The payee details hash to search for
+   * @param options - Additional filtering options
+   * @returns Array of matching deposits with relations
+   */
   getDepositsByPayeeHash(payeeHash: string, options: { paymentMethodHash?: string; limit?: number; includeIntents?: boolean; intentStatuses?: IntentStatus[] } = {}): Promise<DepositWithRelations[]> {
     return this.deposits.fetchDepositsByPayeeHash(payeeHash, options);
   }
 
-  // ---------- Write methods (Contracts v3, orchestrator-only) ----------
+  // ╔═══════════════════════════════════════════════════════════════════════════╗
+  // ║ CORE: DEPOSIT CREATION                                                   ║
+  // ╚═══════════════════════════════════════════════════════════════════════════╝
 
   /**
-   * Ensure ERC20 allowance for Escrow (spender) is sufficient for the given amount.
-   * If insufficient, approves either the exact amount or MaxUint256 when maxApprove is true.
+   * Ensures ERC20 token allowance is sufficient for the Escrow contract.
+   *
+   * If the current allowance is less than the requested amount, this method
+   * will submit an approval transaction. Use `maxApprove: true` for unlimited
+   * approval to avoid repeated approval transactions.
+   *
+   * @param params.token - ERC20 token address to approve
+   * @param params.amount - Minimum required allowance amount
+   * @param params.spender - Spender address (defaults to Escrow contract)
+   * @param params.maxApprove - If true, approves MaxUint256 instead of exact amount
+   * @param params.txOverrides - Optional viem transaction overrides
+   * @returns Object with `hadAllowance` (true if no approval needed) and optional `hash`
+   *
+   * @example
+   * ```typescript
+   * // Ensure allowance for 1000 USDC
+   * const { hadAllowance, hash } = await client.ensureAllowance({
+   *   token: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+   *   amount: 1000_000000n,
+   *   maxApprove: true,
+   * });
+   *
+   * if (!hadAllowance) {
+   *   console.log('Approval tx:', hash);
+   * }
+   * ```
    */
   async ensureAllowance(params: { token: Address; amount: bigint; spender?: Address; maxApprove?: boolean; txOverrides?: Record<string, unknown> }): Promise<{ hadAllowance: boolean; hash?: Hash }> {
     const owner = this.walletClient.account?.address as Address | undefined;
@@ -158,14 +391,55 @@ export class Zkp2pClient {
     return { hadAllowance: false, hash };
   }
 
-  // Unified createDeposit: human-friendly API using processor names and currency codes.
+  /**
+   * Creates a new USDC deposit in the Escrow contract.
+   *
+   * This is the primary method for liquidity providers to add funds to the protocol.
+   * The deposit can accept intents from multiple payment platforms with different
+   * conversion rates per currency.
+   *
+   * **Important**: Requires `apiKey` or `authorizationToken` to be set.
+   * Call `ensureAllowance()` first to approve USDC spending.
+   *
+   * @param params.token - Token address (USDC)
+   * @param params.amount - Total deposit amount in token units (6 decimals for USDC)
+   * @param params.intentAmountRange - Min/max amount per intent
+   * @param params.processorNames - Payment platforms to accept (e.g., ['wise', 'revolut'])
+   * @param params.depositData - Payee details per processor (e.g., [{ email: '...' }])
+   * @param params.conversionRates - Conversion rates per processor, grouped by currency
+   * @param params.delegate - Optional delegate address that can manage the deposit
+   * @param params.intentGuardian - Optional guardian for intent approval
+   * @param params.retainOnEmpty - Keep deposit active when balance reaches zero
+   * @param params.txOverrides - Optional viem transaction overrides
+   * @returns The deposit details posted to API and the transaction hash
+   *
+   * @throws Error if apiKey/authorizationToken is missing
+   * @throws Error if processorNames, depositData, and conversionRates lengths don't match
+   * @throws Error if a currency is not supported by the specified processor
+   *
+   * @example
+   * ```typescript
+   * // Create a 1000 USDC deposit accepting Wise payments in USD and EUR
+   * const { hash } = await client.createDeposit({
+   *   token: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+   *   amount: 1000_000000n,
+   *   intentAmountRange: { min: 10_000000n, max: 500_000000n },
+   *   processorNames: ['wise'],
+   *   depositData: [{ email: 'you@example.com' }],
+   *   conversionRates: [[
+   *     { currency: 'USD', conversionRate: '1020000000000000000' }, // 1.02
+   *     { currency: 'EUR', conversionRate: '1100000000000000000' }, // 1.10
+   *   ]],
+   * });
+   * ```
+   */
   async createDeposit(params: {
     token: Address;
     amount: bigint;
     intentAmountRange: { min: bigint; max: bigint };
     processorNames: string[];
     depositData: { [key: string]: string }[];
-    conversionRates: { currency: string; conversionRate: string }[][]; // grouped per processor
+    conversionRates: { currency: string; conversionRate: string }[][];
     delegate?: Address;
     intentGuardian?: Address;
     retainOnEmpty?: boolean;
@@ -247,8 +521,18 @@ export class Zkp2pClient {
     return { depositDetails, hash };
   }
 
-  // ---------- Maker-side deposit management (Escrow v3) ----------
+  // ╔═══════════════════════════════════════════════════════════════════════════╗
+  // ║ CORE: DEPOSIT MANAGEMENT                                                 ║
+  // ╚═══════════════════════════════════════════════════════════════════════════╝
 
+  /**
+   * Enables or disables a deposit from accepting new intents.
+   *
+   * @param params.depositId - The deposit ID
+   * @param params.accepting - Whether to accept new intents
+   * @param params.txOverrides - Optional viem transaction overrides
+   * @returns Transaction hash
+   */
   async setAcceptingIntents(params: { depositId: bigint; accepting: boolean; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     const { request } = await this.publicClient.simulateContract({
       address: this.escrowAddress,
@@ -261,6 +545,15 @@ export class Zkp2pClient {
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
+  /**
+   * Updates the min/max intent amount range for a deposit.
+   *
+   * @param params.depositId - The deposit ID
+   * @param params.min - Minimum intent amount
+   * @param params.max - Maximum intent amount
+   * @param params.txOverrides - Optional viem transaction overrides
+   * @returns Transaction hash
+   */
   async setIntentRange(params: { depositId: bigint; min: bigint; max: bigint; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     const { request } = await this.publicClient.simulateContract({
       address: this.escrowAddress,
@@ -273,6 +566,16 @@ export class Zkp2pClient {
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
+  /**
+   * Updates the minimum conversion rate for a specific currency on a payment method.
+   *
+   * @param params.depositId - The deposit ID
+   * @param params.paymentMethod - Payment method hash (bytes32)
+   * @param params.fiatCurrency - Fiat currency hash (bytes32)
+   * @param params.minConversionRate - New minimum conversion rate (18 decimals)
+   * @param params.txOverrides - Optional viem transaction overrides
+   * @returns Transaction hash
+   */
   async setCurrencyMinRate(params: { depositId: bigint; paymentMethod: `0x${string}`; fiatCurrency: `0x${string}`; minConversionRate: bigint; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     const { request } = await this.publicClient.simulateContract({
       address: this.escrowAddress,
@@ -285,6 +588,15 @@ export class Zkp2pClient {
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
+  /**
+   * Adds additional funds to an existing deposit.
+   * Requires prior approval of the token amount.
+   *
+   * @param params.depositId - The deposit ID to add funds to
+   * @param params.amount - Amount to add (in token units)
+   * @param params.txOverrides - Optional viem transaction overrides
+   * @returns Transaction hash
+   */
   async addFunds(params: { depositId: bigint; amount: bigint; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     const { request } = await this.publicClient.simulateContract({
       address: this.escrowAddress,
@@ -297,6 +609,15 @@ export class Zkp2pClient {
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
+  /**
+   * Removes funds from a deposit (partial withdrawal).
+   * Can only withdraw available (non-locked) funds.
+   *
+   * @param params.depositId - The deposit ID
+   * @param params.amount - Amount to remove (in token units)
+   * @param params.txOverrides - Optional viem transaction overrides
+   * @returns Transaction hash
+   */
   async removeFunds(params: { depositId: bigint; amount: bigint; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     const { request } = await this.publicClient.simulateContract({
       address: this.escrowAddress,
@@ -309,6 +630,14 @@ export class Zkp2pClient {
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
+  /**
+   * Fully withdraws a deposit, returning all available funds to the owner.
+   * The deposit must have no active intents.
+   *
+   * @param params.depositId - The deposit ID to withdraw
+   * @param params.txOverrides - Optional viem transaction overrides
+   * @returns Transaction hash
+   */
   async withdrawDeposit(params: { depositId: bigint; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     const { request } = await this.publicClient.simulateContract({
       address: this.escrowAddress,
@@ -321,8 +650,18 @@ export class Zkp2pClient {
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
-  // ---------- Additional Escrow administration (V3) ----------
+  // ╔═══════════════════════════════════════════════════════════════════════════╗
+  // ║ CORE: ADVANCED DEPOSIT CONFIGURATION                                     ║
+  // ╚═══════════════════════════════════════════════════════════════════════════╝
 
+  /**
+   * Sets whether a deposit should remain active when its balance reaches zero.
+   *
+   * @param params.depositId - The deposit ID
+   * @param params.retain - If true, deposit stays active when empty
+   * @param params.txOverrides - Optional viem transaction overrides
+   * @returns Transaction hash
+   */
   async setRetainOnEmpty(params: { depositId: bigint; retain: boolean; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     const { request } = await this.publicClient.simulateContract({
       address: this.escrowAddress,
@@ -335,6 +674,14 @@ export class Zkp2pClient {
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
+  /**
+   * Assigns a delegate address that can manage the deposit on behalf of the owner.
+   *
+   * @param params.depositId - The deposit ID
+   * @param params.delegate - Address to delegate management to
+   * @param params.txOverrides - Optional viem transaction overrides
+   * @returns Transaction hash
+   */
   async setDelegate(params: { depositId: bigint; delegate: Address; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     const { request } = await this.publicClient.simulateContract({
       address: this.escrowAddress,
@@ -347,6 +694,13 @@ export class Zkp2pClient {
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
+  /**
+   * Removes the delegate from a deposit.
+   *
+   * @param params.depositId - The deposit ID
+   * @param params.txOverrides - Optional viem transaction overrides
+   * @returns Transaction hash
+   */
   async removeDelegate(params: { depositId: bigint; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     const { request } = await this.publicClient.simulateContract({
       address: this.escrowAddress,
@@ -359,6 +713,15 @@ export class Zkp2pClient {
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
+  /**
+   * Adds new payment methods to an existing deposit.
+   *
+   * @param params.depositId - The deposit ID
+   * @param params.paymentMethods - Array of payment method hashes to add
+   * @param params.paymentMethodData - Corresponding payment method configuration
+   * @param params.txOverrides - Optional viem transaction overrides
+   * @returns Transaction hash
+   */
   async addPaymentMethods(params: { depositId: bigint; paymentMethods: `0x${string}`[]; paymentMethodData: { intentGatingService: Address; payeeDetails: string; data: `0x${string}` }[]; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     const { request } = await this.publicClient.simulateContract({
       address: this.escrowAddress,
@@ -371,6 +734,15 @@ export class Zkp2pClient {
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
+  /**
+   * Activates or deactivates a payment method on a deposit.
+   *
+   * @param params.depositId - The deposit ID
+   * @param params.paymentMethod - Payment method hash to modify
+   * @param params.isActive - Whether the payment method should accept intents
+   * @param params.txOverrides - Optional viem transaction overrides
+   * @returns Transaction hash
+   */
   async setPaymentMethodActive(params: { depositId: bigint; paymentMethod: `0x${string}`; isActive: boolean; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     const { request } = await this.publicClient.simulateContract({
       address: this.escrowAddress,
@@ -383,10 +755,27 @@ export class Zkp2pClient {
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
+  /**
+   * Deactivates a payment method on a deposit (convenience alias for setPaymentMethodActive).
+   *
+   * @param params.depositId - The deposit ID
+   * @param params.paymentMethod - Payment method hash to deactivate
+   * @param params.txOverrides - Optional viem transaction overrides
+   * @returns Transaction hash
+   */
   async removePaymentMethod(params: { depositId: bigint; paymentMethod: `0x${string}`; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     return this.setPaymentMethodActive({ depositId: params.depositId, paymentMethod: params.paymentMethod, isActive: false, txOverrides: params.txOverrides });
   }
 
+  /**
+   * Adds new currencies to a payment method on a deposit.
+   *
+   * @param params.depositId - The deposit ID
+   * @param params.paymentMethod - Payment method hash to add currencies to
+   * @param params.currencies - Array of currency configurations with code and min rate
+   * @param params.txOverrides - Optional viem transaction overrides
+   * @returns Transaction hash
+   */
   async addCurrencies(params: { depositId: bigint; paymentMethod: `0x${string}`; currencies: { code: `0x${string}`; minConversionRate: bigint }[]; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     const { request } = await this.publicClient.simulateContract({
       address: this.escrowAddress,
@@ -399,6 +788,15 @@ export class Zkp2pClient {
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
+  /**
+   * Deactivates a currency for a payment method on a deposit.
+   *
+   * @param params.depositId - The deposit ID
+   * @param params.paymentMethod - Payment method hash
+   * @param params.currencyCode - Currency code hash to deactivate
+   * @param params.txOverrides - Optional viem transaction overrides
+   * @returns Transaction hash
+   */
   async deactivateCurrency(params: { depositId: bigint; paymentMethod: `0x${string}`; currencyCode: `0x${string}`; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     const { request } = await this.publicClient.simulateContract({
       address: this.escrowAddress,
@@ -411,10 +809,28 @@ export class Zkp2pClient {
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
+  /**
+   * Removes (deactivates) a currency from a payment method.
+   * Alias for deactivateCurrency.
+   *
+   * @param params.depositId - The deposit ID
+   * @param params.paymentMethod - Payment method hash
+   * @param params.currencyCode - Currency code hash to remove
+   * @param params.txOverrides - Optional viem transaction overrides
+   * @returns Transaction hash
+   */
   async removeCurrency(params: { depositId: bigint; paymentMethod: `0x${string}`; currencyCode: `0x${string}`; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     return this.deactivateCurrency(params);
   }
 
+  /**
+   * Removes expired intents from a deposit, freeing up locked funds.
+   * Can be called by anyone (permissionless cleanup).
+   *
+   * @param params.depositId - The deposit ID to prune
+   * @param params.txOverrides - Optional viem transaction overrides
+   * @returns Transaction hash
+   */
   async pruneExpiredIntents(params: { depositId: bigint; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     const { request } = await this.publicClient.simulateContract({
       address: this.escrowAddress,
@@ -427,8 +843,54 @@ export class Zkp2pClient {
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
+  // ───────────────────────────────────────────────────────────────────────────
+  // SUPPORTING: INTENT OPERATIONS
+  // (Used by takers/buyers - not primary SDK functionality)
+  // ───────────────────────────────────────────────────────────────────────────
 
-
+  /**
+   * **Supporting Method** - Signals intent to use a deposit.
+   *
+   * > **Note**: This method is typically used by takers/buyers who want to
+   * > purchase crypto by paying fiat. Liquidity providers generally don't
+   * > need to call this method directly.
+   *
+   * This reserves funds from a deposit and creates an intent that must be
+   * fulfilled (via `fulfillIntent`) or will expire. The taker commits to
+   * sending fiat payment to the deposit's payee.
+   *
+   * If `gatingServiceSignature` is not provided, the SDK will automatically
+   * fetch one from the API (requires `apiKey` or `authorizationToken`).
+   *
+   * @param params.depositId - The deposit to use
+   * @param params.amount - Amount of tokens to claim (in token units)
+   * @param params.toAddress - Address to receive the tokens when fulfilled
+   * @param params.processorName - Payment platform (e.g., 'wise', 'revolut')
+   * @param params.payeeDetails - Hashed payee details (from deposit)
+   * @param params.fiatCurrencyCode - Fiat currency code (e.g., 'USD', 'EUR')
+   * @param params.conversionRate - Agreed conversion rate (18 decimals)
+   * @param params.referrer - Optional referrer address for fee sharing
+   * @param params.referrerFee - Optional referrer fee amount
+   * @param params.postIntentHook - Optional hook contract to call after signaling
+   * @param params.data - Optional data to pass to the hook
+   * @param params.gatingServiceSignature - Pre-obtained signature (if not auto-fetching)
+   * @param params.signatureExpiration - Signature expiration timestamp
+   * @param params.txOverrides - Optional viem transaction overrides
+   * @returns Transaction hash
+   *
+   * @example
+   * ```typescript
+   * const hash = await client.signalIntent({
+   *   depositId: 42n,
+   *   amount: 100_000000n, // 100 USDC
+   *   toAddress: '0x...',
+   *   processorName: 'wise',
+   *   payeeDetails: '0x...',
+   *   fiatCurrencyCode: 'USD',
+   *   conversionRate: 1_020000000000000000n, // 1.02
+   * });
+   * ```
+   */
   async signalIntent(params: {
     depositId: bigint | string;
     amount: bigint | string;
@@ -500,13 +962,31 @@ export class Zkp2pClient {
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
-
+  /**
+   * **Supporting Method** - Cancels a signaled intent before fulfillment.
+   *
+   * Only the intent owner can cancel. Releases reserved funds back to the deposit.
+   *
+   * @param params.intentHash - The intent hash to cancel (0x-prefixed, 32 bytes)
+   * @param params.txOverrides - Optional viem transaction overrides
+   * @returns Transaction hash
+   */
   async cancelIntent(params: { intentHash: `0x${string}`; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     if (!this.orchestratorAddress || !this.orchestratorAbi) throw new Error('Orchestrator not available');
     const { request } = await this.publicClient.simulateContract({ address: this.orchestratorAddress, abi: this.orchestratorAbi, functionName: 'cancelIntent', args: [params.intentHash], account: this.walletClient.account!, ...(params.txOverrides ?? {}) });
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
+  /**
+   * **Supporting Method** - Releases funds back to the deposit owner.
+   *
+   * Called by the deposit owner when they want to reject an intent
+   * (e.g., payment verification failed or intent expired).
+   *
+   * @param params.intentHash - The intent hash (0x-prefixed, 32 bytes)
+   * @param params.txOverrides - Optional viem transaction overrides
+   * @returns Transaction hash
+   */
   async releaseFundsToPayer(params: { intentHash: `0x${string}`; txOverrides?: Record<string, unknown> }): Promise<Hash> {
     if (!this.orchestratorAddress || !this.orchestratorAbi) throw new Error('Orchestrator not available');
     const { request } = await this.publicClient.simulateContract({
@@ -520,11 +1000,36 @@ export class Zkp2pClient {
     return (await this.walletClient.writeContract(request)) as Hash;
   }
 
-  // Breaking API: minimal inputs. Derives everything from intentHash.
+  /**
+   * **Supporting Method** - Fulfills an intent by submitting a payment proof.
+   *
+   * > **Note**: This method is typically used by takers/buyers after they've
+   * > sent fiat payment. Liquidity providers generally don't call this directly.
+   *
+   * This is the final step in the off-ramp flow. After the taker has sent
+   * fiat payment, they generate a proof (via the browser extension) and
+   * submit it here. The SDK handles attestation service calls automatically.
+   *
+   * **Flow:**
+   * 1. Intent parameters are derived from the indexer/ProtocolViewer
+   * 2. Proof is sent to the attestation service for verification
+   * 3. Attestation response is encoded and submitted on-chain
+   * 4. Funds are released to the intent's `toAddress`
+   *
+   * @param params.intentHash - The intent hash to fulfill (0x-prefixed, 32 bytes)
+   * @param params.proof - Payment proof from Reclaim (object or JSON string)
+   * @param params.timestampBufferMs - Allowed timestamp variance (default: 300000ms)
+   * @param params.attestationServiceUrl - Override attestation service URL
+   * @param params.verifyingContract - Override verifier contract address
+   * @param params.postIntentHookData - Data to pass to post-intent hook
+   * @param params.txOverrides - Optional viem transaction overrides
+   * @param params.callbacks - Lifecycle callbacks for UI updates
+   * @returns Transaction hash
+   */
   async fulfillIntent(params: {
     intentHash: `0x${string}`;
-    proof: Record<string, unknown> | string; // attestation proof (object or stringified)
-    timestampBufferMs?: string; // note: attestation service should default; we pass a sane default for now
+    proof: Record<string, unknown> | string;
+    timestampBufferMs?: string;
     attestationServiceUrl?: string;
     verifyingContract?: Address;
     postIntentHookData?: `0x${string}`;
@@ -602,7 +1107,52 @@ export class Zkp2pClient {
       : 'https://attestation-service.zkp2p.xyz';
   }
 
-  // ---------- HTTP: Quote (with optional payee enrichment) ----------
+  // ───────────────────────────────────────────────────────────────────────────
+  // SUPPORTING: QUOTES API
+  // (Used by frontends to find available liquidity)
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /**
+   * **Supporting Method** - Fetches quotes for available liquidity.
+   *
+   * > **Note**: This method is typically used by frontend applications to
+   * > display available off-ramp options to users. Liquidity providers can
+   * > use it to see how their deposits appear to takers.
+   *
+   * Returns available quotes from liquidity providers matching the request
+   * criteria. If `apiKey` is set, payee details are automatically enriched.
+   *
+   * @param req - Quote request parameters
+   * @param req.paymentPlatforms - Payment platforms to search (e.g., ['wise', 'revolut'])
+   * @param req.fiatCurrency - Target fiat currency code (e.g., 'USD')
+   * @param req.user - User's address
+   * @param req.recipient - Token recipient address
+   * @param req.destinationChainId - Chain ID for token delivery
+   * @param req.destinationToken - Token address to receive
+   * @param req.amount - Amount (in fiat if isExactFiat, else in tokens)
+   * @param req.isExactFiat - If true, amount is in fiat; quotes return token amounts
+   * @param req.escrowAddresses - Optional filter for specific escrow contracts
+   * @param opts - Optional overrides for API URL and timeout
+   * @returns Quote response with available options
+   *
+   * @example
+   * ```typescript
+   * const quote = await client.getQuote({
+   *   paymentPlatforms: ['wise'],
+   *   fiatCurrency: 'EUR',
+   *   user: '0x...',
+   *   recipient: '0x...',
+   *   destinationChainId: 8453,
+   *   destinationToken: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+   *   amount: '100',
+   *   isExactFiat: true,
+   * });
+   *
+   * for (const q of quote.responseObject.quotes) {
+   *   console.log(`${q.tokenAmountFormatted} USDC for ${q.fiatAmountFormatted}`);
+   * }
+   * ```
+   */
   async getQuote(req: QuoteRequest, opts?: { baseApiUrl?: string; timeoutMs?: number }): Promise<QuoteResponse> {
     const baseApiUrl = (opts?.baseApiUrl ?? this.baseApiUrl ?? 'https://api.zkp2p.xyz').replace(/\/$/, '');
     const timeoutMs = opts?.timeoutMs ?? this.apiTimeoutMs;
@@ -634,7 +1184,9 @@ export class Zkp2pClient {
     return quote;
   }
 
-  // ---------- Optional on-chain views via ProtocolViewer ----------
+  // ╔═══════════════════════════════════════════════════════════════════════════╗
+  // ║ CORE: ON-CHAIN DEPOSIT VIEWS                                             ║
+  // ╚═══════════════════════════════════════════════════════════════════════════╝
 
   private requireProtocolViewer() {
     if (!this.protocolViewerAddress || !this.protocolViewerAbi) {
@@ -643,6 +1195,13 @@ export class Zkp2pClient {
     return { address: this.protocolViewerAddress, abi: this.protocolViewerAbi } as const;
   }
 
+  /**
+   * Fetches a deposit directly from on-chain ProtocolViewer contract.
+   * Falls back to Escrow.getDeposit if ProtocolViewer is unavailable.
+   *
+   * @param depositId - The deposit ID (string or bigint)
+   * @returns Parsed deposit view with all payment methods and currencies
+   */
   async getPvDepositById(depositId: string | bigint) {
     const id = typeof depositId === 'bigint' ? depositId : BigInt(depositId);
     try {
@@ -658,6 +1217,12 @@ export class Zkp2pClient {
     }
   }
 
+  /**
+   * Fetches multiple deposits by ID from on-chain in a batch call.
+   *
+   * @param ids - Array of deposit IDs
+   * @returns Array of parsed deposit views
+   */
   async getPvDepositsFromIds(ids: Array<string | bigint>) {
     // When ProtocolViewer is unavailable, fall back to per-id Escrow.getDeposit reads
     if (!this.protocolViewerAddress || !this.protocolViewerAbi) {
@@ -685,6 +1250,12 @@ export class Zkp2pClient {
     return raw.map(parseDepositView);
   }
 
+  /**
+   * Fetches all deposits owned by an address from on-chain.
+   *
+   * @param owner - The owner address
+   * @returns Array of parsed deposit views
+   */
   async getPvAccountDeposits(owner: Address) {
     try {
       const { address, abi } = this.requireProtocolViewer();
@@ -698,6 +1269,13 @@ export class Zkp2pClient {
     }
   }
 
+  /**
+   * Fetches all intents created by an address from on-chain.
+   * Requires ProtocolViewer to be available.
+   *
+   * @param owner - The owner address
+   * @returns Array of parsed intent views
+   */
   async getPvAccountIntents(owner: Address) {
     const { address, abi } = this.requireProtocolViewer();
     const raw = (await this.publicClient.readContract({
@@ -710,6 +1288,12 @@ export class Zkp2pClient {
     return raw.map(parseIntentView);
   }
 
+  /**
+   * Fetches a single intent by hash from on-chain.
+   *
+   * @param intentHash - The intent hash (0x-prefixed, 32 bytes)
+   * @returns Parsed intent view with deposit context
+   */
   async getPvIntent(intentHash: `0x${string}`) {
     const { address, abi } = this.requireProtocolViewer();
     const raw = await this.publicClient.readContract({
@@ -722,11 +1306,24 @@ export class Zkp2pClient {
     return parseIntentView(raw);
   }
 
-  // ---------- Convenience ----------
+  // ╔═══════════════════════════════════════════════════════════════════════════╗
+  // ║ CORE: UTILITIES                                                          ║
+  // ╚═══════════════════════════════════════════════════════════════════════════╝
+
+  /**
+   * Returns the USDC token address for the current network (if known).
+   *
+   * @returns USDC address or undefined if not configured
+   */
   getUsdcAddress(): Address | undefined {
     return this._usdcAddress;
   }
 
+  /**
+   * Returns all deployed contract addresses for the current network/environment.
+   *
+   * @returns Object with escrow, orchestrator, protocolViewer, verifier, and USDC addresses
+   */
   getDeployedAddresses(): { escrow: Address; orchestrator?: Address; protocolViewer?: Address; unifiedPaymentVerifier?: Address; usdc?: Address } {
     return {
       escrow: this.escrowAddress,
@@ -738,8 +1335,15 @@ export class Zkp2pClient {
   }
 
   /**
-   * Resolve intent parameters required for fulfillIntent from on-chain views or the indexer.
-   * Returns amount, fiatCurrency, conversionRate, and payeeDetails (hashed on-chain id).
+   * Resolves all parameters needed to fulfill an intent.
+   *
+   * Attempts to fetch from ProtocolViewer first (on-chain source of truth),
+   * then falls back to the indexer. This is called internally by `fulfillIntent`
+   * but exposed for advanced use cases.
+   *
+   * @param intentHash - The intent hash to resolve
+   * @returns Intent parameters needed for fulfillment
+   * @throws Error if intent not found or payee details cannot be resolved
    */
   async getFulfillIntentInputs(intentHash: `0x${string}`): Promise<{
     amount: string;

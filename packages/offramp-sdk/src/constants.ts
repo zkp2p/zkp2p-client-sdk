@@ -1,6 +1,13 @@
 /**
- * Comprehensive constants export for Offramp SDK by Peer
- * This file re-exports all public constants for easier access
+ * SDK Constants
+ *
+ * This module exports all public constants for the SDK including:
+ * - Payment platforms (Wise, Venmo, Revolut, etc.)
+ * - Currencies (USD, EUR, GBP, etc.)
+ * - Chain IDs and network configuration
+ * - Token metadata
+ *
+ * @module constants
  */
 
 // Payment platforms
@@ -16,17 +23,41 @@ export { DEPLOYED_ADDRESSES } from './utils/constants';
 // API URLs
 export { DEFAULT_BASE_API_URL, DEFAULT_WITNESS_URL } from './utils/constants';
 
-// Chain IDs
+/**
+ * Supported blockchain chain IDs.
+ *
+ * @example
+ * ```typescript
+ * import { SUPPORTED_CHAIN_IDS } from '@zkp2p/offramp-sdk';
+ *
+ * const client = new OfframpClient({
+ *   chainId: SUPPORTED_CHAIN_IDS.BASE_MAINNET,
+ *   // ...
+ * });
+ * ```
+ */
 export const SUPPORTED_CHAIN_IDS = {
+  /** Base mainnet (8453) */
   BASE_MAINNET: 8453,
+  /** Base Sepolia testnet (84532) */
   BASE_SEPOLIA: 84532,
+  /** Scroll mainnet (534352) */
   SCROLL_MAINNET: 534352,
+  /** Local Hardhat network (31337) */
   HARDHAT: 31337,
 } as const;
 
+/**
+ * Union type of supported chain IDs.
+ */
 export type SupportedChainId = typeof SUPPORTED_CHAIN_IDS[keyof typeof SUPPORTED_CHAIN_IDS];
 
-// Payment platform metadata
+/**
+ * Metadata for each supported payment platform.
+ *
+ * Includes display names, logos, and the number of proofs required
+ * for payment verification.
+ */
 export const PLATFORM_METADATA = {
   venmo: {
     name: 'Venmo',
@@ -78,7 +109,9 @@ export const PLATFORM_METADATA = {
   },
 } as const;
 
-// Token metadata
+/**
+ * Token metadata for supported tokens.
+ */
 export const TOKEN_METADATA = {
   USDC: {
     symbol: 'USDC',
@@ -87,8 +120,14 @@ export const TOKEN_METADATA = {
   },
 } as const;
 
-// Attestation service platform configuration
-// Maps payment platform to action type and platform identifier for attestation endpoints
+/**
+ * Attestation service configuration for each payment platform.
+ *
+ * Maps platform names to their corresponding action types for the
+ * attestation service endpoints.
+ *
+ * @internal Used internally by fulfillIntent
+ */
 export const PLATFORM_ATTESTATION_CONFIG: Record<string, { actionType: string; actionPlatform: string }> = {
   wise: { actionType: 'wise_transfer', actionPlatform: 'wise' },
   venmo: { actionType: 'venmo_send', actionPlatform: 'venmo' },
@@ -101,7 +140,13 @@ export const PLATFORM_ATTESTATION_CONFIG: Record<string, { actionType: string; a
 } as const;
 
 /**
- * Resolves attestation platform configuration for a given payment platform
+ * Resolves attestation platform configuration for a given payment platform.
+ *
+ * @param platformName - The payment platform name (e.g., 'wise', 'venmo')
+ * @returns Attestation configuration with actionType and actionPlatform
+ * @throws Error if the platform is not supported
+ *
+ * @internal Used internally by fulfillIntent
  */
 export function resolvePlatformAttestationConfig(platformName: string): { actionType: string; actionPlatform: string } {
   const config = PLATFORM_ATTESTATION_CONFIG[platformName.toLowerCase()];

@@ -1,5 +1,11 @@
-// V3 contracts resolution utilities for the SDK
-// Centralizes addresses/ABIs import from @zkp2p/contracts-v2 (package providing v3 deployments) and environment switching
+/**
+ * Contract resolution utilities for the SDK.
+ *
+ * Provides access to deployed contract addresses and ABIs for different
+ * networks (Base, Base Sepolia) and environments (production, staging).
+ *
+ * @module contracts
+ */
 
 import type { Abi } from 'abitype';
 
@@ -31,14 +37,25 @@ import basePaymentMethods from '@zkp2p/contracts-v2/paymentMethods/base.json';
 import baseSepoliaPaymentMethods from '@zkp2p/contracts-v2/paymentMethods/baseSepolia.json';
 import baseStagingPaymentMethods from '@zkp2p/contracts-v2/paymentMethods/baseStaging.json';
 
+/**
+ * Contract addresses for a specific deployment.
+ */
 export type V2ContractAddresses = {
+  /** Escrow contract (holds deposits and manages intents) */
   escrow: `0x${string}`;
+  /** Orchestrator contract (handles intent signaling and fulfillment) */
   orchestrator?: `0x${string}`;
+  /** UnifiedPaymentVerifier contract (verifies payment proofs) */
   unifiedPaymentVerifier?: `0x${string}`;
+  /** ProtocolViewer contract (batch read operations) */
   protocolViewer?: `0x${string}`;
+  /** USDC token address */
   usdc?: `0x${string}`;
 };
 
+/**
+ * Contract ABIs for a specific deployment.
+ */
 export type V2ContractAbis = {
   escrow: Abi;
   orchestrator?: Abi;
@@ -46,14 +63,36 @@ export type V2ContractAbis = {
   protocolViewer?: Abi;
 };
 
+/**
+ * Runtime environment: 'production' for mainnet, 'staging' for testnet/dev.
+ */
 export type RuntimeEnv = 'production' | 'staging';
 
-// ChainId -> network key used by contracts-v2 package
+/**
+ * Converts a chain ID to its network key.
+ * @internal
+ */
 export function networkKeyFromChainId(chainId: number): 'base' | 'base_sepolia' {
   if (chainId === 84532) return 'base_sepolia';
   return 'base';
 }
 
+/**
+ * Retrieves deployed contract addresses and ABIs for a given chain and environment.
+ *
+ * @param chainId - The chain ID (8453 for Base, 84532 for Base Sepolia)
+ * @param env - Runtime environment ('production' or 'staging')
+ * @returns Object containing addresses and ABIs
+ *
+ * @example
+ * ```typescript
+ * import { getContracts } from '@zkp2p/offramp-sdk';
+ *
+ * const { addresses, abis } = getContracts(8453, 'production');
+ * console.log(addresses.escrow);  // "0x..."
+ * console.log(addresses.usdc);    // "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913"
+ * ```
+ */
 export function getContracts(chainId: number, env: RuntimeEnv = 'production'): { addresses: V2ContractAddresses; abis: V2ContractAbis } {
   const key = networkKeyFromChainId(chainId);
 
@@ -112,8 +151,31 @@ export function getContracts(chainId: number, env: RuntimeEnv = 'production'): {
   return { addresses: addressesByKey[key], abis: abisByKey[key] };
 }
 
+/**
+ * Catalog of payment methods with their hashes and supported currencies.
+ */
 export type PaymentMethodCatalog = Record<string, { paymentMethodHash: `0x${string}`; currencies?: `0x${string}`[] }>;
 
+/**
+ * Retrieves the payment methods catalog for a given chain and environment.
+ *
+ * The catalog maps payment platform names (e.g., 'wise', 'revolut') to their
+ * on-chain hashes and supported currency hashes.
+ *
+ * @param chainId - The chain ID
+ * @param env - Runtime environment
+ * @returns Payment method catalog keyed by platform name
+ *
+ * @example
+ * ```typescript
+ * import { getPaymentMethodsCatalog } from '@zkp2p/offramp-sdk';
+ *
+ * const catalog = getPaymentMethodsCatalog(8453, 'production');
+ * console.log(Object.keys(catalog)); // ['wise', 'venmo', 'revolut', ...]
+ * console.log(catalog.wise.paymentMethodHash); // "0x..."
+ * console.log(catalog.wise.currencies); // ["0x...", "0x..."] (currency hashes)
+ * ```
+ */
 export function getPaymentMethodsCatalog(chainId: number, env: RuntimeEnv = 'production'): PaymentMethodCatalog {
   const isBaseSepolia = networkKeyFromChainId(chainId) === 'base_sepolia';
   const src = env === 'staging'
@@ -123,7 +185,16 @@ export function getPaymentMethodsCatalog(chainId: number, env: RuntimeEnv = 'pro
   return methods;
 }
 
-// Gating service address per environment/network (aligns with reference RN SDK)
+/**
+ * Returns the gating service address for a given chain and environment.
+ *
+ * The gating service signs intent parameters before they can be submitted
+ * on-chain, providing an additional validation layer.
+ *
+ * @param chainId - The chain ID
+ * @param env - Runtime environment
+ * @returns Gating service signer address
+ */
 export function getGatingServiceAddress(chainId: number, env: RuntimeEnv = 'production'): `0x${string}` {
   // Base Staging & Production share the same gating service in current deployments
   if (env === 'staging') {
