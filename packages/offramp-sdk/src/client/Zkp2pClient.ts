@@ -12,7 +12,7 @@ import { getContracts, type RuntimeEnv } from '../contracts';
 import { apiSignIntentV2 } from '../adapters/verification';
 import { apiCreatePaymentAttestation } from '../adapters/attestation';
 import { encodeAddressAsBytes, encodePaymentAttestation, encodeVerifyPaymentData } from '../utils/encode';
-import { apiGetPayeeDetails, apiGetQuote, apiPostDepositDetails } from '../adapters/api';
+import { apiGetQuote, apiPostDepositDetails } from '../adapters/api';
 import { getGatingServiceAddress, getPaymentMethodsCatalog } from '../contracts';
 import { resolveFiatCurrencyBytes32, resolvePaymentMethodHashFromCatalog } from '../utils/paymentResolution';
 import { currencyKeccak256 } from '../utils/keccak';
@@ -1215,7 +1215,7 @@ export class Zkp2pClient {
    * > use it to see how their deposits appear to takers.
    *
    * Returns available quotes from liquidity providers matching the request
-   * criteria. If `apiKey` is set, payee details are automatically enriched.
+   * criteria. When authenticated, the API returns payee details in each quote.
    *
    * @param req - Quote request parameters
    * @param req.paymentPlatforms - Payment platforms to search (e.g., ['wise', 'revolut'])
@@ -1256,27 +1256,7 @@ export class Zkp2pClient {
     if ((!reqWithEscrow.escrowAddresses || reqWithEscrow.escrowAddresses.length === 0) && this.escrowAddress) {
       reqWithEscrow.escrowAddresses = [this.escrowAddress as string];
     }
-    const quote = await apiGetQuote(reqWithEscrow as any, baseApiUrl, timeoutMs);
-    // Enrich with payee details when auth is available
-    const canEnrich = Boolean(this.apiKey || this.authorizationToken);
-    const headersApiKey = this.apiKey;
-    if (canEnrich) {
-      const quotes = quote?.responseObject?.quotes ?? [];
-      for (const q of quotes) {
-        const intent: any = q.intent;
-        const processorName = intent?.processorName;
-        const hashedOnchainId = intent?.payeeDetails;
-        if (!processorName || !hashedOnchainId) continue;
-        try {
-          const res = await apiGetPayeeDetails({ hashedOnchainId, processorName }, headersApiKey!, baseApiUrl, this.authorizationToken, timeoutMs);
-          const data = res?.responseObject?.depositData;
-          if (data && typeof q === 'object') (q as any).payeeData = data;
-        } catch {
-          // ignore enrichment failures
-        }
-      }
-    }
-    return quote;
+    return apiGetQuote(reqWithEscrow as any, baseApiUrl, timeoutMs);
   }
 
   // ╔═══════════════════════════════════════════════════════════════════════════╗
