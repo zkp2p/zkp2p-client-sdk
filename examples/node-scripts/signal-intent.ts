@@ -7,7 +7,7 @@
  *   PROCESSOR_NAME (e.g., wise), PAYEE_DETAILS,
  *   FIAT_CURRENCY_CODE (e.g., USD), CONVERSION_RATE
  */
-import { Zkp2pClient } from '@zkp2p/client-sdk';
+import { OfframpClient } from '@zkp2p/offramp-sdk';
 import { createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { base } from 'viem/chains';
@@ -31,7 +31,7 @@ async function main() {
 
   const account = privateKeyToAccount(PRIV);
   const walletClient = createWalletClient({ account, chain: base, transport: http(RPC) });
-  const client = new Zkp2pClient({ walletClient, chainId: base.id, runtimeEnv: 'production', baseApiUrl: BASE_API_URL, apiKey: API_KEY });
+  const client = new OfframpClient({ walletClient, chainId: base.id, runtimeEnv: 'production', baseApiUrl: BASE_API_URL, apiKey: API_KEY });
 
   const hash = await client.signalIntent({
     depositId: DEPOSIT_ID,

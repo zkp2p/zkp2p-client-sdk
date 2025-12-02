@@ -2,7 +2,7 @@
  * Inspect Client Example
  * Quick sanity check for initialization values and endpoints
  */
-import { Zkp2pClient } from '@zkp2p/client-sdk';
+import { OfframpClient } from '@zkp2p/offramp-sdk';
 import { createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { base } from 'viem/chains';
@@ -14,7 +14,7 @@ async function main() {
   const account = privateKey !== '0x' ? privateKeyToAccount(privateKey) : undefined;
   const walletClient = createWalletClient({ account, chain: base, transport: http(rpcUrl) });
 
-  const client = new Zkp2pClient({ walletClient, chainId: base.id, runtimeEnv: 'production' });
+  const client = new OfframpClient({ walletClient, chainId: base.id, runtimeEnv: 'production' });
   const deployed = client.getDeployedAddresses();
   console.log('Deployed addresses:', deployed);
   console.log('Indexer endpoint:', (client as any).indexer);

@@ -7,7 +7,7 @@
  *   PROCESSOR_NAMES (comma-separated), HASHED_ONCHAIN_IDS (comma-separated),
  *   CONVERSION_RATES (JSON nested array per processor)
  */
-import { Zkp2pClient } from '@zkp2p/client-sdk';
+import { OfframpClient } from '@zkp2p/offramp-sdk';
 import { createWalletClient, http, parseUnits } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { base } from 'viem/chains';
@@ -26,7 +26,7 @@ async function main() {
 
   const account = privateKeyToAccount(PRIV);
   const walletClient = createWalletClient({ account, chain: base, transport: http(RPC) });
-  const client = new Zkp2pClient({ walletClient, chainId: base.id, runtimeEnv: 'production' });
+  const client = new OfframpClient({ walletClient, chainId: base.id, runtimeEnv: 'production' });
 
   const amount = parseUnits(AMOUNT_DEC, 6);
   const min = parseUnits(RANGE_MIN_DEC, 6);

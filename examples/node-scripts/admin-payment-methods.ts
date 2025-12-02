@@ -6,7 +6,7 @@
  *   PAYMENT_METHODS (comma-separated names), HASHED_ONCHAIN_IDS (comma-separated),
  *   CURRENCIES_JSON (e.g., [{"code":"USD","minConversionRate":"1000000"}])
  */
-import { Zkp2pClient, resolvePaymentMethodHashFromCatalog, getPaymentMethodsCatalog, resolveFiatCurrencyBytes32, getGatingServiceAddress } from '@zkp2p/client-sdk';
+import { OfframpClient, resolvePaymentMethodHashFromCatalog, getPaymentMethodsCatalog, resolveFiatCurrencyBytes32, getGatingServiceAddress } from '@zkp2p/offramp-sdk';
 import { createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { base } from 'viem/chains';
@@ -24,7 +24,7 @@ async function main() {
 
   const account = privateKeyToAccount(PRIV);
   const walletClient = createWalletClient({ account, chain: base, transport: http(RPC) });
-  const client = new Zkp2pClient({ walletClient, chainId: base.id, runtimeEnv: 'production' });
+  const client = new OfframpClient({ walletClient, chainId: base.id, runtimeEnv: 'production' });
 
   // If methods provided, add them
   if (METHODS.length && HASHES.length && METHODS.length === HASHES.length) {

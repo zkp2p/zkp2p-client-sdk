@@ -84,10 +84,3 @@ Complete suite of React hooks for all operations via `@zkp2p/offramp-sdk/react`:
 - `APIError` - API response errors
 - `ContractError` - Smart contract errors
 
----
-
-## Legacy: @zkp2p/client-sdk
-
-Previous versions of this repository contained `@zkp2p/client-sdk`. That package remains available on npm for existing users but is no longer maintained in this repository.
-
-For the legacy changelog, see the [npm package history](https://www.npmjs.com/package/@zkp2p/client-sdk?activeTab=versions).

@@ -1,6 +1,6 @@
-# Contributing to ZKP2P Client SDK
+# Contributing to ZKP2P Offramp SDK
 
-Thank you for your interest in contributing to the ZKP2P Client SDK! We welcome contributions from the community and are grateful for any help you can provide.
+Thank you for your interest in contributing to the ZKP2P Offramp SDK! We welcome contributions from the community and are grateful for any help you can provide.
 
 ## Table of Contents
 
@@ -41,11 +41,11 @@ We are committed to providing a welcoming and inclusive environment. Please be r
 
 ### Installation
 
-This repository hosts the SDK under `packages/client-sdk/` with its own lockfile. For deterministic installs and CI parity, run commands from that package directory.
+This repository hosts the SDK under `packages/offramp-sdk/` with its own lockfile. For deterministic installs and CI parity, run commands from that package directory.
 
 ```bash
 # Install dependencies for the SDK package
-cd packages/client-sdk
+cd packages/offramp-sdk
 npm ci
 
 # Build the project
@@ -60,7 +60,7 @@ npm test
 ```
 zkp2p-client-sdk/
 ├── packages/
-│   └── client-sdk/       # Main SDK package
+│   └── offramp-sdk/      # Main SDK package
 │       ├── src/          # Source code
 │       ├── dist/         # Built output
 │       └── __tests__/    # Tests
@@ -107,7 +107,7 @@ We welcome various types of contributions:
    git add .
    git commit -m "feat: add new feature"
    ```
-   
+
    We follow [Conventional Commits](https://www.conventionalcommits.org/):
    - `feat:` New feature
    - `fix:` Bug fix
@@ -192,9 +192,9 @@ npm run test:coverage
 
 Example test:
 ```typescript
-describe('Zkp2pClient', () => {
+describe('OfframpClient', () => {
   it('should fetch quotes successfully', async () => {
-    const client = new Zkp2pClient({ /* config */ });
+    const client = new OfframpClient({ /* config */ });
     const quotes = await client.getQuote({ /* params */ });
     expect(quotes).toBeDefined();
     expect(quotes.success).toBe(true);
@@ -269,8 +269,8 @@ If you have questions about contributing:
 
 ## License
 
-By contributing to ZKP2P Client SDK, you agree that your contributions will be licensed under the MIT License.
+By contributing to ZKP2P Offramp SDK, you agree that your contributions will be licensed under the MIT License.
 
 ---
 
-Thank you for contributing to ZKP2P Client SDK!
+Thank you for contributing to ZKP2P Offramp SDK!
