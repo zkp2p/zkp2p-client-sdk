@@ -21,14 +21,14 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
           cache: 'npm'
-          cache-dependency-path: packages/client-sdk/package-lock.json
+          cache-dependency-path: packages/offramp-sdk/package-lock.json
 
       - name: Generate root lockfile for provenance
         run: |
           npm install --package-lock-only
 
       - name: Install dependencies (package workspace)
-        run: npm ci --prefix packages/client-sdk
+        run: npm ci --prefix packages/offramp-sdk
 
       - name: Build
         run: npm run build
@@ -48,36 +48,36 @@ jobs:
           echo "Publishing for tag: $TAG"
 
           if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-            echo "ERROR: Tag must be semantic version prefixed with 'v', e.g. v2.2.2 or v2.2.2-dev.0"
+            echo "ERROR: Tag must be semantic version prefixed with 'v', e.g. v0.1.0 or v0.1.0-dev.0"
             exit 1
           fi
 
           VERSION_FROM_TAG="${TAG#v}"
           echo "Setting workspace version from tag: ${VERSION_FROM_TAG}"
-          npm --prefix packages/client-sdk pkg set version="${VERSION_FROM_TAG}"
+          npm --prefix packages/offramp-sdk pkg set version="${VERSION_FROM_TAG}"
 
           # Read back name/version from workspace after enforcing tag version
-          PKG_NAME=$(node -p "require('./packages/client-sdk/package.json').name")
-          PKG_VERSION=$(node -p "require('./packages/client-sdk/package.json').version")
+          PKG_NAME=$(node -p "require('./packages/offramp-sdk/package.json').name")
+          PKG_VERSION=$(node -p "require('./packages/offramp-sdk/package.json').version")
           echo "Package resolved from workspace: ${PKG_NAME}@${PKG_VERSION}"
 
           # Sync root manifest to workspace manifest to ensure correct name/version during publish
           npm pkg set name="$PKG_NAME"
           npm pkg set version="$PKG_VERSION"
 
-          # Dev prerelease flow (e.g., tags like v2.2.2-dev.0)
+          # Dev prerelease flow (e.g., tags like v0.1.0-dev.0)
           if [[ "$TAG" == *"-dev."* ]]; then
-            echo "Detected dev pre-release tag. Publishing under temporary UNscoped name zkp2p-client-sdk-dev with dist-tag 'dev' (no provenance)"
-            npm pkg set name=zkp2p-client-sdk-dev
+            echo "Detected dev pre-release tag. Publishing under temporary UNscoped name zkp2p-offramp-sdk-dev with dist-tag 'dev' (no provenance)"
+            npm pkg set name=zkp2p-offramp-sdk-dev
             npm publish --access public --tag dev --no-provenance
             exit 0
           fi
 
-          # Validate that stable tag matches workspace version (e.g., v2.2.2)
+          # Validate that stable tag matches workspace version (e.g., v0.1.0)
           EXPECTED_TAG="v${PKG_VERSION}"
           if [[ "$TAG" != "$EXPECTED_TAG" ]]; then
             echo "ERROR: Tag ($TAG) does not match workspace version ($PKG_VERSION)."
-            echo "Push tag $EXPECTED_TAG or update packages/client-sdk/package.json."
+            echo "Push tag $EXPECTED_TAG or update packages/offramp-sdk/package.json."
             exit 1
           fi
 

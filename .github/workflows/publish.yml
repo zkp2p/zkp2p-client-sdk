@@ -1,10 +1,10 @@
-name: Publish @zkp2p/client-sdk
+name: Publish @zkp2p/offramp-sdk
 
 on:
   push:
     branches: [ main ]
     paths:
-      - 'packages/client-sdk/**'
+      - 'packages/offramp-sdk/**'
   workflow_dispatch:
 
 permissions:
@@ -16,7 +16,7 @@ jobs:
     name: Build, Test, and Publish
     runs-on: ubuntu-latest
     env:
-      PACKAGE_DIR: packages/client-sdk
+      PACKAGE_DIR: packages/offramp-sdk
       NODE_VERSION: '20'
     steps:
       - name: Checkout

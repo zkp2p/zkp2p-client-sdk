@@ -18,24 +18,24 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: packages/client-sdk/package-lock.json
+          cache-dependency-path: packages/offramp-sdk/package-lock.json
 
       - name: Install
-        working-directory: packages/client-sdk
+        working-directory: packages/offramp-sdk
         run: npm ci
 
       - name: Typecheck
-        working-directory: packages/client-sdk
+        working-directory: packages/offramp-sdk
         run: npm run typecheck
 
       - name: Lint
-        working-directory: packages/client-sdk
+        working-directory: packages/offramp-sdk
         run: npm run lint
 
       - name: Build
-        working-directory: packages/client-sdk
+        working-directory: packages/offramp-sdk
         run: npm run build
 
       - name: Test
-        working-directory: packages/client-sdk
+        working-directory: packages/offramp-sdk
         run: npm run test --if-present

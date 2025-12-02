@@ -1,30 +1,18 @@
 {
-  "name": "zkp2p-offramp-sdk-root",
+  "name": "zkp2p-offramp-sdk-monorepo",
   "private": true,
   "version": "0.1.0",
   "description": "Offramp SDK by Peer - TypeScript SDK for deposit management, liquidity provision, and fiat off-ramping",
   "license": "MIT",
-  "main": "packages/client-sdk/dist/index.cjs",
-  "module": "packages/client-sdk/dist/index.mjs",
-  "types": "packages/client-sdk/dist/index.d.ts",
-  "sideEffects": false,
-  "exports": {},
   "scripts": {
-    "build": "npm --prefix packages/client-sdk run build",
-    "clean": "npm --prefix packages/client-sdk run clean",
-    "typecheck": "npm --prefix packages/client-sdk run typecheck",
-    "lint": "npm --prefix packages/client-sdk run lint",
-    "test": "npm --prefix packages/client-sdk run test",
-    "release": "npm --prefix packages/client-sdk run release",
-    "docs": "npm --prefix packages/client-sdk run docs",
-    "examples:inspect": "tsx examples/node-scripts/inspect-client.ts",
-    "examples:get-quote": "tsx examples/node-scripts/get-quote.ts"
+    "build": "npm --prefix packages/offramp-sdk run build",
+    "clean": "npm --prefix packages/offramp-sdk run clean",
+    "typecheck": "npm --prefix packages/offramp-sdk run typecheck",
+    "lint": "npm --prefix packages/offramp-sdk run lint",
+    "test": "npm --prefix packages/offramp-sdk run test",
+    "release": "npm --prefix packages/offramp-sdk run release",
+    "docs": "npm --prefix packages/offramp-sdk run docs"
   },
-  "files": [
-    "packages/client-sdk/dist",
-    "README.md",
-    "LICENSE"
-  ],
   "keywords": [
     "peer",
     "offramp",
@@ -42,15 +30,10 @@
     "url": "https://github.com/zkp2p/zkp2p-client-sdk/issues"
   },
   "homepage": "https://github.com/zkp2p/zkp2p-client-sdk#readme",
-  "publishConfig": {
-    "access": "public",
-    "provenance": true
-  },
   "engines": {
     "node": ">=18"
   },
   "devDependencies": {
-    "@zkp2p/offramp-sdk": "file:packages/client-sdk",
     "tsx": "^4.20.0",
     "viem": "^2.37.3"
   }
