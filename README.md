@@ -8,6 +8,7 @@
 
 ## Features
 
+- **RPC-First Architecture**: Instant on-chain queries via ProtocolViewer (no indexer lag)
 - **Deposit Management**: Create, configure, and manage liquidity deposits
 - **Fund Operations**: Add/remove funds, withdraw deposits
 - **Intent System**: Signal and fulfill payment intents
@@ -15,6 +16,7 @@
 - **35+ Fiat Currencies**: USD, EUR, GBP, and many more
 - **React Hooks**: Full suite of hooks for seamless integration
 - **Type-Safe**: Full TypeScript support with comprehensive type definitions
+- **Advanced Indexer**: Historical queries and filtering via `client.indexer.*`
 
 ## Installation
 
@@ -40,6 +42,13 @@ const client = new OfframpClient({
   apiKey: 'YOUR_API_KEY',
 });
 
+// Query deposits (RPC - instant, real-time)
+const deposits = await client.getDeposits();
+const deposit = await client.getDeposit(42n);
+
+// Query intents (RPC - instant, real-time)
+const intents = await client.getIntents();
+
 // Create a deposit to provide liquidity
 await client.createDeposit({
   token: '0xUSDC',
@@ -50,22 +59,8 @@ await client.createDeposit({
   conversionRates: [[{ currency: Currency.USD, conversionRate: '1.02' }]],
 });
 
-// Query deposits
-const deposits = await client.getDepositsWithRelations(
-  { status: 'ACTIVE', acceptingIntents: true },
-  { limit: 50 }
-);
-
-// Get quotes
-const quote = await client.getQuote({
-  paymentPlatforms: ['wise'],
-  fiatCurrency: 'USD',
-  user: '0xYourAddress',
-  recipient: '0xRecipientAddress',
-  destinationChainId: base.id,
-  destinationToken: '0xUSDC',
-  amount: '100',
-});
+// Advanced indexer queries (for historical/filtered data)
+const activeDeposits = await client.indexer.getDeposits({ status: 'ACTIVE' });
 ```
 
 ## React Hooks

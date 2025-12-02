@@ -42,7 +42,8 @@ function expectAddressesAlign(chainId: number, env: RuntimeEnv) {
 describe('Zkp2pClient initialization (unmocked contracts)', () => {
   it('aligns deployed addresses with @zkp2p/contracts-v2 (production)', () => {
     const client = expectAddressesAlign(base.id, 'production');
-    const endpoint = (client.indexer as any).endpoint as string | undefined;
+    // Access underlying IndexerClient via client.indexer.client
+    const endpoint = (client.indexer.client as any).endpoint as string | undefined;
     // eslint-disable-next-line no-console
     console.log('[init-integr] indexer (prod):', endpoint);
     expect(typeof endpoint).toBe('string');
@@ -51,7 +52,8 @@ describe('Zkp2pClient initialization (unmocked contracts)', () => {
 
   it('uses staging indexer when runtimeEnv is staging', () => {
     const client = expectAddressesAlign(base.id, 'staging');
-    const endpoint = (client.indexer as any).endpoint as string | undefined;
+    // Access underlying IndexerClient via client.indexer.client
+    const endpoint = (client.indexer.client as any).endpoint as string | undefined;
     // eslint-disable-next-line no-console
     console.log('[init-integr] indexer (staging):', endpoint);
     expect(endpoint).toMatch(/indexer\.dev\.hyperindex\.xyz/);

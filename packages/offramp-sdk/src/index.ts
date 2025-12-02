@@ -4,6 +4,10 @@
  * Offramp SDK by Peer - TypeScript SDK for deposit management,
  * liquidity provision, and fiat off-ramping on Base.
  *
+ * **RPC-first architecture**: All primary queries use on-chain reads via ProtocolViewer
+ * for instant, real-time data with no indexer lag. Advanced historical queries are
+ * available via `client.indexer.*`.
+ *
  * @example
  * ```typescript
  * import { OfframpClient, Currency } from '@zkp2p/offramp-sdk';
@@ -12,6 +16,13 @@
  *   walletClient,
  *   chainId: 8453,
  * });
+ *
+ * // Query deposits (RPC - instant, real-time)
+ * const deposits = await client.getDeposits();
+ * const deposit = await client.getDeposit(42n);
+ *
+ * // Query intents (RPC - instant, real-time)
+ * const intents = await client.getIntents();
  *
  * // Create a deposit
  * await client.createDeposit({
@@ -22,6 +33,9 @@
  *   depositData: [{ email: 'you@example.com' }, { tag: '@you' }],
  *   conversionRates: [[{ currency: Currency.USD, conversionRate: '1.02' }]],
  * });
+ *
+ * // Advanced indexer queries (for historical/filtered data)
+ * const activeDeposits = await client.indexer.getDeposits({ status: 'ACTIVE' });
  * ```
  *
  * @packageDocumentation
@@ -202,10 +216,24 @@ export type { RuntimeEnv, PaymentMethodCatalog } from './contracts';
 export { ensureBytes32, asciiToBytes32 } from './utils/bytes32';
 
 // =============================================================================
-// Protocol Viewer Parsers
+// Protocol Viewer Types (RPC responses)
 // =============================================================================
 
-export { enrichPvDepositView, enrichPvIntentView } from './utils/protocolViewerParsers';
+export {
+  parseDepositView,
+  parseIntentView,
+  enrichPvDepositView,
+  enrichPvIntentView,
+} from './utils/protocolViewerParsers';
+
+export type {
+  PV_DepositView as DepositView,
+  PV_Deposit as Deposit,
+  PV_PaymentMethodData as PaymentMethodData,
+  PV_Currency as DepositCurrency,
+  PV_IntentView as IntentView,
+  PV_Intent as OnchainIntent,
+} from './utils/protocolViewerParsers';
 
 // =============================================================================
 // Logging

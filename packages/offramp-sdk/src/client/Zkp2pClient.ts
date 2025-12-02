@@ -3,6 +3,7 @@ import { createPublicClient, http } from 'viem';
 import { base, baseSepolia, hardhat } from 'viem/chains';
 import type { Abi } from 'abitype';
 
+import type { PV_DepositView, PV_IntentView } from '../utils/protocolViewerParsers';
 import { defaultIndexerEndpoint, IndexerClient } from '../indexer/client';
 import { IndexerDepositService, type DepositFilter, type PaginationOptions } from '../indexer/service';
 import type { DepositEntity, DepositWithRelations, IntentEntity, IntentStatus, IntentFulfilledEntity } from '../indexer/types';
@@ -148,11 +149,6 @@ export class Zkp2pClient {
   /** ProtocolViewer contract ABI */
   readonly protocolViewerAbi?: Abi;
 
-  /** GraphQL indexer client for querying deposits and intents */
-  readonly indexer: IndexerClient;
-  /** High-level deposit service built on the indexer */
-  readonly deposits: IndexerDepositService;
-
   /** Base API URL for ZKP2P services */
   readonly baseApiUrl?: string;
   /** API key for authenticated endpoints */
@@ -162,6 +158,10 @@ export class Zkp2pClient {
   /** API timeout in milliseconds */
   readonly apiTimeoutMs: number;
   private _usdcAddress?: Address;
+
+  // Indexer for advanced/historical queries
+  private readonly _indexerClient: IndexerClient;
+  private readonly _indexerService: IndexerDepositService;
 
   /**
    * Creates a new Zkp2pClient instance.
@@ -192,10 +192,10 @@ export class Zkp2pClient {
     const maybeUsdc = (addresses as any).usdc as Address | undefined;
     if (maybeUsdc) (this as any)._usdcAddress = maybeUsdc;
 
-    // indexer
-    const endpoint = opts.indexerUrl ?? defaultIndexerEndpoint(this.runtimeEnv === 'staging' ? 'STAGING' : 'PRODUCTION');
-    this.indexer = new IndexerClient(endpoint);
-    this.deposits = new IndexerDepositService(this.indexer);
+    // Indexer for advanced/historical queries
+    const indexerEndpoint = opts.indexerUrl ?? defaultIndexerEndpoint(this.runtimeEnv === 'staging' ? 'STAGING' : 'PRODUCTION');
+    this._indexerClient = new IndexerClient(indexerEndpoint);
+    this._indexerService = new IndexerDepositService(this._indexerClient);
 
     // http verification config
     this.baseApiUrl = opts.baseApiUrl;
@@ -210,140 +210,235 @@ export class Zkp2pClient {
   }
 
   // ╔═══════════════════════════════════════════════════════════════════════════╗
-  // ║ CORE: DEPOSIT QUERIES (Indexer)                                          ║
+  // ║ CORE: DEPOSIT QUERIES (RPC-first via ProtocolViewer)                     ║
   // ╚═══════════════════════════════════════════════════════════════════════════╝
 
   /**
-   * Fetches deposits from the indexer with optional filtering and pagination.
+   * Fetches all deposits owned by the connected wallet from on-chain.
    *
-   * @param filter - Optional filter criteria (owner, status, paymentMethodHash, etc.)
-   * @param pagination - Optional pagination options (limit, offset, orderBy)
-   * @returns Array of deposit entities
+   * This is the primary method for liquidity providers to query their deposits.
+   * Uses ProtocolViewer for instant on-chain reads (no indexer lag).
    *
-   * @example
-   * ```typescript
-   * // Get all deposits for an owner
-   * const deposits = await client.getDeposits({ owner: '0x...' });
-   *
-   * // Get active deposits with pagination
-   * const deposits = await client.getDeposits(
-   *   { status: 'ACTIVE' },
-   *   { limit: 10, offset: 0 }
-   * );
-   * ```
-   */
-  getDeposits(filter?: DepositFilter, pagination?: PaginationOptions): Promise<DepositEntity[]> {
-    return this.deposits.fetchDeposits(filter, pagination);
-  }
-
-  /**
-   * Fetches deposits with their related payment methods and optionally intents.
-   *
-   * @param filter - Optional filter criteria
-   * @param pagination - Optional pagination options
-   * @param options - Include related data (intents, filter by intent status)
-   * @returns Array of deposits with their relations
-   */
-  getDepositsWithRelations(filter?: DepositFilter, pagination?: PaginationOptions, options?: { includeIntents?: boolean; intentStatuses?: IntentStatus[] }): Promise<DepositWithRelations[]> {
-    return this.deposits.fetchDepositsWithRelations(filter, pagination, options);
-  }
-
-  /**
-   * Fetches a single deposit by its ID with all related data.
-   *
-   * @param id - The deposit ID (e.g., "8453-0x123...abc-42")
-   * @param options - Include related intents and filter by status
-   * @returns The deposit with relations, or null if not found
+   * @returns Array of deposit views with payment methods and currencies
    *
    * @example
    * ```typescript
-   * const deposit = await client.getDepositById('8453-0x123...abc-42', {
-   *   includeIntents: true,
-   *   intentStatuses: ['SIGNALED'],
-   * });
+   * const deposits = await client.getDeposits();
+   * for (const d of deposits) {
+   *   console.log(`Deposit ${d.depositId}: ${d.availableLiquidity} available`);
+   * }
    * ```
    */
-  getDepositById(id: string, options?: { includeIntents?: boolean; intentStatuses?: IntentStatus[] }): Promise<DepositWithRelations | null> {
-    return this.deposits.fetchDepositWithRelations(id, options);
+  async getDeposits(): Promise<PV_DepositView[]> {
+    const owner = this.walletClient.account?.address;
+    if (!owner) throw new Error('Wallet client is missing account');
+    return this.getAccountDeposits(owner);
   }
 
   /**
-   * Fetches intents for multiple deposits.
+   * Fetches all deposits owned by a specific address from on-chain.
    *
-   * @param depositIds - Array of deposit IDs to query
-   * @param statuses - Intent statuses to filter by (default: ['SIGNALED'])
-   * @returns Array of intent entities
-   */
-  getIntentsForDeposits(depositIds: string[], statuses: IntentStatus[] = ['SIGNALED']): Promise<IntentEntity[]> {
-    return this.deposits.fetchIntentsForDeposits(depositIds, statuses);
-  }
-
-  /**
-   * Fetches all intents created by a specific owner address.
+   * Uses ProtocolViewer for instant on-chain reads.
    *
    * @param owner - The owner's Ethereum address
-   * @param statuses - Optional intent statuses to filter by
-   * @returns Array of intent entities
+   * @returns Array of deposit views with payment methods and currencies
+   *
+   * @example
+   * ```typescript
+   * const deposits = await client.getAccountDeposits('0x...');
+   * ```
    */
-  getOwnerIntents(owner: string, statuses?: IntentStatus[]): Promise<IntentEntity[]> {
-    return this.deposits.fetchIntentsByOwner(owner, statuses);
+  async getAccountDeposits(owner: Address): Promise<PV_DepositView[]> {
+    return this.getPvAccountDeposits(owner);
   }
 
   /**
-   * Fetches intents that have expired (past their expiration timestamp).
+   * Fetches a single deposit by its numeric ID from on-chain.
    *
-   * @param params.now - Current timestamp (bigint or string)
-   * @param params.depositIds - Deposit IDs to check for expired intents
-   * @param params.limit - Maximum number of results to return
-   * @returns Array of expired intent entities
+   * Uses ProtocolViewer for instant on-chain reads.
+   *
+   * @param depositId - The deposit ID (numeric)
+   * @returns Deposit view with payment methods, currencies, and intent hashes
+   *
+   * @example
+   * ```typescript
+   * const deposit = await client.getDeposit(42n);
+   * console.log(`Available: ${deposit.availableLiquidity}`);
+   * console.log(`Payment methods: ${deposit.paymentMethods.length}`);
+   * ```
    */
-  getExpiredIntents(params: { now: bigint | string; depositIds: string[]; limit?: number }): Promise<IntentEntity[]> {
-    return this.deposits.fetchExpiredIntents(params);
+  async getDeposit(depositId: bigint | number | string): Promise<PV_DepositView> {
+    const id = typeof depositId === 'bigint' ? depositId : BigInt(depositId);
+    return this.getPvDepositById(id);
   }
 
   /**
-   * Fetches fulfillment events for completed intents.
+   * Fetches multiple deposits by their IDs from on-chain in a batch.
    *
-   * @param intentHashes - Array of intent hashes to look up
-   * @returns Array of fulfillment event entities
+   * @param depositIds - Array of deposit IDs
+   * @returns Array of deposit views
    */
-  getFulfilledIntentEvents(intentHashes: string[]): Promise<IntentFulfilledEntity[]> {
-    return this.deposits.fetchFulfilledIntentEvents(intentHashes);
+  async getDepositsById(depositIds: Array<bigint | number | string>): Promise<PV_DepositView[]> {
+    const ids = depositIds.map(id => typeof id === 'bigint' ? id : BigInt(id));
+    return this.getPvDepositsFromIds(ids);
   }
 
   /**
-   * Fetches both the fulfillment record and payment verification for an intent.
-   * Useful for verifying that a payment was properly attested and fulfilled.
+   * Fetches all intents created by the connected wallet from on-chain.
    *
-   * @param intentHash - The intent hash (0x-prefixed)
-   * @returns Fulfillment and payment verification records
+   * Uses ProtocolViewer for instant on-chain reads.
+   *
+   * @returns Array of intent views with deposit context
+   *
+   * @example
+   * ```typescript
+   * const intents = await client.getIntents();
+   * for (const i of intents) {
+   *   console.log(`Intent ${i.intentHash}: ${i.intent.amount} tokens`);
+   * }
+   * ```
    */
-  getFulfillmentAndPayment(intentHash: string): Promise<FulfillmentAndPaymentResponse> {
-    return fetchFulfillmentAndPayment(this.indexer, intentHash);
+  async getIntents(): Promise<PV_IntentView[]> {
+    const owner = this.walletClient.account?.address;
+    if (!owner) throw new Error('Wallet client is missing account');
+    return this.getAccountIntents(owner);
   }
 
   /**
-   * Resolves the payee details hash for a deposit's payment method.
+   * Fetches all intents created by a specific address from on-chain.
    *
-   * @param params.escrowAddress - Optional escrow contract address
-   * @param params.depositId - The deposit ID
-   * @param params.paymentMethodHash - The payment method hash
+   * @param owner - The owner's Ethereum address
+   * @returns Array of intent views with deposit context
+   */
+  async getAccountIntents(owner: Address): Promise<PV_IntentView[]> {
+    return this.getPvAccountIntents(owner);
+  }
+
+  /**
+   * Fetches a single intent by its hash from on-chain.
+   *
+   * @param intentHash - The intent hash (0x-prefixed, 32 bytes)
+   * @returns Intent view with deposit context
+   */
+  async getIntent(intentHash: `0x${string}`): Promise<PV_IntentView> {
+    return this.getPvIntent(intentHash);
+  }
+
+  /**
+   * Resolves the payee details hash for a deposit's payment method from on-chain.
+   *
+   * @param depositId - The deposit ID
+   * @param paymentMethodHash - The payment method hash
    * @returns The payee details hash, or null if not found
    */
-  resolvePayeeHash(params: { escrowAddress?: string | null; depositId?: string | number | bigint | null; paymentMethodHash?: string | null }): Promise<string | null> {
-    return this.deposits.resolvePayeeHash(params);
+  async resolvePayeeHash(depositId: bigint | number | string, paymentMethodHash: string): Promise<string | null> {
+    const deposit = await this.getDeposit(depositId);
+    const pmLower = paymentMethodHash.toLowerCase();
+    for (const pm of deposit.paymentMethods) {
+      if (pm.paymentMethod.toLowerCase() === pmLower) {
+        return pm.verificationData.payeeDetails;
+      }
+    }
+    return null;
   }
 
+  // ╔═══════════════════════════════════════════════════════════════════════════╗
+  // ║ ADVANCED: INDEXER QUERIES (for historical/filtered data)                 ║
+  // ╚═══════════════════════════════════════════════════════════════════════════╝
+
   /**
-   * Fetches deposits that match a specific payee details hash.
-   * Useful for finding all deposits associated with a particular payee.
+   * Access to the indexer for advanced queries.
    *
-   * @param payeeHash - The payee details hash to search for
-   * @param options - Additional filtering options
-   * @returns Array of matching deposits with relations
+   * Use this for:
+   * - Historical data (totalAmountTaken, totalWithdrawn)
+   * - Filtered queries across all deposits (not just by owner)
+   * - Pagination with ordering
+   * - Fulfillment/verification records
+   *
+   * @example
+   * ```typescript
+   * // Query deposits with filters and pagination
+   * const deposits = await client.indexer.getDeposits(
+   *   { status: 'ACTIVE', minLiquidity: '1000000' },
+   *   { limit: 50, orderBy: 'remainingDeposits', orderDirection: 'desc' }
+   * );
+   *
+   * // Get historical fulfillment data
+   * const fulfillments = await client.indexer.getFulfilledIntentEvents(['0x...']);
+   * ```
    */
-  getDepositsByPayeeHash(payeeHash: string, options: { paymentMethodHash?: string; limit?: number; includeIntents?: boolean; intentStatuses?: IntentStatus[] } = {}): Promise<DepositWithRelations[]> {
-    return this.deposits.fetchDepositsByPayeeHash(payeeHash, options);
+  get indexer() {
+    const service = this._indexerService;
+    const client = this._indexerClient;
+    return {
+      /** Raw GraphQL client for custom queries */
+      client,
+
+      /**
+       * Fetches deposits from the indexer with optional filtering and pagination.
+       * Use for advanced queries across all deposits, not just by owner.
+       */
+      getDeposits: (filter?: DepositFilter, pagination?: PaginationOptions): Promise<DepositEntity[]> => {
+        return service.fetchDeposits(filter, pagination);
+      },
+
+      /**
+       * Fetches deposits with their related payment methods and optionally intents.
+       */
+      getDepositsWithRelations: (filter?: DepositFilter, pagination?: PaginationOptions, options?: { includeIntents?: boolean; intentStatuses?: IntentStatus[] }): Promise<DepositWithRelations[]> => {
+        return service.fetchDepositsWithRelations(filter, pagination, options);
+      },
+
+      /**
+       * Fetches a single deposit by its composite ID with all related data.
+       * @param id - Composite ID format: "chainId_escrowAddress_depositId"
+       */
+      getDepositById: (id: string, options?: { includeIntents?: boolean; intentStatuses?: IntentStatus[] }): Promise<DepositWithRelations | null> => {
+        return service.fetchDepositWithRelations(id, options);
+      },
+
+      /**
+       * Fetches intents for multiple deposits.
+       */
+      getIntentsForDeposits: (depositIds: string[], statuses: IntentStatus[] = ['SIGNALED']): Promise<IntentEntity[]> => {
+        return service.fetchIntentsForDeposits(depositIds, statuses);
+      },
+
+      /**
+       * Fetches all intents created by a specific owner address.
+       */
+      getOwnerIntents: (owner: string, statuses?: IntentStatus[]): Promise<IntentEntity[]> => {
+        return service.fetchIntentsByOwner(owner, statuses);
+      },
+
+      /**
+       * Fetches intents that have expired.
+       */
+      getExpiredIntents: (params: { now: bigint | string; depositIds: string[]; limit?: number }): Promise<IntentEntity[]> => {
+        return service.fetchExpiredIntents(params);
+      },
+
+      /**
+       * Fetches fulfillment events for completed intents.
+       */
+      getFulfilledIntentEvents: (intentHashes: string[]): Promise<IntentFulfilledEntity[]> => {
+        return service.fetchFulfilledIntentEvents(intentHashes);
+      },
+
+      /**
+       * Fetches both the fulfillment record and payment verification for an intent.
+       */
+      getFulfillmentAndPayment: (intentHash: string): Promise<FulfillmentAndPaymentResponse> => {
+        return fetchFulfillmentAndPayment(client, intentHash);
+      },
+
+      /**
+       * Fetches deposits that match a specific payee details hash.
+       */
+      getDepositsByPayeeHash: (payeeHash: string, options: { paymentMethodHash?: string; limit?: number; includeIntents?: boolean; intentStatuses?: IntentStatus[] } = {}): Promise<DepositWithRelations[]> => {
+        return service.fetchDepositsByPayeeHash(payeeHash, options);
+      },
+    };
   }
 
   // ╔═══════════════════════════════════════════════════════════════════════════╗
@@ -1386,14 +1481,14 @@ export class Zkp2pClient {
         }
       }
     `;
-    const res = await this.indexer.query<{ Intent?: Array<{ amount: string; fiatCurrency: string; conversionRate: string; paymentMethodHash?: string | null; depositId: string; signalTimestamp?: string }> }>({
+    const res = await this._indexerClient.query<{ Intent?: Array<{ amount: string; fiatCurrency: string; conversionRate: string; paymentMethodHash?: string | null; depositId: string; signalTimestamp?: string }> }>({
       query,
       variables: { hash: intentHash.toLowerCase() },
     });
     const rec = res?.Intent?.[0];
     if (!rec) throw new Error('Intent not found on indexer');
     if (!rec.signalTimestamp) throw new Error('Intent signal timestamp not found on indexer');
-    const deposit = await this.deposits.fetchDepositWithRelations(rec.depositId, { includeIntents: false });
+    const deposit = await this._indexerService.fetchDepositWithRelations(rec.depositId, { includeIntents: false });
     let payee: string | undefined;
     const pmHashLower = (rec.paymentMethodHash || '').toLowerCase();
     for (const pm of deposit?.paymentMethods || []) {

@@ -14,6 +14,16 @@ This SDK is designed for **liquidity providers (peers)** who want to:
 - Monitor deposit utilization and manage liquidity
 - Earn fees by providing off-ramp services
 
+## RPC-First Architecture
+
+This SDK uses **RPC-first queries** via ProtocolViewer for instant, real-time on-chain data:
+
+- **No indexer lag**: Queries go directly to the blockchain
+- **Always fresh**: See deposit/intent state immediately after transactions
+- **Instant feedback**: Perfect for interactive UIs
+
+Advanced historical queries (pagination, filtering, fulfillment records) are available via `client.indexer.*`.
+
 ## Core Features (Deposit Management)
 
 | Feature | Description |
@@ -23,7 +33,7 @@ This SDK is designed for **liquidity providers (peers)** who want to:
 | **Manage Funds** | Add/remove funds, withdraw deposits |
 | **Payment Methods** | Wise, Venmo, Revolut, CashApp, PayPal, Zelle, Monzo, MercadoPago |
 | **Multi-Currency** | Support USD, EUR, GBP, and 25+ fiat currencies |
-| **Query Deposits** | Monitor deposit status via indexer or on-chain views |
+| **Query Deposits** | Real-time on-chain queries via ProtocolViewer |
 | **React Hooks** | Full suite of React hooks for frontend integration |
 
 ## Supporting Features
@@ -32,6 +42,7 @@ The SDK also includes supporting functionality for the broader ZKP2P ecosystem:
 
 - **Intent Operations**: `signalIntent()`, `fulfillIntent()`, `cancelIntent()` (typically used by takers/buyers)
 - **Quote API**: `getQuote()` (used by frontends to display available liquidity)
+- **Indexer Queries**: Historical data, pagination, and advanced filtering via `client.indexer.*`
 
 ## Installation
 
@@ -121,21 +132,60 @@ await client.removeFunds({ depositId: 1n, amount: 1000000n });
 await client.withdrawDeposit({ depositId: 1n });
 ```
 
-### Querying Deposits
+### Querying Deposits (RPC-first)
 
 ```typescript
-// Get all active deposits with payment methods
-const deposits = await client.getDepositsWithRelations(
-  { status: 'ACTIVE', acceptingIntents: true },
-  { limit: 50 },
-  { includeIntents: true }
+// Get all your deposits (instant on-chain query)
+const deposits = await client.getDeposits();
+
+// Get deposits for any address
+const ownerDeposits = await client.getAccountDeposits('0xOwnerAddress');
+
+// Get a specific deposit by ID
+const deposit = await client.getDeposit(42n);
+console.log(`Available liquidity: ${deposit.availableLiquidity}`);
+console.log(`Payment methods: ${deposit.paymentMethods.length}`);
+
+// Get multiple deposits by ID
+const batch = await client.getDepositsById([1n, 2n, 3n]);
+```
+
+### Querying Intents (RPC-first)
+
+```typescript
+// Get all your intents
+const intents = await client.getIntents();
+
+// Get intents for any address
+const ownerIntents = await client.getAccountIntents('0xOwnerAddress');
+
+// Get a specific intent by hash
+const intent = await client.getIntent('0xIntentHash...');
+```
+
+### Advanced Indexer Queries
+
+For historical data, pagination, and advanced filtering:
+
+```typescript
+// Query with filters and pagination
+const deposits = await client.indexer.getDeposits(
+  { status: 'ACTIVE', minLiquidity: '1000000' },
+  { limit: 50, orderBy: 'remainingDeposits', orderDirection: 'desc' }
 );
 
-// Get a specific deposit
-const deposit = await client.getDepositById('1', { includeIntents: true });
+// Get deposits with related data
+const depositsWithRelations = await client.indexer.getDepositsWithRelations(
+  { status: 'ACTIVE' },
+  { limit: 50 },
+  { includeIntents: true, intentStatuses: ['SIGNALED'] }
+);
 
-// Get deposits by payee hash
-const payeeDeposits = await client.getDepositsByPayeeHash('0x...');
+// Historical fulfillment records
+const fulfillments = await client.indexer.getFulfilledIntentEvents(['0x...']);
+
+// Find deposits by payee
+const payeeDeposits = await client.indexer.getDepositsByPayeeHash('0x...');
 ```
 
 ### Supporting: Intent Operations
@@ -307,6 +357,22 @@ const catalog = getPaymentMethodsCatalog(8453, 'production');
 
 ## API Reference
 
+### Query Methods (RPC-first)
+
+**Deposits (instant on-chain reads):**
+- `getDeposits()` - Get connected wallet's deposits
+- `getAccountDeposits(owner)` - Get deposits for any address
+- `getDeposit(depositId)` - Get single deposit by ID
+- `getDepositsById(ids)` - Batch fetch deposits
+
+**Intents (instant on-chain reads):**
+- `getIntents()` - Get connected wallet's intents
+- `getAccountIntents(owner)` - Get intents for any address
+- `getIntent(intentHash)` - Get single intent by hash
+
+**Utilities:**
+- `resolvePayeeHash(depositId, paymentMethodHash)` - Get payee details hash
+
 ### Core Methods (Deposit Management)
 
 **Creating & Managing Deposits:**
@@ -324,13 +390,18 @@ const catalog = getPaymentMethodsCatalog(8453, 'production');
 - `setPaymentMethodActive(params)` - Enable/disable payment methods
 - `addCurrencies(params)` / `deactivateCurrency(params)` - Manage currencies
 
-**Querying Deposits:**
-- `getDeposits(filter?, pagination?)` - Get deposits from indexer
-- `getDepositsWithRelations(filter?, pagination?, options?)` - Get with payment methods
-- `getDepositById(id, options?)` - Get single deposit
-- `getDepositsByPayeeHash(hash, options?)` - Get by payee
-- `getPvDepositById(id)` - Get deposit from on-chain
-- `getPvAccountDeposits(owner)` - Get owner's deposits from on-chain
+### Indexer Methods (`client.indexer.*`)
+
+For historical data, pagination, and advanced filtering:
+
+- `indexer.getDeposits(filter?, pagination?)` - Query deposits with filters
+- `indexer.getDepositsWithRelations(filter?, pagination?, options?)` - Include payment methods/intents
+- `indexer.getDepositById(compositeId, options?)` - Get by composite ID
+- `indexer.getDepositsByPayeeHash(hash, options?)` - Find by payee
+- `indexer.getOwnerIntents(owner, statuses?)` - Get owner's intents
+- `indexer.getExpiredIntents(params)` - Find expired intents
+- `indexer.getFulfilledIntentEvents(intentHashes)` - Historical fulfillments
+- `indexer.getFulfillmentAndPayment(intentHash)` - Verification records
 
 ### Supporting Methods
 

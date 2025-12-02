@@ -4,6 +4,35 @@ All notable changes to `@zkp2p/offramp-sdk` will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **RPC-First Architecture**: All primary query methods now use on-chain reads via ProtocolViewer for instant, real-time data
+  - `getDeposits()` - Get connected wallet's deposits (on-chain)
+  - `getAccountDeposits(owner)` - Get deposits for any address (on-chain)
+  - `getDeposit(depositId)` - Get single deposit by ID (on-chain)
+  - `getDepositsById(ids)` - Batch fetch deposits (on-chain)
+  - `getIntents()` - Get connected wallet's intents (on-chain)
+  - `getAccountIntents(owner)` - Get intents for any address (on-chain)
+  - `getIntent(intentHash)` - Get single intent by hash (on-chain)
+  - `resolvePayeeHash(depositId, paymentMethodHash)` - Resolve from on-chain
+
+- **Indexer Namespaced**: All indexer-based queries moved to `client.indexer.*` for advanced/historical queries
+  - `client.indexer.getDeposits(filter?, pagination?)` - Query with filters
+  - `client.indexer.getDepositsWithRelations(...)` - Include payment methods/intents
+  - `client.indexer.getDepositById(compositeId, ...)` - Get by composite ID
+  - `client.indexer.getDepositsByPayeeHash(...)` - Find by payee
+  - `client.indexer.getOwnerIntents(...)` - Get owner's intents
+  - `client.indexer.getExpiredIntents(...)` - Find expired intents
+  - `client.indexer.getFulfilledIntentEvents(...)` - Historical fulfillments
+  - `client.indexer.getFulfillmentAndPayment(...)` - Verification records
+
+### Added
+
+- New type exports for RPC responses: `DepositView`, `Deposit`, `PaymentMethodData`, `DepositCurrency`, `IntentView`, `OnchainIntent`
+- Parser exports: `parseDepositView`, `parseIntentView`
+
 ## [0.1.0] - 2025-12-01
 
 ### Initial Release
@@ -39,13 +68,19 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   - `setDelegate()` - Set delegate address for deposit
   - `removeDelegate()` - Remove delegate
 
-- **Indexer Integration**
-  - `getDeposits()` - Query deposits with filters
-  - `getDepositsWithRelations()` - Query with payment methods and intents
-  - `getDepositById()` - Get single deposit
-  - `getDepositsByPayeeHash()` - Query by payee hash
-  - `getIntentsForDeposits()` - Get intents for deposits
-  - `getOwnerIntents()` - Get owner's intents
+- **On-Chain Queries (RPC)**
+  - `getDeposits()` / `getAccountDeposits()` - Query deposits via ProtocolViewer
+  - `getDeposit()` / `getDepositsById()` - Get deposit(s) by ID
+  - `getIntents()` / `getAccountIntents()` - Query intents
+  - `getIntent()` - Get intent by hash
+
+- **Indexer Integration** (via `client.indexer.*`)
+  - `indexer.getDeposits()` - Query deposits with filters
+  - `indexer.getDepositsWithRelations()` - Query with payment methods and intents
+  - `indexer.getDepositById()` - Get single deposit by composite ID
+  - `indexer.getDepositsByPayeeHash()` - Query by payee hash
+  - `indexer.getIntentsForDeposits()` - Get intents for deposits
+  - `indexer.getOwnerIntents()` - Get owner's intents
 
 - **Quote System**
   - `getQuote()` - Get exchange quotes with optional escrow filtering
