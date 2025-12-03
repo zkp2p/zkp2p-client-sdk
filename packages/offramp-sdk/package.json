@@ -1,6 +1,6 @@
 {
   "name": "@zkp2p/offramp-sdk",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Offramp SDK by Peer - TypeScript SDK for deposit management, liquidity provision, and fiat off-ramping",
   "license": "MIT",
   "main": "dist/index.cjs",
@@ -70,7 +70,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/zkp2p/zkp2p-client-sdk.git",
+    "url": "git+https://github.com/zkp2p/zkp2p-client-sdk.git",
     "directory": "packages/offramp-sdk"
   },
   "bugs": {

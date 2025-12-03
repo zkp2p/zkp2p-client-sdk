@@ -31,7 +31,7 @@
  *   intentAmountRange: { min: 100000n, max: 1000000000n },
  *   processorNames: ['wise', 'revolut'],
  *   depositData: [{ email: 'you@example.com' }, { tag: '@you' }],
- *   conversionRates: [[{ currency: Currency.USD, conversionRate: '1.02' }]],
+ *   conversionRates: [[{ currency: Currency.USD, conversionRate: '1020000000000000000' }]], // 1.02 (18 decimals)
  * });
  *
  * // Advanced indexer queries (for historical/filtered data)

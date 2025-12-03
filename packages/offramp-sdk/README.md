@@ -94,8 +94,8 @@ await client.createDeposit({
     { tag: '@maker' },              // Revolut payment details
   ],
   conversionRates: [
-    [{ currency: Currency.USD, conversionRate: '1.02' }],
-    [{ currency: Currency.EUR, conversionRate: '0.95' }],
+    [{ currency: Currency.USD, conversionRate: '1020000000000000000' }], // 1.02 (18 decimals)
+    [{ currency: Currency.EUR, conversionRate: '950000000000000000' }],  // 0.95 (18 decimals)
   ],
   onSuccess: ({ hash }) => console.log('Deposit created:', hash),
 });
@@ -170,7 +170,7 @@ For historical data, pagination, and advanced filtering:
 ```typescript
 // Query with filters and pagination
 const deposits = await client.indexer.getDeposits(
-  { status: 'ACTIVE', minLiquidity: '1000000' },
+  { status: 'ACTIVE', minLiquidity: '1000000', depositor: '0xYourAddress' }, // Note: use 'depositor', not 'owner'
   { limit: 50, orderBy: 'remainingDeposits', orderDirection: 'desc' }
 );
 
@@ -269,7 +269,7 @@ function DepositManager({ client }) {
       intentAmountRange: { min: 100000n, max: 1000000000n },
       processorNames: ['wise'],
       depositData: [{ email: 'maker@example.com' }],
-      conversionRates: [[{ currency: 'USD', conversionRate: '1.02' }]],
+      conversionRates: [[{ currency: 'USD', conversionRate: '1020000000000000000' }]], // 1.02 (18 decimals)
     });
     console.log('Created deposit:', result.hash);
   };
@@ -301,7 +301,10 @@ Supported payment platforms:
 | MercadoPago | `mercadopago` | BRL, ARS, MXN |
 
 ```typescript
-import { getPaymentMethodsCatalog, PLATFORM_METADATA } from '@zkp2p/offramp-sdk';
+import { getPaymentMethodsCatalog, PLATFORM_METADATA, PAYMENT_PLATFORMS } from '@zkp2p/offramp-sdk';
+
+// Available payment platforms
+console.log(PAYMENT_PLATFORMS); // ['wise', 'venmo', 'revolut', 'cashapp', 'mercadopago', 'zelle', 'paypal', 'monzo']
 
 // Get payment method hashes
 const methods = getPaymentMethodsCatalog(8453, 'production');
@@ -341,8 +344,8 @@ import { getContracts, getPaymentMethodsCatalog } from '@zkp2p/offramp-sdk';
 
 // Get contract addresses and ABIs
 const { addresses, abis } = getContracts(8453, 'production');
-console.log(addresses.Escrow);
-console.log(addresses.Orchestrator);
+console.log(addresses.escrow);       // Contract addresses use camelCase
+console.log(addresses.orchestrator);
 
 // Get payment methods catalog
 const catalog = getPaymentMethodsCatalog(8453, 'production');
@@ -372,6 +375,9 @@ const catalog = getPaymentMethodsCatalog(8453, 'production');
 
 **Utilities:**
 - `resolvePayeeHash(depositId, paymentMethodHash)` - Get payee details hash
+
+**Token Allowance:**
+- `ensureAllowance(params)` - Check/set ERC20 allowance for deposits
 
 ### Core Methods (Deposit Management)
 
@@ -414,6 +420,63 @@ For historical data, pagination, and advanced filtering:
 
 **Quote API** (used by frontends):
 - `getQuote(params)` - Get available exchange quotes
+
+## Token Allowance Management
+
+Before creating deposits or adding funds, you may need to approve the escrow contract to spend your tokens:
+
+```typescript
+// Check and set allowance if needed
+const result = await client.ensureAllowance({
+  token: '0xUSDC_ADDRESS',
+  amount: 10000000000n, // Amount to approve
+  spender: addresses.escrow, // Optional: defaults to escrow contract
+  maxApprove: false, // Optional: set to true for unlimited approval
+});
+
+if (result.hadAllowance) {
+  console.log('Already had sufficient allowance');
+} else {
+  console.log('Approval transaction:', result.hash);
+}
+```
+
+## Low-Level Method Parameters
+
+For methods that interact directly with on-chain data, parameters use bytes32 hex strings:
+
+```typescript
+// addCurrencies - Add currencies to a payment method
+await client.addCurrencies({
+  depositId: 1n,
+  paymentMethod: '0x...', // bytes32 payment method hash
+  currencies: [
+    { code: '0x...', minConversionRate: 1020000000000000000n }, // bytes32 currency code, 18 decimals
+  ],
+});
+
+// deactivateCurrency - Remove a currency from a payment method
+await client.deactivateCurrency({
+  depositId: 1n,
+  paymentMethod: '0x...', // bytes32 payment method hash
+  currencyCode: '0x...',  // bytes32 currency code
+});
+
+// setPaymentMethodActive - Enable/disable a payment method
+await client.setPaymentMethodActive({
+  depositId: 1n,
+  paymentMethod: '0x...', // bytes32 payment method hash (not paymentMethodHash)
+  isActive: true,
+});
+
+// setCurrencyMinRate - Update minimum conversion rate
+await client.setCurrencyMinRate({
+  depositId: 1n,
+  paymentMethod: '0x...', // bytes32 payment method hash
+  fiatCurrency: '0x...',  // bytes32 currency code (not currencyCode)
+  minConversionRate: 1020000000000000000n, // 18 decimals
+});
+```
 
 ## Error Handling
 

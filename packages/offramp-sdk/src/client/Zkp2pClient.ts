@@ -37,7 +37,7 @@ export type Zkp2pNextOptions = {
   walletClient: WalletClient;
   /** Chain ID (8453 for Base mainnet, 84532 for Base Sepolia) */
   chainId: number;
-  /** Optional RPC URL override (defaults to wallet's chain RPC or localhost) */
+  /** Optional RPC URL override (defaults to wallet's chain RPC, then https://mainnet.base.org for Base or https://sepolia.base.org for Base Sepolia) */
   rpcUrl?: string;
   /** Runtime environment: 'production' or 'staging' (defaults to 'production') */
   runtimeEnv?: RuntimeEnv;
@@ -174,7 +174,13 @@ export class Zkp2pClient {
     this.chainId = opts.chainId;
     this.runtimeEnv = opts.runtimeEnv ?? 'production';
     const inferredRpc = (this.walletClient as any)?.chain?.rpcUrls?.default?.http?.[0] as string | undefined;
-    const rpc = opts.rpcUrl ?? inferredRpc ?? 'http://127.0.0.1:8545';
+    // Chain-specific default RPC URLs
+    const defaultRpcUrls: Record<number, string> = {
+      [base.id]: 'https://mainnet.base.org',
+      [baseSepolia.id]: 'https://sepolia.base.org',
+      [hardhat.id]: 'http://127.0.0.1:8545',
+    };
+    const rpc = opts.rpcUrl ?? inferredRpc ?? defaultRpcUrls[opts.chainId] ?? 'https://mainnet.base.org';
     const chainMap: Record<number, any> = { [base.id]: base, [baseSepolia.id]: baseSepolia, [hardhat.id]: hardhat };
     const selectedChain = chainMap[this.chainId];
     this.publicClient = createPublicClient({ chain: selectedChain as any, transport: http(rpc, { batch: false }) }) as unknown as PublicClient;
