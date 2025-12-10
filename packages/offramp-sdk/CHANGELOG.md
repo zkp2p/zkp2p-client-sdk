@@ -6,6 +6,35 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.1.3] - 2025-12-10
+
+### Changed
+
+- **Indexer Schema Alignment**: Updated types and GraphQL queries to match latest zkp2p-indexer schema
+  - Removed deprecated `WITHDRAWN` deposit status (indexer now only supports `ACTIVE` | `CLOSED`)
+  - Updated `DepositStatus` type and `DepositFilter` to remove `WITHDRAWN` option
+
+### Added
+
+- **Intent Verified Payment Fields**: New fields on `IntentEntity` for tracking verified payment details
+  - `isExpired: boolean` - Set by off-chain reconciler when expiryTime has passed
+  - `paymentAmount?: string` - Actual fiat amount paid (may be partial)
+  - `paymentCurrency?: string` - Actual currency paid (may differ from signaled)
+  - `paymentTimestamp?: string` - When payment was made (from proof)
+  - `paymentId?: string` - External payment ID (platform-specific)
+  - `releasedAmount?: string` - Actual USDC released (gross, before protocol fees)
+  - `takerAmountNetFees?: string` - Actual USDC taker received (net, after fees)
+
+- **QuoteCandidate Fields**: New fields in GraphQL schema for improved quote ordering
+  - `maxTokenAvailablePerIntent` - min(availableTokenAmount, intentAmountMax)
+  - `maxFiatAvailablePerIntent` - maxTokenAvailablePerIntent * minConversionRate
+
+### Fixed
+
+- Updated GraphQL queries (`INTENTS_QUERY`, `EXPIRED_INTENTS_QUERY`) to fetch all new intent fields
+
+## [0.1.2] - 2025-12-09
+
 ### Changed
 
 - **RPC-First Architecture**: All primary query methods now use on-chain reads via ProtocolViewer for instant, real-time data

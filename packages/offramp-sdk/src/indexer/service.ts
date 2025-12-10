@@ -30,7 +30,7 @@ export type DepositOrderField =
 export type OrderDirection = 'asc' | 'desc';
 
 export type DepositFilter = Partial<{
-  status: 'ACTIVE' | 'CLOSED' | 'WITHDRAWN';
+  status: 'ACTIVE' | 'CLOSED';
   depositor: string;
   chainId: number;
   escrowAddress: string;

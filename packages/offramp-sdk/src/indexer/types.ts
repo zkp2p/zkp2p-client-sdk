@@ -2,7 +2,7 @@
  * Indexer entity types (GraphQL schema-aligned)
  */
 
-export type DepositStatus = 'ACTIVE' | 'CLOSED' | 'WITHDRAWN';
+export type DepositStatus = 'ACTIVE' | 'CLOSED';
 
 export interface DepositEntity {
   id: string;                // escrowAddress_depositId
@@ -66,6 +66,7 @@ export interface IntentEntity {
   fiatCurrency: string;
   conversionRate: string;    // BigInt as string
   status: IntentStatus;
+  isExpired: boolean;        // Set by off-chain reconciler when expiryTime has passed
   signalTimestamp: string;   // seconds as string
   expiryTime?: string;
   fulfillTimestamp?: string | null;
@@ -75,6 +76,14 @@ export interface IntentEntity {
   fulfillTxHash?: string | null;
   pruneTxHash?: string | null;
   paymentMethodHash?: string | null;
+  // Verified payment details (from UnifiedVerifier_V21_PaymentVerified)
+  paymentAmount?: string | null;      // Actual fiat amount paid (may be partial)
+  paymentCurrency?: string | null;    // Actual currency paid (may differ from fiatCurrency)
+  paymentTimestamp?: string | null;   // When payment was made (from proof)
+  paymentId?: string | null;          // External payment ID (platform-specific)
+  // Released amounts
+  releasedAmount?: string | null;     // Actual USDC released (gross, before protocol fees)
+  takerAmountNetFees?: string | null; // Actual USDC taker received (net, after fees)
 }
 
 export interface DepositWithRelations extends DepositEntity {

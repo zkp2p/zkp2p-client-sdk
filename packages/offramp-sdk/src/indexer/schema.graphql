@@ -76,14 +76,14 @@ type Intent {
   id: ID!  # chainId_intentHash
   intentHash: String!
   orchestratorAddress: String!
-  
+
   # Corresponding Deposit details
-  depositId: String! # escrowAddress_depositId (foreign key)  
-  
+  depositId: String! @index # escrowAddress_depositId (foreign key)
+
   # Verifier details
   verifier: String!
   paymentMethodHash: String # Association to payment method
-  
+
   # Recipient details
   owner: String!
   toAddress: String!
@@ -92,8 +92,9 @@ type Intent {
   amount: BigInt!
   fiatCurrency: String!
   conversionRate: BigInt!
-  status: String!  # SIGNALED | FULFILLED | PRUNED | MANUALLY_RELEASED
-  
+  status: String! @index  # SIGNALED | FULFILLED | PRUNED | MANUALLY_RELEASED (on-chain states only)
+  isExpired: Boolean!     # Set by off-chain reconciler when expiryTime has passed
+
   # Tx hashes and timestamps
   signalTxHash: String!
   signalTimestamp: BigInt!
@@ -101,8 +102,24 @@ type Intent {
   fulfillTimestamp: BigInt
   pruneTxHash: String
   pruneTimestamp: BigInt
-  expiryTime: BigInt!
+  expiryTime: BigInt! @index
   updatedAt: BigInt!
+
+  # Verified payment details (from UnifiedVerifier_V21_PaymentVerified)
+  # These capture the "real" fiat payment details which may differ from signaled values
+  # for partial payments or wrong currency scenarios
+  paymentAmount: BigInt              # Actual fiat amount paid (may be partial)
+  paymentCurrency: String            # Actual currency paid (may differ from fiatCurrency)
+  paymentTimestamp: BigInt           # When payment was made (from proof)
+  paymentId: String                  # External payment ID (platform-specific)
+
+  # Released USDC amount (from Escrow_V21_FundsUnlockedAndTransferred)
+  # May differ from signaled `amount` for partial payments
+  releasedAmount: BigInt             # Actual USDC released (gross, before protocol fees)
+
+  # Net USDC received by taker (from Orchestrator_V21_IntentFulfilled)
+  # This is after protocol and referrer fees are deducted
+  takerAmountNetFees: BigInt         # Actual USDC taker received (net, after fees)
 }
 
 # Per-owner aggregates used by Curator to compute tiers (v0: stats only)
@@ -233,6 +250,8 @@ type QuoteCandidate {
   currencyCode: String!
   minConversionRate: BigInt!
   availableTokenAmount: BigInt!
+  maxTokenAvailablePerIntent: BigInt!  # min(availableTokenAmount, intentAmountMax) - for nearby token quote ordering
+  maxFiatAvailablePerIntent: BigInt!   # maxTokenAvailablePerIntent * minConversionRate - for nearby fiat quote ordering
   maxQuoteableFiat: BigInt!
   intentAmountMin: BigInt!
   intentAmountMax: BigInt!

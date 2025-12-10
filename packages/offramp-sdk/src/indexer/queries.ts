@@ -140,6 +140,7 @@ export const INTENTS_QUERY = /* GraphQL */ `
       fiatCurrency
       conversionRate
       status
+      isExpired
       signalTimestamp
       expiryTime
       fulfillTimestamp
@@ -149,6 +150,12 @@ export const INTENTS_QUERY = /* GraphQL */ `
       fulfillTxHash
       pruneTxHash
       paymentMethodHash
+      paymentAmount
+      paymentCurrency
+      paymentTimestamp
+      paymentId
+      releasedAmount
+      takerAmountNetFees
     }
   }
 `;
@@ -175,6 +182,7 @@ export const EXPIRED_INTENTS_QUERY = /* GraphQL */ `
       toAddress
       amount
       expiryTime
+      isExpired
       updatedAt
       paymentMethodHash
     }
