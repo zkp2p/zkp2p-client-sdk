@@ -40,13 +40,15 @@ function createHeaders(apiKey?: string, authToken?: string): Record<string, stri
   return headers;
 }
 
-// Normalize base API URL to avoid duplicate version segments (e.g., avoid /v1/v1)
+// Normalize base API URL to avoid duplicate version segments (e.g., avoid /v1/v1, /v2/v2)
 function withApiBase(baseApiUrl: string): string {
   const trimmed = (baseApiUrl || '').trim();
   // remove trailing slashes
   let base = trimmed.replace(/\/+$/, '');
   // remove trailing /v1 if a caller accidentally includes it
   base = base.replace(/\/v1$/i, '');
+  // remove trailing /v2 if a caller accidentally includes it
+  base = base.replace(/\/v2$/i, '');
   return base;
 }
 
@@ -328,7 +330,9 @@ export async function apiPostDepositDetails(
 export async function apiGetQuote(
   req: QuoteRequest,
   baseApiUrl: string,
-  timeoutMs?: number
+  timeoutMs?: number,
+  apiKey?: string,
+  authToken?: string
 ): Promise<QuoteResponse> {
   if (req.quotesToReturn !== undefined) {
     if (!Number.isInteger(req.quotesToReturn) || (req.quotesToReturn as number) < 1) {
@@ -337,7 +341,8 @@ export async function apiGetQuote(
   }
   const isExactFiat = req.isExactFiat !== false;
   const endpoint = isExactFiat ? 'exact-fiat' : 'exact-token';
-  let url = `${withApiBase(baseApiUrl)}/v1/quote/${endpoint}`;
+  // Use /v2/quote which returns maker.depositData when authenticated
+  let url = `${withApiBase(baseApiUrl)}/v2/quote/${endpoint}`;
   if (req.quotesToReturn) url += `?quotesToReturn=${req.quotesToReturn}`;
 
   const requestBody: Record<string, unknown> = {
@@ -353,6 +358,8 @@ export async function apiGetQuote(
     url,
     method: 'POST',
     body: requestBody,
+    apiKey,
+    authToken,
     timeoutMs,
   });
 }

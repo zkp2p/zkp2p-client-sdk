@@ -1289,7 +1289,17 @@ export class Zkp2pClient {
     if ((!reqWithEscrow.escrowAddresses || reqWithEscrow.escrowAddresses.length === 0) && this.escrowAddress) {
       reqWithEscrow.escrowAddresses = [this.escrowAddress as string];
     }
-    return apiGetQuote(reqWithEscrow as any, baseApiUrl, timeoutMs);
+    const quote = await apiGetQuote(reqWithEscrow as any, baseApiUrl, timeoutMs, this.apiKey, this.authorizationToken);
+    // Extract maker.depositData from /v2/quote response into payeeData for backward compatibility
+    // This eliminates the need for separate apiGetPayeeDetails calls
+    const quotes = quote?.responseObject?.quotes ?? [];
+    for (const q of quotes) {
+      const maker = (q as any)?.maker;
+      if (maker?.depositData && typeof q === 'object') {
+        (q as any).payeeData = maker.depositData;
+      }
+    }
+    return quote;
   }
 
   // ╔═══════════════════════════════════════════════════════════════════════════╗
