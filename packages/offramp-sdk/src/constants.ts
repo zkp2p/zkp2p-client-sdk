@@ -129,14 +129,14 @@ export const TOKEN_METADATA = {
  * @internal Used internally by fulfillIntent
  */
 export const PLATFORM_ATTESTATION_CONFIG: Record<string, { actionType: string; actionPlatform: string }> = {
-  wise: { actionType: 'wise_transfer', actionPlatform: 'wise' },
-  venmo: { actionType: 'venmo_send', actionPlatform: 'venmo' },
-  revolut: { actionType: 'revolut_transfer', actionPlatform: 'revolut' },
-  cashapp: { actionType: 'cashapp_send', actionPlatform: 'cashapp' },
-  mercadopago: { actionType: 'mercadopago_transfer', actionPlatform: 'mercadopago' },
-  paypal: { actionType: 'paypal_send', actionPlatform: 'paypal' },
-  monzo: { actionType: 'monzo_transfer', actionPlatform: 'monzo' },
-  zelle: { actionType: 'zelle_send', actionPlatform: 'zelle' },
+  wise: { actionType: 'transfer_wise', actionPlatform: 'wise' },
+  venmo: { actionType: 'transfer_venmo', actionPlatform: 'venmo' },
+  revolut: { actionType: 'transfer_revolut', actionPlatform: 'revolut' },
+  cashapp: { actionType: 'transfer_cashapp', actionPlatform: 'cashapp' },
+  mercadopago: { actionType: 'transfer_mercadopago', actionPlatform: 'mercadopago' },
+  paypal: { actionType: 'transfer_paypal', actionPlatform: 'paypal' },
+  monzo: { actionType: 'transfer_monzo', actionPlatform: 'monzo' },
+  zelle: { actionType: 'transfer_zelle', actionPlatform: 'zelle' },
 } as const;
 
 /**
@@ -149,7 +149,10 @@ export const PLATFORM_ATTESTATION_CONFIG: Record<string, { actionType: string; a
  * @internal Used internally by fulfillIntent
  */
 export function resolvePlatformAttestationConfig(platformName: string): { actionType: string; actionPlatform: string } {
-  const config = PLATFORM_ATTESTATION_CONFIG[platformName.toLowerCase()];
+  const normalized = platformName.toLowerCase();
+  // Handle zelle variants (zelle-citi, zelle-boa, zelle-chase) by normalizing to base 'zelle'
+  const key = normalized.startsWith('zelle-') ? 'zelle' : normalized;
+  const config = PLATFORM_ATTESTATION_CONFIG[key];
   if (!config) {
     throw new Error(`Unknown payment platform: ${platformName}`);
   }
