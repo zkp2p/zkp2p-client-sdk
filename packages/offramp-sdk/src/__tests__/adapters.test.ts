@@ -68,6 +68,61 @@ describe('api adapters', () => {
     expect(calledUrl).toContain('/quote/exact-token');
   });
 
+  it('uses /v2/quote endpoint', async () => {
+    const fetchMock = vi.fn(async (url: RequestInfo | URL) =>
+      new Response(
+        JSON.stringify({ message: 'ok', success: true, responseObject: {} }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    (globalThis as any).fetch = fetchMock;
+
+    await apiGetQuote(
+      {
+        paymentPlatforms: ['wise'],
+        fiatCurrency: 'USD',
+        user: '0xuser',
+        recipient: '0xrecip',
+        destinationChainId: 8453,
+        destinationToken: '0xusdc',
+        amount: '5',
+      },
+      'https://api.example'
+    );
+
+    const calledUrl = String(fetchMock.mock.calls[0][0]);
+    expect(calledUrl).toContain('/v2/quote/');
+  });
+
+  it('passes x-api-key header to quote endpoint when provided', async () => {
+    const fetchMock = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) =>
+      new Response(
+        JSON.stringify({ message: 'ok', success: true, responseObject: {} }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    (globalThis as any).fetch = fetchMock;
+
+    const apiKey = 'secret-key';
+    await apiGetQuote(
+      {
+        paymentPlatforms: ['wise'],
+        fiatCurrency: 'USD',
+        user: '0xuser',
+        recipient: '0xrecip',
+        destinationChainId: 8453,
+        destinationToken: '0xusdc',
+        amount: '5',
+      },
+      'https://api.example',
+      undefined,
+      apiKey
+    );
+
+    const headers = (fetchMock.mock.calls[0]?.[1] as RequestInit | undefined)?.headers as Record<string, string> | undefined;
+    expect(headers?.['x-api-key']).toBe(apiKey);
+  });
+
   it('calls /makers/validate and parses response', async () => {
     const fetchMock = vi.fn(async (url: RequestInfo | URL) =>
       new Response(
