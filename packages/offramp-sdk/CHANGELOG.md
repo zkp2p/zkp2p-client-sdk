@@ -6,6 +6,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Added ERC-8021 attribution to all contract transactions with Base builder code `bc_nbn6qkni` and optional referrer codes via `txOverrides.referrer` (supports multiple codes).
+- New attribution utilities (`getAttributionDataSuffix`, `appendAttributionToCalldata`, `sendTransactionWithAttribution`) and builder code constants exported.
+- Added dependency on `ox` for ERC-8021 encoding and updated examples/tests to reflect attribution flow.
+
 ## [0.1.3] - 2025-12-10
 
 ### Changed

@@ -1,5 +1,5 @@
 // Minimal initial type surface for Offramp SDK
-import type { Address, Hash, WalletClient } from 'viem';
+import type { AccessList, Address, AuthorizationList, Hash, WalletClient } from 'viem';
 import type { CurrencyType } from '../utils/currency';
 
 /**
@@ -35,6 +35,26 @@ export type Zkp2pClientOptions = {
 export type ActionCallback = (params: { hash: Hash; data?: unknown }) => void;
 
 /**
+ * Safe transaction overrides including ERC-8021 referrers.
+ * Referrer codes are prepended before the Base builder code (bc_nbn6qkni).
+ */
+export type TxOverrides = {
+  gas?: bigint;
+  gasPrice?: bigint;
+  maxFeePerGas?: bigint;
+  maxPriorityFeePerGas?: bigint;
+  nonce?: number;
+  value?: bigint;
+  accessList?: AccessList;
+  authorizationList?: AuthorizationList;
+  /**
+   * ERC-8021 referrer code(s) to prepend before the Base builder code.
+   * Accepts a single code or multiple (e.g., ['zkp2p-bot', 'merchant-id']).
+   */
+  referrer?: string | string[];
+};
+
+/**
  * Parameters for fulfilling an intent with payment attestation
  */
 export type FulfillIntentParams = {
@@ -51,7 +71,7 @@ export type FulfillIntentParams = {
   /** Optional hook payload passed to orchestrator */
   postIntentHookData?: `0x${string}`;
   /** Optional viem transaction overrides */
-  txOverrides?: Record<string, unknown>;
+  txOverrides?: TxOverrides;
   /** Optional lifecycle callbacks */
   callbacks?: {
     onAttestationStart?: () => void;
