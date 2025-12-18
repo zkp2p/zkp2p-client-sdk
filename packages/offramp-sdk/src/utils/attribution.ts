@@ -125,6 +125,16 @@ export async function sendTransactionWithAttribution(
     authorizationList,
   } = overrides ?? {};
 
+  const optionalOverrides = {
+    ...(gas !== undefined ? { gas } : {}),
+    ...(gasPrice !== undefined ? { gasPrice } : {}),
+    ...(maxFeePerGas !== undefined ? { maxFeePerGas } : {}),
+    ...(maxPriorityFeePerGas !== undefined ? { maxPriorityFeePerGas } : {}),
+    ...(nonce !== undefined ? { nonce } : {}),
+    ...(accessList !== undefined ? { accessList } : {}),
+    ...(authorizationList !== undefined ? { authorizationList } : {}),
+  };
+
   // Send transaction - wallet/RPC handles gas estimation
   return walletClient.sendTransaction({
     to: request.address,
@@ -132,12 +142,6 @@ export async function sendTransactionWithAttribution(
     value: value ?? request.value,
     account: walletClient.account!,
     chain: walletClient.chain,
-    gas,
-    gasPrice,
-    maxFeePerGas,
-    maxPriorityFeePerGas,
-    nonce,
-    accessList,
-    authorizationList,
-  });
+    ...optionalOverrides,
+  } as any) as Promise<Hash>;
 }
