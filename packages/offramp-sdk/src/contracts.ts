@@ -10,9 +10,10 @@
 import type { Abi } from 'abitype';
 
 // Typed imports from @zkp2p/contracts-v2 (module declarations provided in src/@types)
-import baseAddresses from '@zkp2p/contracts-v2/addresses/base';
-import baseSepoliaAddresses from '@zkp2p/contracts-v2/addresses/baseSepolia';
-import baseStagingAddresses from '@zkp2p/contracts-v2/addresses/baseStaging';
+// Use *Raw suffix for imports that need runtime normalization (addresses, constants)
+import baseAddressesRaw from '@zkp2p/contracts-v2/addresses/base';
+import baseSepoliaAddressesRaw from '@zkp2p/contracts-v2/addresses/baseSepolia';
+import baseStagingAddressesRaw from '@zkp2p/contracts-v2/addresses/baseStaging';
 
 import EscrowBase from '@zkp2p/contracts-v2/abis/base/Escrow.json';
 import OrchestratorBase from '@zkp2p/contracts-v2/abis/base/Orchestrator.json';
@@ -29,13 +30,90 @@ import OrchestratorBaseStaging from '@zkp2p/contracts-v2/abis/baseStaging/Orches
 import UnifiedPaymentVerifierBaseStaging from '@zkp2p/contracts-v2/abis/baseStaging/UnifiedPaymentVerifier.json';
 import ProtocolViewerBaseStaging from '@zkp2p/contracts-v2/abis/baseStaging/ProtocolViewer.json';
 
-import baseConstants from '@zkp2p/contracts-v2/constants/base';
-import baseStagingConstants from '@zkp2p/contracts-v2/constants/baseStaging';
+import baseConstantsRaw from '@zkp2p/contracts-v2/constants/base';
+import baseStagingConstantsRaw from '@zkp2p/contracts-v2/constants/baseStaging';
 // Payment methods catalogs (JSON). Import statically so ESM bundlers include the data.
 // These modules are present in @zkp2p/contracts-v2; tsconfig sets resolveJsonModule: true
-import basePaymentMethods from '@zkp2p/contracts-v2/paymentMethods/base.json';
-import baseSepoliaPaymentMethods from '@zkp2p/contracts-v2/paymentMethods/baseSepolia.json';
-import baseStagingPaymentMethods from '@zkp2p/contracts-v2/paymentMethods/baseStaging.json';
+import basePaymentMethodsRaw from '@zkp2p/contracts-v2/paymentMethods/base.json';
+import baseSepoliaPaymentMethodsRaw from '@zkp2p/contracts-v2/paymentMethods/baseSepolia.json';
+import baseStagingPaymentMethodsRaw from '@zkp2p/contracts-v2/paymentMethods/baseStaging.json';
+
+// ---------------------------------------------------------------------------
+// Runtime normalization helpers for ESM/CJS interoperability
+// ---------------------------------------------------------------------------
+// In certain runtimes (tsx, Node ESM), deep imports from @zkp2p/contracts-v2
+// resolve as { default: [Getter] } or { default: { contracts: {...} } } instead
+// of the expected shape. These helpers unwrap the actual data regardless of shape.
+
+/**
+ * Normalize address module shape. Handles:
+ * - { contracts: {...} } (direct)
+ * - { default: { contracts: {...} } } (wrapped)
+ * - { default: [Getter] } (lazy)
+ */
+function unwrapAddresses(mod: unknown): { name?: string; chainId?: number; contracts?: Record<string, `0x${string}`> } {
+  if (!mod) return {} as ReturnType<typeof unwrapAddresses>;
+  const m = mod as Record<string, unknown>;
+  // Direct shape
+  if (m.contracts) return m as ReturnType<typeof unwrapAddresses>;
+  // Wrapped shape
+  if ((m.default as Record<string, unknown>)?.contracts) return m.default as ReturnType<typeof unwrapAddresses>;
+  // Lazy getter shape
+  try {
+    const d = typeof m.default === 'function' ? (m.default as () => unknown)() : m.default;
+    if ((d as Record<string, unknown>)?.contracts) return d as ReturnType<typeof unwrapAddresses>;
+  } catch {
+    // ignore
+  }
+  return m as ReturnType<typeof unwrapAddresses>;
+}
+
+/**
+ * Normalize payment methods module shape. Handles:
+ * - { methods: {...} } (direct)
+ * - { default: { methods: {...} } } (wrapped)
+ * - { default: [Getter] } (lazy)
+ */
+function unwrapMethods(mod: unknown): { methods?: Record<string, { paymentMethodHash: `0x${string}`; currencies?: `0x${string}`[] }> } {
+  if (!mod) return {} as ReturnType<typeof unwrapMethods>;
+  const m = mod as Record<string, unknown>;
+  if (m.methods) return m as ReturnType<typeof unwrapMethods>;
+  if ((m.default as Record<string, unknown>)?.methods) return m.default as ReturnType<typeof unwrapMethods>;
+  try {
+    const d = typeof m.default === 'function' ? (m.default as () => unknown)() : m.default;
+    if ((d as Record<string, unknown>)?.methods) return d as ReturnType<typeof unwrapMethods>;
+  } catch {
+    // ignore
+  }
+  return m as ReturnType<typeof unwrapMethods>;
+}
+
+/**
+ * Normalize constants module shape (for USDC address, etc.)
+ */
+function unwrapConstants(mod: unknown): Record<string, unknown> {
+  if (!mod) return {};
+  const m = mod as Record<string, unknown>;
+  if (m.USDC) return m;
+  if ((m.default as Record<string, unknown>)?.USDC) return m.default as Record<string, unknown>;
+  try {
+    const d = typeof m.default === 'function' ? (m.default as () => unknown)() : m.default;
+    if ((d as Record<string, unknown>)?.USDC) return d as Record<string, unknown>;
+  } catch {
+    // ignore
+  }
+  return m;
+}
+
+// Apply runtime normalization to all imports
+const baseAddresses = unwrapAddresses(baseAddressesRaw);
+const baseSepoliaAddresses = unwrapAddresses(baseSepoliaAddressesRaw);
+const baseStagingAddresses = unwrapAddresses(baseStagingAddressesRaw);
+const basePaymentMethods = unwrapMethods(basePaymentMethodsRaw);
+const baseSepoliaPaymentMethods = unwrapMethods(baseSepoliaPaymentMethodsRaw);
+const baseStagingPaymentMethods = unwrapMethods(baseStagingPaymentMethodsRaw);
+const baseConstants = unwrapConstants(baseConstantsRaw);
+const baseStagingConstants = unwrapConstants(baseStagingConstantsRaw);
 
 /**
  * Contract addresses for a specific deployment.
