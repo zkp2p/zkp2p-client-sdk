@@ -101,7 +101,8 @@
     "vitest": "^1.5.0"
   },
   "dependencies": {
-    "@zkp2p/contracts-v2": "^0.0.6"
+    "@zkp2p/contracts-v2": "^0.0.6",
+    "ox": "^0.10.3"
   },
   "peerDependencies": {
     "react": ">=16.8.0",

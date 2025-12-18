@@ -478,6 +478,25 @@ await client.setCurrencyMinRate({
 });
 ```
 
+## ERC-8021 Attribution (Base Builder Codes)
+
+- Every on-chain transaction sent by the SDK now appends the ZKP2P Base builder code `bc_nbn6qkni`.
+- Add referrer codes via `txOverrides.referrer` (string or string[]) to prepend custom attribution before the builder code.
+- Multiple referrers are supported (e.g., `['zkp2p-bot', 'merchant-id']`).
+
+```typescript
+await client.signalIntent({
+  depositId: 42n,
+  amount: 100_000000n,
+  toAddress: '0x...',
+  processorName: 'wise',
+  fiatCurrencyCode: 'USD',
+  conversionRate: 1_020000000000000000n,
+  payeeDetails: '0x...',
+  txOverrides: { referrer: ['zkp2p-bot', 'merchant-id'] }, // calldata suffix: ['zkp2p-bot','merchant-id','bc_nbn6qkni']
+});
+```
+
 ## Error Handling
 
 ```typescript

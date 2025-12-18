@@ -11,6 +11,26 @@ vi.mock('../adapters/attestation');
 vi.mock('../contracts', async (orig) => {
   const actual = await (orig as any)();
   const VENMO_HASH = '0x' + 'aa'.repeat(32);
+  const orchestratorAbi = [
+    {
+      type: 'function',
+      name: 'fulfillIntent',
+      stateMutability: 'nonpayable',
+      inputs: [
+        {
+          name: 'request',
+          type: 'tuple',
+          components: [
+            { name: 'paymentProof', type: 'bytes' },
+            { name: 'intentHash', type: 'bytes32' },
+            { name: 'verificationData', type: 'bytes' },
+            { name: 'postIntentHookData', type: 'bytes' },
+          ],
+        },
+      ],
+      outputs: [],
+    },
+  ] as any;
   return {
     ...actual,
     getContracts: vi.fn(() => ({
@@ -21,7 +41,7 @@ vi.mock('../contracts', async (orig) => {
         protocolViewer: '0x4444444444444444444444444444444444444444',
         usdc: '0x5555555555555555555555555555555555555555',
       },
-      abis: { escrow: [] as any, orchestrator: [] as any, protocolViewer: [] as any },
+      abis: { escrow: [] as any, orchestrator: orchestratorAbi, protocolViewer: [] as any },
     })),
     getPaymentMethodsCatalog: vi.fn(() => ({ venmo: { paymentMethodHash: VENMO_HASH } })),
   };
@@ -77,8 +97,8 @@ describe('Zkp2pClient.fulfillIntent (simplified)', () => {
     const simulateSpy = vi
       .spyOn(client.publicClient, 'simulateContract' as any)
       .mockResolvedValue({ request: { to: client['orchestratorAddress'], data: '0xabc' } } as any);
-    const writeSpy = vi
-      .spyOn(client.walletClient, 'writeContract' as any)
+    const sendSpy = vi
+      .spyOn(client.walletClient, 'sendTransaction' as any)
       .mockResolvedValue('0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef' as any);
 
     // Act
@@ -91,7 +111,7 @@ describe('Zkp2pClient.fulfillIntent (simplified)', () => {
     expect(payload.verifyingContract?.toLowerCase()).toBe(client['unifiedPaymentVerifier']?.toLowerCase());
     expect(payload.intent.paymentMethod).toBe(VENMO_HASH);
     expect(simulateSpy).toHaveBeenCalledOnce();
-    expect(writeSpy).toHaveBeenCalledOnce();
+    expect(sendSpy).toHaveBeenCalledOnce();
     expect(tx).toMatch(/^0x[0-9a-fA-F]{64}$/);
   });
 });

@@ -41,6 +41,8 @@ async function main() {
     fiatCurrencyCode: FIAT_CURRENCY_CODE,
     conversionRate: CONVERSION_RATE,
     payeeDetails: PAYEE_DETAILS,
+    // Example: attribute to bot + merchant and always include Base builder code automatically
+    txOverrides: { referrer: ['zkp2p-bot', 'merchant-id'] },
   });
 
   console.log('signalIntent tx hash:', hash);

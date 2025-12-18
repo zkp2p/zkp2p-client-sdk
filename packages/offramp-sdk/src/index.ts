@@ -57,6 +57,7 @@ export type {
   Zkp2pClientOptions,
   TimeoutConfig,
   ActionCallback,
+  TxOverrides,
 
   // Deposit operations
   CreateDepositParams,
@@ -214,6 +215,19 @@ export type { RuntimeEnv, PaymentMethodCatalog } from './contracts';
 // =============================================================================
 
 export { ensureBytes32, asciiToBytes32 } from './utils/bytes32';
+
+// =============================================================================
+// Attribution (ERC-8021)
+// =============================================================================
+
+export {
+  BASE_BUILDER_CODE,
+  ZKP2P_IOS_REFERRER,
+  ZKP2P_ANDROID_REFERRER,
+  getAttributionDataSuffix,
+  appendAttributionToCalldata,
+  sendTransactionWithAttribution,
+} from './utils/attribution';
 
 // =============================================================================
 // Protocol Viewer Types (RPC responses)
