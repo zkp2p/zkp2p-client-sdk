@@ -312,17 +312,13 @@ export async function apiDeleteSpread(
 }
 export async function apiPostDepositDetails(
   req: PostDepositDetailsRequest,
-  apiKey: string,
   baseApiUrl: string,
-  authToken?: string,
   timeoutMs?: number
 ): Promise<PostDepositDetailsResponse> {
   return apiFetch<PostDepositDetailsResponse>({
     url: `${baseApiUrl.replace(/\/$/, '')}/v1/makers/create`,
     method: 'POST',
     body: req,
-    apiKey,
-    authToken,
     timeoutMs,
   });
 }
@@ -382,17 +378,13 @@ export async function apiGetPayeeDetails(
 
 export async function apiValidatePayeeDetails(
   req: ValidatePayeeDetailsRequest,
-  apiKey: string,
   baseApiUrl: string,
-  authToken?: string,
   timeoutMs?: number
 ): Promise<ValidatePayeeDetailsResponse> {
   const data = await apiFetch<ValidatePayeeDetailsResponse>({
     url: `${baseApiUrl.replace(/\/$/, '')}/v1/makers/validate`,
     method: 'POST',
     body: req,
-    apiKey,
-    authToken,
     timeoutMs,
   });
   // Back-compat: some APIs may return boolean in responseObject. Normalize to { isValid }.
