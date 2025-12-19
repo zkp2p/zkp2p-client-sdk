@@ -613,7 +613,7 @@ export class Zkp2pClient {
       depositData: params.depositData[index] || {},
     }));
     const apiResponses = await Promise.all(
-      depositDetails.map((req) => apiPostDepositDetails(req, this.apiKey!, baseApiUrl, this.authorizationToken, this.apiTimeoutMs))
+      depositDetails.map((req) => apiPostDepositDetails(req, baseApiUrl, this.apiTimeoutMs))
     );
     if (!apiResponses.every((r) => (r as any)?.success)) {
       const failed = apiResponses.find((r) => !(r as any)?.success) as any;

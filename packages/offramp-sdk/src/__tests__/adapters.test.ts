@@ -134,7 +134,6 @@ describe('api adapters', () => {
 
     const res = await apiValidatePayeeDetails(
       { processorName: 'revolut', depositData: { revolutUsername: 'alice' } },
-      'api-key',
       'https://api.example'
     );
     expect(res.responseObject.isValid).toBe(true);
@@ -165,7 +164,6 @@ describe('api adapters', () => {
 
     const res = await apiPostDepositDetails(
       { processorName: 'mercadopago', depositData: { identifier: 'alice' } },
-      'api-key',
       'https://api.example'
     );
     expect(res.responseObject.hashedOnchainId).toBe(mockHid);
