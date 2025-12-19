@@ -215,6 +215,140 @@ describe('Zkp2pClient.getQuote', () => {
     expect(result.responseObject.quotes).toEqual([]);
   });
 
+  it('should handle nearby suggestions when no exact match available', async () => {
+    const mockQuoteResponse = {
+      success: true,
+      message: 'No exact quotes available. Nearby suggestions returned.',
+      responseObject: {
+        fiat: { currencyCode: 'USD', currencyName: 'US Dollar', currencySymbol: '$', countryCode: 'US' },
+        token: { token: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', symbol: 'USDC', name: 'USD Coin', decimals: 6, chainId: 8453 },
+        quotes: [],
+        fees: { zkp2pFee: '0.00', zkp2pFeeFormatted: '0.00 USDC', swapFee: '0', swapFeeFormatted: '0 USDC' },
+        nearbySuggestions: {
+          below: [
+            {
+              suggestedTokenAmount: '95000000',
+              suggestedTokenAmountFormatted: '95.00 USDC',
+              tokenPercentDifference: '-5.0%',
+              quote: {
+                fiatAmount: '95000000',
+                fiatAmountFormatted: '$95.00',
+                tokenAmount: '95000000',
+                tokenAmountFormatted: '95.00',
+                paymentMethod: 'venmo',
+                payeeAddress: '0x123',
+                conversionRate: '1.00',
+                intent: {
+                  depositId: 'deposit-1',
+                  processorName: 'venmo',
+                  amount: '95000000',
+                  toAddress: '0x123',
+                  payeeDetails: 'hashed-id-1',
+                  processorIntentData: {},
+                  fiatCurrencyCode: 'USD',
+                  chainId: '8453',
+                },
+              },
+            },
+          ],
+          above: [
+            {
+              suggestedTokenAmount: '110000000',
+              suggestedTokenAmountFormatted: '110.00 USDC',
+              tokenPercentDifference: '+10.0%',
+              quote: {
+                fiatAmount: '110000000',
+                fiatAmountFormatted: '$110.00',
+                tokenAmount: '110000000',
+                tokenAmountFormatted: '110.00',
+                paymentMethod: 'venmo',
+                payeeAddress: '0x456',
+                conversionRate: '1.00',
+                intent: {
+                  depositId: 'deposit-2',
+                  processorName: 'venmo',
+                  amount: '110000000',
+                  toAddress: '0x456',
+                  payeeDetails: 'hashed-id-2',
+                  processorIntentData: {},
+                  fiatCurrencyCode: 'USD',
+                  chainId: '8453',
+                },
+              },
+            },
+          ],
+        },
+      },
+      statusCode: 200,
+    };
+
+    vi.mocked(api.apiGetQuote).mockResolvedValue(mockQuoteResponse);
+
+    const result = await client.getQuote({
+      paymentPlatforms: ['venmo'],
+      fiatCurrency: 'USD',
+      user: '0x123',
+      recipient: '0x456',
+      destinationChainId: 8453,
+      destinationToken: 'USDC',
+      amount: '100',
+      includeNearbyQuotes: true,
+      nearbySearchRange: 20,
+      nearbyQuotesCount: 3,
+    });
+
+    // Verify empty quotes array
+    expect(result.responseObject.quotes).toEqual([]);
+
+    // Verify nearby suggestions are present
+    expect(result.responseObject.nearbySuggestions).toBeDefined();
+    expect(result.responseObject.nearbySuggestions?.below).toHaveLength(1);
+    expect(result.responseObject.nearbySuggestions?.above).toHaveLength(1);
+
+    // Verify below suggestion
+    expect(result.responseObject.nearbySuggestions?.below[0]?.suggestedTokenAmount).toBe('95000000');
+    expect(result.responseObject.nearbySuggestions?.below[0]?.tokenPercentDifference).toBe('-5.0%');
+
+    // Verify above suggestion
+    expect(result.responseObject.nearbySuggestions?.above[0]?.suggestedTokenAmount).toBe('110000000');
+    expect(result.responseObject.nearbySuggestions?.above[0]?.tokenPercentDifference).toBe('+10.0%');
+  });
+
+  it('should pass nearby quote params to apiGetQuote', async () => {
+    const mockQuoteResponse = {
+      success: true,
+      message: 'Success',
+      responseObject: {
+        fiat: { currencyCode: 'USD', currencyName: 'US Dollar', currencySymbol: '$', countryCode: 'US' },
+        token: { token: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', symbol: 'USDC', name: 'USD Coin', decimals: 6, chainId: 8453 },
+        quotes: [],
+        fees: { zkp2pFee: '0.00', zkp2pFeeFormatted: '0.00 USDC', swapFee: '0', swapFeeFormatted: '0 USDC' },
+      },
+      statusCode: 200,
+    };
+
+    vi.mocked(api.apiGetQuote).mockResolvedValue(mockQuoteResponse);
+
+    await client.getQuote({
+      paymentPlatforms: ['venmo'],
+      fiatCurrency: 'USD',
+      user: '0x123',
+      recipient: '0x456',
+      destinationChainId: 8453,
+      destinationToken: 'USDC',
+      amount: '100',
+      includeNearbyQuotes: true,
+      nearbySearchRange: 15,
+      nearbyQuotesCount: 5,
+    });
+
+    // Verify apiGetQuote received the nearby quote params
+    const callArgs = vi.mocked(api.apiGetQuote).mock.calls[0]?.[0] as any;
+    expect(callArgs.includeNearbyQuotes).toBe(true);
+    expect(callArgs.nearbySearchRange).toBe(15);
+    expect(callArgs.nearbyQuotesCount).toBe(5);
+  });
+
   it('defaults escrowAddresses to native escrow when not provided', async () => {
     const mockQuoteResponse = {
       success: true,

@@ -74,11 +74,14 @@ export type {
   // API types
   QuoteRequest,
   QuoteResponse,
+  QuoteResponseObject,
   QuoteSingleResponse,
   QuoteIntentResponse,
   QuoteFeesResponse,
   FiatResponse,
   TokenResponse,
+  NearbyQuote,
+  NearbySuggestions,
 
   // Deposit API types
   ApiDeposit,

@@ -221,6 +221,12 @@ export type QuoteRequest = {
   isExactFiat?: boolean;
   /** Optional filter: limit quotes to these escrow contracts */
   escrowAddresses?: string[];
+  /** Enable nearby quote discovery when exact match unavailable */
+  includeNearbyQuotes?: boolean;
+  /** Max % deviation to search for nearby quotes (e.g., 10 = ±10%) */
+  nearbySearchRange?: number;
+  /** Max suggestions per direction (1-10, default: 3) */
+  nearbyQuotesCount?: number;
 };
 
 export type FiatResponse = { currencyCode: string; currencyName: string; currencySymbol: string; countryCode: string };
@@ -258,10 +264,52 @@ export type QuoteSingleResponse = {
   payeeData?: Record<string, string>;
 };
 export type QuoteFeesResponse = { zkp2pFee: string; zkp2pFeeFormatted: string; swapFee: string; swapFeeFormatted: string };
+
+/**
+ * A nearby quote suggestion returned when no exact match is available.
+ * Fields vary based on whether request was exact-token or exact-fiat mode.
+ */
+export type NearbyQuote = {
+  /** For exact-token mode: suggested token amount */
+  suggestedTokenAmount?: string;
+  /** For exact-token mode: formatted suggested token amount */
+  suggestedTokenAmountFormatted?: string;
+  /** For exact-token mode: percentage difference from requested (e.g., "-5.0%" or "+10.0%") */
+  tokenPercentDifference?: string;
+  /** For exact-fiat mode: suggested fiat amount */
+  suggestedFiatAmount?: string;
+  /** For exact-fiat mode: formatted suggested fiat amount */
+  suggestedFiatAmountFormatted?: string;
+  /** For exact-fiat mode: percentage difference from requested */
+  fiatPercentDifference?: string;
+  /** The full quote at this suggested amount */
+  quote: QuoteSingleResponse;
+};
+
+/**
+ * Nearby quote suggestions when no exact match is available.
+ * Only present in response when includeNearbyQuotes=true and no exact quotes found.
+ */
+export type NearbySuggestions = {
+  /** Quotes at amounts below the requested amount (sorted by closest first) */
+  below: NearbyQuote[];
+  /** Quotes at amounts above the requested amount (sorted by closest first) */
+  above: NearbyQuote[];
+};
+
+export type QuoteResponseObject = {
+  fiat: FiatResponse;
+  token: TokenResponse;
+  quotes: QuoteSingleResponse[];
+  fees: QuoteFeesResponse;
+  /** Nearby suggestions when no exact quotes available (only present with includeNearbyQuotes=true) */
+  nearbySuggestions?: NearbySuggestions;
+};
+
 export type QuoteResponse = {
   message: string;
   success: boolean;
-  responseObject: { fiat: FiatResponse; token: TokenResponse; quotes: QuoteSingleResponse[]; fees: QuoteFeesResponse };
+  responseObject: QuoteResponseObject;
   statusCode: number;
 };
 
