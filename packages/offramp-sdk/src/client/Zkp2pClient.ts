@@ -1142,6 +1142,7 @@ export class Zkp2pClient {
    * @param params.intentHash - The intent hash to fulfill (0x-prefixed, 32 bytes)
    * @param params.proof - Payment proof from Reclaim (object or JSON string)
    * @param params.platform - Optional platform name override (e.g., 'zelle', 'zelle-citi') to bypass hash-to-name lookup
+   * @param params.actionType - Optional action type override (e.g., 'transfer_zelle'); defaults to derived from platform
    * @param params.paymentMethod - Optional payment method hash override (bytes32); defaults to hash from on-chain intent
    * @param params.timestampBufferMs - Allowed timestamp variance (default: 300000ms)
    * @param params.attestationServiceUrl - Override attestation service URL
@@ -1149,19 +1150,24 @@ export class Zkp2pClient {
    * @param params.postIntentHookData - Data to pass to post-intent hook
    * @param params.txOverrides - Optional viem transaction overrides
    * @param params.callbacks - Lifecycle callbacks for UI updates
+   * @param params.callbacks.onAttestationStart - Called when attestation begins
+   * @param params.callbacks.onTxSent - Called when transaction is sent (with hash)
+   * @param params.callbacks.onMined - Called when transaction is mined (with hash)
+   * @param params.callbacks.onError - Called on error
    * @returns Transaction hash
    */
   async fulfillIntent(params: {
     intentHash: `0x${string}`;
     proof: Record<string, unknown> | string;
     platform?: string;
+    actionType?: string;
     paymentMethod?: `0x${string}`;
     timestampBufferMs?: string;
     attestationServiceUrl?: string;
     verifyingContract?: Address;
     postIntentHookData?: `0x${string}`;
     txOverrides?: TxOverrides;
-    callbacks?: { onAttestationStart?: () => void; onTxSent?: (hash: Hash) => void; onTxMined?: (hash: Hash) => void };
+    callbacks?: { onAttestationStart?: () => void; onTxSent?: (hash: Hash) => void; onMined?: (hash: Hash) => void; onError?: (error: Error) => void };
   }): Promise<Hash> {
     if (!this.orchestratorAddress || !this.orchestratorAbi) throw new Error('Orchestrator not available');
 
@@ -1190,52 +1196,64 @@ export class Zkp2pClient {
     }
     const { resolvePlatformAttestationConfig } = await import('../constants');
     const cfg = resolvePlatformAttestationConfig(platformName);
+    // Allow explicit actionType override (parity with RN SDK)
     const platform = cfg.actionPlatform;
-    const actionType = cfg.actionType;
+    const actionType = params.actionType ?? cfg.actionType;
 
-    const zkTlsProof = typeof params.proof === 'string' ? params.proof : JSON.stringify(params.proof);
-    const payload = {
-      proofType: 'reclaim',
-      proof: zkTlsProof,
-      chainId: this.chainId,
-      verifyingContract,
-      intent: {
+    try {
+      const zkTlsProof = typeof params.proof === 'string' ? params.proof : JSON.stringify(params.proof);
+      const payload = {
+        proofType: 'reclaim',
+        proof: zkTlsProof,
+        chainId: this.chainId,
+        verifyingContract,
+        intent: {
+          intentHash,
+          amount,
+          timestampMs,
+          paymentMethod: paymentMethodHash,
+          fiatCurrency,
+          conversionRate,
+          payeeDetails,
+          timestampBufferMs,
+        },
+      } as Record<string, unknown>;
+
+      params?.callbacks?.onAttestationStart?.();
+      const att = await apiCreatePaymentAttestation(payload, attUrl, platform, actionType);
+      const paymentProof = encodePaymentAttestation(att);
+      const verificationData = encodeVerifyPaymentData({
         intentHash,
-        amount,
-        timestampMs,
-        paymentMethod: paymentMethodHash,
-        fiatCurrency,
-        conversionRate,
-        payeeDetails,
-        timestampBufferMs,
-      },
-    } as Record<string, unknown>;
+        paymentProof,
+        data: encodeAddressAsBytes(att.responseObject.signer),
+      });
 
-    params?.callbacks?.onAttestationStart?.();
-    const att = await apiCreatePaymentAttestation(payload, attUrl, platform, actionType);
-    const paymentProof = encodePaymentAttestation(att);
-    const verificationData = encodeVerifyPaymentData({
-      intentHash,
-      paymentProof,
-      data: encodeAddressAsBytes(att.responseObject.signer),
-    });
+      const args = [{
+        paymentProof,
+        intentHash,
+        verificationData,
+        postIntentHookData: (params.postIntentHookData ?? '0x') as `0x${string}`,
+      }];
+      const txHash = await this.simulateAndSendWithAttribution({
+        address: this.orchestratorAddress,
+        abi: this.orchestratorAbi,
+        functionName: 'fulfillIntent',
+        args,
+        txOverrides: params.txOverrides,
+      });
+      params?.callbacks?.onTxSent?.(txHash);
 
-    const args = [{
-      paymentProof,
-      intentHash,
-      verificationData,
-      postIntentHookData: (params.postIntentHookData ?? '0x') as `0x${string}`,
-    }];
-    const txHash = await this.simulateAndSendWithAttribution({
-      address: this.orchestratorAddress,
-      abi: this.orchestratorAbi,
-      functionName: 'fulfillIntent',
-      args,
-      txOverrides: params.txOverrides,
-    });
-    params?.callbacks?.onTxSent?.(txHash);
-    // We do not wait for receipt here; caller can wait or use callback if we later add it
-    return txHash;
+      // Wait for receipt and call onMined callback if provided (parity with RN SDK)
+      if (params?.callbacks?.onMined) {
+        await this.publicClient.waitForTransactionReceipt({ hash: txHash });
+        params.callbacks.onMined(txHash);
+      }
+
+      return txHash;
+    } catch (error) {
+      params?.callbacks?.onError?.(error as Error);
+      throw error;
+    }
   }
 
   private defaultAttestationService(): string {

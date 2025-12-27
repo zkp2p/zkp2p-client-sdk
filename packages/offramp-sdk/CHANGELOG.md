@@ -10,6 +10,22 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - New attribution utilities (`getAttributionDataSuffix`, `appendAttributionToCalldata`, `sendTransactionWithAttribution`) and builder code constants exported.
 - Added dependency on `ox` for ERC-8021 encoding and updated examples/tests to reflect attribution flow.
 
+## [0.1.10] - 2025-12-27
+
+### Added
+
+- **fulfillIntent Parity with RN SDK**: Added optional override parameters to `fulfillIntent` for Zelle variant support
+  - `platform?: string` - Bypass hash-to-name lookup for Zelle variants (zelle-citi, zelle-boa, zelle-chase)
+  - `actionType?: string` - Override attestation service action type (e.g., 'transfer_zelle')
+  - `paymentMethod?: \`0x${string}\`` - Override payment method hash from on-chain intent
+  - `callbacks.onMined` - New callback triggered when transaction is mined (waits for receipt)
+  - `callbacks.onError` - New callback triggered on error
+
+### Fixed
+
+- Fixed Zelle attestation failures where payment method hash was not in SDK catalog
+- Mirrors fix from zkp2p-react-native-sdk commit a210313
+
 ## [0.1.3] - 2025-12-10
 
 ### Changed
