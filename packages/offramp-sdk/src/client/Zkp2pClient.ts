@@ -1141,6 +1141,8 @@ export class Zkp2pClient {
    *
    * @param params.intentHash - The intent hash to fulfill (0x-prefixed, 32 bytes)
    * @param params.proof - Payment proof from Reclaim (object or JSON string)
+   * @param params.platform - Optional platform name override (e.g., 'zelle', 'zelle-citi') to bypass hash-to-name lookup
+   * @param params.paymentMethod - Optional payment method hash override (bytes32); defaults to hash from on-chain intent
    * @param params.timestampBufferMs - Allowed timestamp variance (default: 300000ms)
    * @param params.attestationServiceUrl - Override attestation service URL
    * @param params.verifyingContract - Override verifier contract address
@@ -1152,6 +1154,8 @@ export class Zkp2pClient {
   async fulfillIntent(params: {
     intentHash: `0x${string}`;
     proof: Record<string, unknown> | string;
+    platform?: string;
+    paymentMethod?: `0x${string}`;
     timestampBufferMs?: string;
     attestationServiceUrl?: string;
     verifyingContract?: Address;
@@ -1171,14 +1175,19 @@ export class Zkp2pClient {
     const conversionRate = inputs.conversionRate;
     const payeeDetails = inputs.payeeDetails;
     const timestampMs = inputs.intentTimestampMs;
-    const paymentMethodHash = inputs.paymentMethodHash || '0x';
+    // Allow explicit paymentMethod override (e.g., for Zelle variants where hash-to-name lookup may fail)
+    const paymentMethodHash = params.paymentMethod || inputs.paymentMethodHash || '0x';
     const timestampBufferMs = params.timestampBufferMs ?? '300000'; // note: service should default; keep explicit for now
 
     // Map paymentMethodHash -> platform/actionType for Attestation Service endpoint
-    const catalog = getPaymentMethodsCatalog(this.chainId, this.runtimeEnv);
-    const { resolvePaymentMethodNameFromHash } = await import('../utils/paymentResolution');
-    const platformName = resolvePaymentMethodNameFromHash(paymentMethodHash, catalog);
-    if (!platformName) throw new Error('Unknown paymentMethodHash for this network/env; update SDK catalogs.');
+    // Allow explicit platform override to bypass the hash-to-name lookup (useful for Zelle variants)
+    let platformName: string | undefined = params.platform;
+    if (!platformName) {
+      const catalog = getPaymentMethodsCatalog(this.chainId, this.runtimeEnv);
+      const { resolvePaymentMethodNameFromHash } = await import('../utils/paymentResolution');
+      platformName = resolvePaymentMethodNameFromHash(paymentMethodHash, catalog);
+      if (!platformName) throw new Error('Unknown paymentMethodHash for this network/env; update SDK catalogs or pass platform override.');
+    }
     const { resolvePlatformAttestationConfig } = await import('../constants');
     const cfg = resolvePlatformAttestationConfig(platformName);
     const platform = cfg.actionPlatform;
