@@ -122,6 +122,15 @@ export type {
   // Statistics
   OrderStats,
   DepositIntentStatistics,
+
+  // Taker tier API types
+  TakerTier,
+  TakerTierStats,
+  TakerTierLevel,
+  PlatformLimit,
+  PlatformRiskLevel,
+  GetTakerTierRequest,
+  GetTakerTierResponse,
 } from './types';
 
 // =============================================================================
@@ -171,6 +180,7 @@ export {
   apiValidatePayeeDetails,
   apiPostDepositDetails,
   apiGetPayeeDetails,
+  apiGetTakerTier,
 } from './adapters/api';
 
 // =============================================================================

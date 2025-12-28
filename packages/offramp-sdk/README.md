@@ -233,6 +233,19 @@ const quote = await client.getQuote({
 });
 ```
 
+### Supporting: Taker Tier
+
+> **Note**: Requires `authorizationToken` or `apiKey` on the client.
+
+```typescript
+const tier = await client.getTakerTier({
+  owner: '0xUserAddress',
+  chainId: 8453,
+});
+
+console.log(tier.responseObject.tier);
+```
+
 ## React Hooks
 
 The SDK provides React hooks for all deposit and intent operations via a dedicated subpath:
@@ -250,6 +263,7 @@ import {
   useRemovePaymentMethod,
   useAddCurrencies,
   useSignalIntent,
+  useGetTakerTier,
   useFulfillIntent,
   useReleaseFundsToPayer,
   usePruneExpiredIntents,
@@ -261,6 +275,7 @@ function DepositManager({ client }) {
   const { createDeposit, isLoading, error } = useCreateDeposit({ client });
   const { addFunds } = useAddFunds({ client });
   const { setAcceptingIntents } = useSetAcceptingIntents({ client });
+  const { takerTier } = useGetTakerTier({ client, owner: '0xUserAddress', chainId: 8453 });
 
   const handleCreate = async () => {
     const result = await createDeposit({

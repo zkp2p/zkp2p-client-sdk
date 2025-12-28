@@ -548,6 +548,66 @@ export type DepositIntentStatistics = OrderStats;
 export type GetDepositsOrderStatsRequest = { depositIds: number[] };
 export type GetDepositsOrderStatsResponse = { success: boolean; message: string; responseObject: OrderStats[]; statusCode: number };
 
+// Taker tier API types
+export type TakerTierStats = {
+  lifetimeSignaledCount: number;
+  lifetimeFulfilledCount: number;
+  lifetimeManualReleaseCount: number;
+  lifetimePruneCount: number;
+  totalCancelledVolume: string;
+  totalFulfilledVolume: string;
+  lockScore: string;
+  lockScoreDiluted: string;
+  firstSeenAt: string;
+  lastIntentAt: string;
+  updatedAt: string;
+};
+
+export type TakerTierLevel = 'PEASANT' | 'PEER' | 'PLUS' | 'PRO' | 'PLATINUM' | 'PEER_PRESIDENT';
+export type PlatformRiskLevel = 'LOW' | 'MEDIUM_HIGH' | 'HIGH' | 'HIGHEST';
+
+export type PlatformLimit = {
+  paymentMethodHash: string;
+  platformName: string;
+  riskLevel: PlatformRiskLevel;
+  capMultiplier: number;
+  effectiveCap: string;
+  effectiveCapDisplay: string;
+  hasCooldown: boolean;
+  cooldownHours: number;
+  isLocked: boolean;
+  minTierRequired: TakerTierLevel | null;
+};
+
+export type TakerTier = {
+  owner: string;
+  chainId: number;
+  tier: TakerTierLevel;
+  perIntentCapBaseUnits: string;
+  perIntentCapDisplay: string;
+  lastUpdated: string;
+  source: 'computed' | 'fallback';
+  stats: TakerTierStats | null;
+  cooldownHours: number;
+  cooldownSeconds: number;
+  cooldownActive: boolean;
+  cooldownRemainingSeconds: number;
+  nextIntentAvailableAt: string | null;
+  platformLimits?: PlatformLimit[];
+};
+
+export type GetTakerTierRequest = {
+  owner: string;
+  chainId: number;
+};
+
+export type GetTakerTierResponse = {
+  success: boolean;
+  message: string;
+  responseObject: TakerTier;
+  statusCode?: number;
+};
+
 // Currency domain (ISO) and on-chain currency mapping
 export { Currency } from '../utils/currency';
 export type { CurrencyType } from '../utils/currency';
