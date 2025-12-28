@@ -1,6 +1,7 @@
 // Minimal React hooks for the new SDK surface
 export { useCreateDeposit } from './hooks/useCreateDeposit';
 export { useSignalIntent } from './hooks/useSignalIntent';
+export { useGetTakerTier, getTierDisplayInfo, getNextTierCap } from './hooks/useGetTakerTier';
 export { useFulfillIntent } from './hooks/useFulfillIntent';
 export { useReleaseFundsToPayer } from './hooks/useReleaseFundsToPayer';
 export { useSetAcceptingIntents } from './hooks/useSetAcceptingIntents';
@@ -22,6 +23,7 @@ export { usePruneExpiredIntents } from './hooks/usePruneExpiredIntents';
 
 export type { UseCreateDepositOptions } from './hooks/useCreateDeposit';
 export type { UseSignalIntentOptions } from './hooks/useSignalIntent';
+export type { UseGetTakerTierOptions } from './hooks/useGetTakerTier';
 export type { UseFulfillIntentOptions } from './hooks/useFulfillIntent';
 export type { UseReleaseFundsToPayerOptions } from './hooks/useReleaseFundsToPayer';
 export type { UseSetAcceptingIntentsOptions } from './hooks/useSetAcceptingIntents';

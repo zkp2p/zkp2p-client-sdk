@@ -12,11 +12,11 @@ import { getContracts, type RuntimeEnv } from '../contracts';
 import { apiSignIntentV2 } from '../adapters/verification';
 import { apiCreatePaymentAttestation } from '../adapters/attestation';
 import { encodeAddressAsBytes, encodePaymentAttestation, encodeVerifyPaymentData } from '../utils/encode';
-import { apiGetQuote, apiPostDepositDetails } from '../adapters/api';
+import { apiGetQuote, apiPostDepositDetails, apiGetTakerTier } from '../adapters/api';
 import { getGatingServiceAddress, getPaymentMethodsCatalog } from '../contracts';
 import { resolveFiatCurrencyBytes32, resolvePaymentMethodHashFromCatalog } from '../utils/paymentResolution';
 import { currencyKeccak256 } from '../utils/keccak';
-import type { QuoteRequest, QuoteResponse, PostDepositDetailsRequest } from '../types';
+import type { QuoteRequest, QuoteResponse, PostDepositDetailsRequest, GetTakerTierRequest, GetTakerTierResponse } from '../types';
 import { ERC20_ABI } from '../utils/erc20';
 import { sendTransactionWithAttribution } from '../utils/attribution';
 import type { TxOverrides } from '../types';
@@ -89,6 +89,7 @@ export type Zkp2pNextOptions = {
  * - **Intent Operations**: `signalIntent()`, `fulfillIntent()`, `cancelIntent()`
  *   (typically used by takers/buyers, not liquidity providers)
  * - **Quote API**: `getQuote()` (used by frontends to find available liquidity)
+ * - **Taker Tier API**: `getTakerTier()` (used by frontends to enforce taker limits)
  *
  * @example Creating a Deposit (Primary Use Case)
  * ```typescript
@@ -1327,6 +1328,36 @@ export class Zkp2pClient {
       }
     }
     return quote;
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // SUPPORTING: TAKER TIER API
+  // (Used by frontends to enforce taker limits and platform gating)
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /**
+   * **Supporting Method** - Fetches taker tier information for a wallet address.
+   *
+   * > **Note**: This method is typically used by frontend applications to
+   * > enforce per-intent caps and platform gating for takers/buyers.
+   *
+   * Requires `apiKey` or `authorizationToken` to be set on the client.
+   *
+   * @param req - Request params with owner address and chainId
+   * @param opts - Optional overrides for API URL and timeout
+   */
+  async getTakerTier(
+    req: GetTakerTierRequest,
+    opts?: { baseApiUrl?: string; timeoutMs?: number }
+  ): Promise<GetTakerTierResponse> {
+    const baseApiUrl = (opts?.baseApiUrl ?? this.baseApiUrl ?? 'https://api.zkp2p.xyz').replace(/\/$/, '');
+    const timeoutMs = opts?.timeoutMs ?? this.apiTimeoutMs;
+
+    if (!this.apiKey && !this.authorizationToken) {
+      throw new Error('getTakerTier requires apiKey or authorizationToken');
+    }
+
+    return apiGetTakerTier(req, this.apiKey, baseApiUrl, this.authorizationToken, timeoutMs);
   }
 
   // ╔═══════════════════════════════════════════════════════════════════════════╗

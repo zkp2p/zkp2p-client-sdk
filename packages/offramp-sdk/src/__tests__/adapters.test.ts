@@ -10,6 +10,7 @@ import {
   apiGetIntentByHash,
   apiGetDepositById,
   apiGetDepositsOrderStats,
+  apiGetTakerTier,
   apiGetIntentsByRecipient,
   apiListPayees,
   apiGetDepositSpread
@@ -427,7 +428,48 @@ describe('api adapters', () => {
       );
     });
 
-    
+    it('fetches taker tier with lowercased owner', async () => {
+      const mockResponse = {
+        success: true,
+        message: 'ok',
+        statusCode: 200,
+        responseObject: {
+          owner: '0xabc',
+          chainId: 8453,
+          tier: 'PRO',
+          perIntentCapBaseUnits: '1000000',
+          perIntentCapDisplay: '1,000 USDC',
+          lastUpdated: new Date().toISOString(),
+          source: 'computed',
+          stats: null,
+          cooldownHours: 0,
+          cooldownSeconds: 0,
+          cooldownActive: false,
+          cooldownRemainingSeconds: 0,
+          nextIntentAvailableAt: null,
+        },
+      };
+
+      const fetchMock = vi.fn(async (_url: RequestInfo | URL) =>
+        new Response(JSON.stringify(mockResponse), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      );
+      (globalThis as any).fetch = fetchMock;
+
+      await apiGetTakerTier(
+        { owner: '0xABC', chainId: 8453 },
+        undefined,
+        'https://api.example',
+        'token'
+      );
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://api.example/v2/taker/tier?owner=0xabc&chainId=8453',
+        expect.objectContaining({ method: 'GET' })
+      );
+
+      const headers = (fetchMock.mock.calls[0]?.[1] as RequestInit | undefined)?.headers as Record<string, string> | undefined;
+      expect(headers?.Authorization).toBe('Bearer token');
+    });
 
     it('fetches intents by recipient with status filter', async () => {
       const mockResponse = { success: true, message: 'ok', statusCode: 200, responseObject: [] };

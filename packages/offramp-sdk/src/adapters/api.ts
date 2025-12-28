@@ -23,6 +23,8 @@ import type {
   GetDepositByIdResponse,
   GetDepositsOrderStatsRequest,
   GetDepositsOrderStatsResponse,
+  GetTakerTierRequest,
+  GetTakerTierResponse,
   GetIntentsByRecipientRequest,
   GetIntentsByRecipientResponse,
   ListPayeesResponse,
@@ -555,6 +557,32 @@ export async function apiGetDepositsOrderStats(
     url: `${withApiBase(baseApiUrl)}/v1/deposits/order-stats`,
     method: 'POST',
     body: { depositIds: req.depositIds },
+    apiKey,
+    authToken,
+    timeoutMs,
+  });
+}
+
+/**
+ * Get taker tier information for a specific address.
+ */
+export async function apiGetTakerTier(
+  req: GetTakerTierRequest,
+  apiKey: string | undefined,
+  baseApiUrl: string,
+  authToken?: string,
+  timeoutMs?: number
+): Promise<GetTakerTierResponse> {
+  const normalizedOwner = req.owner.toLowerCase();
+  const query = new URLSearchParams({
+    owner: normalizedOwner,
+    chainId: String(req.chainId),
+  });
+  const endpoint = `/v2/taker/tier?${query.toString()}`;
+
+  return apiFetch<GetTakerTierResponse>({
+    url: `${withApiBase(baseApiUrl)}${endpoint}`,
+    method: 'GET',
     apiKey,
     authToken,
     timeoutMs,
