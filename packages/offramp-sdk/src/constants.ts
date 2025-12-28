@@ -142,7 +142,7 @@ export const PLATFORM_ATTESTATION_CONFIG: Record<string, { actionType: string; a
 /**
  * Resolves attestation platform configuration for a given payment platform.
  *
- * @param platformName - The payment platform name (e.g., 'wise', 'venmo')
+ * @param platformName - The payment platform name (e.g., 'wise', 'venmo', 'zelle-citi')
  * @returns Attestation configuration with actionType and actionPlatform
  * @throws Error if the platform is not supported
  *
@@ -150,11 +150,16 @@ export const PLATFORM_ATTESTATION_CONFIG: Record<string, { actionType: string; a
  */
 export function resolvePlatformAttestationConfig(platformName: string): { actionType: string; actionPlatform: string } {
   const normalized = platformName.toLowerCase();
-  // Handle zelle variants (zelle-citi, zelle-boa, zelle-chase) by normalizing to base 'zelle'
+  // Handle zelle variants (zelle-citi, zelle-boa, zelle-chase) by normalizing to base 'zelle' for config lookup
   const key = normalized.startsWith('zelle-') ? 'zelle' : normalized;
   const config = PLATFORM_ATTESTATION_CONFIG[key];
   if (!config) {
     throw new Error(`Unknown payment platform: ${platformName}`);
+  }
+  // For zelle variants, preserve the full platform name for the attestation service URL
+  // Each variant (zelle-citi, zelle-boa, zelle-chase) has its own attestation endpoint
+  if (normalized.startsWith('zelle-')) {
+    return { actionType: config.actionType, actionPlatform: normalized };
   }
   return config;
 }
