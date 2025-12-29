@@ -10,25 +10,21 @@ describe('resolvePlatformAttestationConfig', () => {
     const venmoConfig = resolvePlatformAttestationConfig('venmo');
     expect(venmoConfig.actionType).toBe('transfer_venmo');
     expect(venmoConfig.actionPlatform).toBe('venmo');
-
-    const zelleConfig = resolvePlatformAttestationConfig('zelle');
-    expect(zelleConfig.actionType).toBe('transfer_zelle');
-    expect(zelleConfig.actionPlatform).toBe('zelle');
   });
 
   it('preserves zelle variant names for attestation service routing', () => {
-    // Zelle variants need their full platform name for correct attestation service URL
+    // Zelle variants map to bank-specific attestation platforms
     const zelleCiti = resolvePlatformAttestationConfig('zelle-citi');
     expect(zelleCiti.actionType).toBe('transfer_zelle');
-    expect(zelleCiti.actionPlatform).toBe('zelle-citi');
+    expect(zelleCiti.actionPlatform).toBe('citi');
 
-    const zelleBoa = resolvePlatformAttestationConfig('zelle-boa');
-    expect(zelleBoa.actionType).toBe('transfer_zelle');
-    expect(zelleBoa.actionPlatform).toBe('zelle-boa');
+    const zelleBofa = resolvePlatformAttestationConfig('zelle-bofa');
+    expect(zelleBofa.actionType).toBe('transfer_zelle');
+    expect(zelleBofa.actionPlatform).toBe('bankofamerica');
 
     const zelleChase = resolvePlatformAttestationConfig('zelle-chase');
     expect(zelleChase.actionType).toBe('transfer_zelle');
-    expect(zelleChase.actionPlatform).toBe('zelle-chase');
+    expect(zelleChase.actionPlatform).toBe('chase');
   });
 
   it('handles case insensitivity', () => {
@@ -38,7 +34,7 @@ describe('resolvePlatformAttestationConfig', () => {
 
     const zelleConfig = resolvePlatformAttestationConfig('ZELLE-CITI');
     expect(zelleConfig.actionType).toBe('transfer_zelle');
-    expect(zelleConfig.actionPlatform).toBe('zelle-citi'); // normalized to lowercase
+    expect(zelleConfig.actionPlatform).toBe('citi');
   });
 
   it('throws for unknown platforms', () => {

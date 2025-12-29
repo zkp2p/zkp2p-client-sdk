@@ -25,7 +25,11 @@ async function main() {
   const client = new Zkp2pClient({ walletClient, chainId: base.id, runtimeEnv: 'production' });
 
   if (!ZK_TLS_PROOF) throw new Error('Set ZK_TLS_PROOF (stringified JSON)');
-  const hash = await client.fulfillIntent({ intentHash: INTENT_HASH, proof: ZK_TLS_PROOF, timestampBufferMs: TIMESTAMP_BUFFER_MS });
+  const hash = await client.fulfillIntent({
+    intentHash: INTENT_HASH,
+    proof: ZK_TLS_PROOF,
+    timestampBufferMs: TIMESTAMP_BUFFER_MS,
+  });
 
   console.log('fulfillIntent tx hash:', hash);
 }

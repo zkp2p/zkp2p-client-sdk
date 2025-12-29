@@ -12,7 +12,7 @@ import { getContracts, type RuntimeEnv } from '../contracts';
 import { apiSignIntentV2 } from '../adapters/verification';
 import { apiCreatePaymentAttestation } from '../adapters/attestation';
 import { encodeAddressAsBytes, encodePaymentAttestation, encodeVerifyPaymentData } from '../utils/encode';
-import { apiGetQuote, apiPostDepositDetails, apiGetTakerTier } from '../adapters/api';
+import { apiGetQuote, apiGetTakerTier, apiPostDepositDetails } from '../adapters/api';
 import { getGatingServiceAddress, getPaymentMethodsCatalog } from '../contracts';
 import { resolveFiatCurrencyBytes32, resolvePaymentMethodHashFromCatalog } from '../utils/paymentResolution';
 import { currencyKeccak256 } from '../utils/keccak';
@@ -89,7 +89,6 @@ export type Zkp2pNextOptions = {
  * - **Intent Operations**: `signalIntent()`, `fulfillIntent()`, `cancelIntent()`
  *   (typically used by takers/buyers, not liquidity providers)
  * - **Quote API**: `getQuote()` (used by frontends to find available liquidity)
- * - **Taker Tier API**: `getTakerTier()` (used by frontends to enforce taker limits)
  *
  * @example Creating a Deposit (Primary Use Case)
  * ```typescript
@@ -1142,33 +1141,23 @@ export class Zkp2pClient {
    *
    * @param params.intentHash - The intent hash to fulfill (0x-prefixed, 32 bytes)
    * @param params.proof - Payment proof from Reclaim (object or JSON string)
-   * @param params.platform - Optional platform name override (e.g., 'zelle', 'zelle-citi') to bypass hash-to-name lookup
-   * @param params.actionType - Optional action type override (e.g., 'transfer_zelle'); defaults to derived from platform
-   * @param params.paymentMethod - Optional payment method hash override (bytes32); defaults to hash from on-chain intent
    * @param params.timestampBufferMs - Allowed timestamp variance (default: 300000ms)
    * @param params.attestationServiceUrl - Override attestation service URL
    * @param params.verifyingContract - Override verifier contract address
    * @param params.postIntentHookData - Data to pass to post-intent hook
    * @param params.txOverrides - Optional viem transaction overrides
    * @param params.callbacks - Lifecycle callbacks for UI updates
-   * @param params.callbacks.onAttestationStart - Called when attestation begins
-   * @param params.callbacks.onTxSent - Called when transaction is sent (with hash)
-   * @param params.callbacks.onMined - Called when transaction is mined (with hash)
-   * @param params.callbacks.onError - Called on error
    * @returns Transaction hash
    */
   async fulfillIntent(params: {
     intentHash: `0x${string}`;
     proof: Record<string, unknown> | string;
-    platform?: string;
-    actionType?: string;
-    paymentMethod?: `0x${string}`;
     timestampBufferMs?: string;
     attestationServiceUrl?: string;
     verifyingContract?: Address;
     postIntentHookData?: `0x${string}`;
     txOverrides?: TxOverrides;
-    callbacks?: { onAttestationStart?: () => void; onTxSent?: (hash: Hash) => void; onMined?: (hash: Hash) => void; onError?: (error: Error) => void };
+    callbacks?: { onAttestationStart?: () => void; onTxSent?: (hash: Hash) => void; onTxMined?: (hash: Hash) => void };
   }): Promise<Hash> {
     if (!this.orchestratorAddress || !this.orchestratorAbi) throw new Error('Orchestrator not available');
 
@@ -1182,79 +1171,62 @@ export class Zkp2pClient {
     const conversionRate = inputs.conversionRate;
     const payeeDetails = inputs.payeeDetails;
     const timestampMs = inputs.intentTimestampMs;
-    // Allow explicit paymentMethod override (e.g., for Zelle variants where hash-to-name lookup may fail)
-    const paymentMethodHash = params.paymentMethod || inputs.paymentMethodHash || '0x';
+    const paymentMethodHash = inputs.paymentMethodHash || '0x';
     const timestampBufferMs = params.timestampBufferMs ?? '300000'; // note: service should default; keep explicit for now
 
     // Map paymentMethodHash -> platform/actionType for Attestation Service endpoint
-    // Allow explicit platform override to bypass the hash-to-name lookup (useful for Zelle variants)
-    let platformName: string | undefined = params.platform;
-    if (!platformName) {
-      const catalog = getPaymentMethodsCatalog(this.chainId, this.runtimeEnv);
-      const { resolvePaymentMethodNameFromHash } = await import('../utils/paymentResolution');
-      platformName = resolvePaymentMethodNameFromHash(paymentMethodHash, catalog);
-      if (!platformName) throw new Error('Unknown paymentMethodHash for this network/env; update SDK catalogs or pass platform override.');
-    }
+    const catalog = getPaymentMethodsCatalog(this.chainId, this.runtimeEnv);
+    const { resolvePaymentMethodNameFromHash } = await import('../utils/paymentResolution');
+    const platformName = resolvePaymentMethodNameFromHash(paymentMethodHash, catalog);
+    if (!platformName) throw new Error('Unknown paymentMethodHash for this network/env; update SDK catalogs.');
     const { resolvePlatformAttestationConfig } = await import('../constants');
     const cfg = resolvePlatformAttestationConfig(platformName);
-    // Allow explicit actionType override (parity with RN SDK)
     const platform = cfg.actionPlatform;
-    const actionType = params.actionType ?? cfg.actionType;
+    const actionType = cfg.actionType;
 
-    try {
-      const zkTlsProof = typeof params.proof === 'string' ? params.proof : JSON.stringify(params.proof);
-      const payload = {
-        proofType: 'reclaim',
-        proof: zkTlsProof,
-        chainId: this.chainId,
-        verifyingContract,
-        intent: {
-          intentHash,
-          amount,
-          timestampMs,
-          paymentMethod: paymentMethodHash,
-          fiatCurrency,
-          conversionRate,
-          payeeDetails,
-          timestampBufferMs,
-        },
-      } as Record<string, unknown>;
-
-      params?.callbacks?.onAttestationStart?.();
-      const att = await apiCreatePaymentAttestation(payload, attUrl, platform, actionType);
-      const paymentProof = encodePaymentAttestation(att);
-      const verificationData = encodeVerifyPaymentData({
+    const zkTlsProof = typeof params.proof === 'string' ? params.proof : JSON.stringify(params.proof);
+    const payload = {
+      proofType: 'reclaim',
+      proof: zkTlsProof,
+      chainId: this.chainId,
+      verifyingContract,
+      intent: {
         intentHash,
-        paymentProof,
-        data: encodeAddressAsBytes(att.responseObject.signer),
-      });
+        amount,
+        timestampMs,
+        paymentMethod: paymentMethodHash,
+        fiatCurrency,
+        conversionRate,
+        payeeDetails,
+        timestampBufferMs,
+      },
+    } as Record<string, unknown>;
 
-      const args = [{
-        paymentProof,
-        intentHash,
-        verificationData,
-        postIntentHookData: (params.postIntentHookData ?? '0x') as `0x${string}`,
-      }];
-      const txHash = await this.simulateAndSendWithAttribution({
-        address: this.orchestratorAddress,
-        abi: this.orchestratorAbi,
-        functionName: 'fulfillIntent',
-        args,
-        txOverrides: params.txOverrides,
-      });
-      params?.callbacks?.onTxSent?.(txHash);
+    params?.callbacks?.onAttestationStart?.();
+    const att = await apiCreatePaymentAttestation(payload, attUrl, platform, actionType);
+    const paymentProof = encodePaymentAttestation(att);
+    const verificationData = encodeVerifyPaymentData({
+      intentHash,
+      paymentProof,
+      data: encodeAddressAsBytes(att.responseObject.signer),
+    });
 
-      // Wait for receipt and call onMined callback if provided (parity with RN SDK)
-      if (params?.callbacks?.onMined) {
-        await this.publicClient.waitForTransactionReceipt({ hash: txHash });
-        params.callbacks.onMined(txHash);
-      }
-
-      return txHash;
-    } catch (error) {
-      params?.callbacks?.onError?.(error as Error);
-      throw error;
-    }
+    const args = [{
+      paymentProof,
+      intentHash,
+      verificationData,
+      postIntentHookData: (params.postIntentHookData ?? '0x') as `0x${string}`,
+    }];
+    const txHash = await this.simulateAndSendWithAttribution({
+      address: this.orchestratorAddress,
+      abi: this.orchestratorAbi,
+      functionName: 'fulfillIntent',
+      args,
+      txOverrides: params.txOverrides,
+    });
+    params?.callbacks?.onTxSent?.(txHash);
+    // We do not wait for receipt here; caller can wait or use callback if we later add it
+    return txHash;
   }
 
   private defaultAttestationService(): string {
@@ -1331,32 +1303,27 @@ export class Zkp2pClient {
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // SUPPORTING: TAKER TIER API
-  // (Used by frontends to enforce taker limits and platform gating)
+  // SUPPORTING: TAKER TIER
+  // (Used by frontends to display taker limits)
   // ───────────────────────────────────────────────────────────────────────────
 
   /**
-   * **Supporting Method** - Fetches taker tier information for a wallet address.
+   * **Supporting Method** - Fetches taker tier information for an address.
    *
-   * > **Note**: This method is typically used by frontend applications to
-   * > enforce per-intent caps and platform gating for takers/buyers.
+   * > **Note**: Requires `apiKey` or `authorizationToken` to be set.
    *
-   * Requires `apiKey` or `authorizationToken` to be set on the client.
-   *
-   * @param req - Request params with owner address and chainId
+   * @param req - Taker tier request parameters
+   * @param req.owner - Taker address
+   * @param req.chainId - Chain ID
    * @param opts - Optional overrides for API URL and timeout
+   * @returns Taker tier response
    */
-  async getTakerTier(
-    req: GetTakerTierRequest,
-    opts?: { baseApiUrl?: string; timeoutMs?: number }
-  ): Promise<GetTakerTierResponse> {
+  async getTakerTier(req: GetTakerTierRequest, opts?: { baseApiUrl?: string; timeoutMs?: number }): Promise<GetTakerTierResponse> {
     const baseApiUrl = (opts?.baseApiUrl ?? this.baseApiUrl ?? 'https://api.zkp2p.xyz').replace(/\/$/, '');
     const timeoutMs = opts?.timeoutMs ?? this.apiTimeoutMs;
-
     if (!this.apiKey && !this.authorizationToken) {
       throw new Error('getTakerTier requires apiKey or authorizationToken');
     }
-
     return apiGetTakerTier(req, this.apiKey, baseApiUrl, this.authorizationToken, timeoutMs);
   }
 

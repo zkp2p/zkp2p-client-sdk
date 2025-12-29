@@ -136,7 +136,9 @@ export const PLATFORM_ATTESTATION_CONFIG: Record<string, { actionType: string; a
   mercadopago: { actionType: 'transfer_mercadopago', actionPlatform: 'mercadopago' },
   paypal: { actionType: 'transfer_paypal', actionPlatform: 'paypal' },
   monzo: { actionType: 'transfer_monzo', actionPlatform: 'monzo' },
-  zelle: { actionType: 'transfer_zelle', actionPlatform: 'zelle' },
+  'zelle-chase': { actionType: 'transfer_zelle', actionPlatform: 'chase' },
+  'zelle-bofa': { actionType: 'transfer_zelle', actionPlatform: 'bankofamerica' },
+  'zelle-citi': { actionType: 'transfer_zelle', actionPlatform: 'citi' },
 } as const;
 
 /**
@@ -150,16 +152,9 @@ export const PLATFORM_ATTESTATION_CONFIG: Record<string, { actionType: string; a
  */
 export function resolvePlatformAttestationConfig(platformName: string): { actionType: string; actionPlatform: string } {
   const normalized = platformName.toLowerCase();
-  // Handle zelle variants (zelle-citi, zelle-boa, zelle-chase) by normalizing to base 'zelle' for config lookup
-  const key = normalized.startsWith('zelle-') ? 'zelle' : normalized;
-  const config = PLATFORM_ATTESTATION_CONFIG[key];
+  const config = PLATFORM_ATTESTATION_CONFIG[normalized];
   if (!config) {
     throw new Error(`Unknown payment platform: ${platformName}`);
-  }
-  // For zelle variants, preserve the full platform name for the attestation service URL
-  // Each variant (zelle-citi, zelle-boa, zelle-chase) has its own attestation endpoint
-  if (normalized.startsWith('zelle-')) {
-    return { actionType: config.actionType, actionPlatform: normalized };
   }
   return config;
 }
