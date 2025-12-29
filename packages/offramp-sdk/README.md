@@ -208,6 +208,8 @@ await client.signalIntent({
 await client.fulfillIntent({
   intentHash: '0xIntentHash',
   proof: attestationProof,
+  platform: 'venmo',
+  actionType: 'transfer_venmo',
 });
 
 // Release funds back to deposit owner (liquidity providers may use this)

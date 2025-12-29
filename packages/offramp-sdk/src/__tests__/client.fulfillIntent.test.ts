@@ -11,6 +11,7 @@ vi.mock('../adapters/attestation');
 vi.mock('../contracts', async (orig) => {
   const actual = await (orig as any)();
   const VENMO_HASH = '0x' + 'aa'.repeat(32);
+  const ZELLE_CHASE_HASH = '0x' + 'bb'.repeat(32);
   const orchestratorAbi = [
     {
       type: 'function',
@@ -43,7 +44,10 @@ vi.mock('../contracts', async (orig) => {
       },
       abis: { escrow: [] as any, orchestrator: orchestratorAbi, protocolViewer: [] as any },
     })),
-    getPaymentMethodsCatalog: vi.fn(() => ({ venmo: { paymentMethodHash: VENMO_HASH } })),
+    getPaymentMethodsCatalog: vi.fn(() => ({
+      venmo: { paymentMethodHash: VENMO_HASH },
+      'zelle-chase': { paymentMethodHash: ZELLE_CHASE_HASH },
+    })),
   };
 });
 
@@ -61,14 +65,14 @@ describe('Zkp2pClient.fulfillIntent (simplified)', () => {
   it('derives intent inputs, requests attestation, and sends tx', async () => {
     // Arrange: fake derived inputs
     const intentHash = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' as const;
-    const VENMO_HASH = '0x' + 'aa'.repeat(32);
+    const INPUT_HASH = '0x' + 'aa'.repeat(32);
     vi.spyOn(client, 'getFulfillIntentInputs' as any).mockResolvedValue({
       amount: '1000000',
       fiatCurrency: '0x5555555555555555555555555555555555555555555555555555555555555555',
       conversionRate: '1000000000000000000',
       payeeDetails: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
       intentTimestampMs: '1700000000000',
-      paymentMethodHash: VENMO_HASH,
+      paymentMethodHash: INPUT_HASH,
     });
 
     // Mock attestation service
@@ -102,16 +106,77 @@ describe('Zkp2pClient.fulfillIntent (simplified)', () => {
       .mockResolvedValue('0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef' as any);
 
     // Act
-    const tx = await client.fulfillIntent({ intentHash, proof: { foo: 'bar' }, timestampBufferMs: '300000' });
+    const tx = await client.fulfillIntent({
+      intentHash,
+      proof: { foo: 'bar' },
+      timestampBufferMs: '300000',
+    });
 
     // Assert
     expect(att.apiCreatePaymentAttestation).toHaveBeenCalledTimes(1);
     const payload = vi.mocked(att.apiCreatePaymentAttestation).mock.calls[0]?.[0] as any;
     expect(payload.intent.intentHash).toBe(intentHash);
     expect(payload.verifyingContract?.toLowerCase()).toBe(client['unifiedPaymentVerifier']?.toLowerCase());
-    expect(payload.intent.paymentMethod).toBe(VENMO_HASH);
+    expect(payload.intent.paymentMethod).toBe(INPUT_HASH);
+    const attestationCall = vi.mocked(att.apiCreatePaymentAttestation).mock.calls[0] as any[];
+    expect(attestationCall?.[2]).toBe('venmo');
+    expect(attestationCall?.[3]).toBe('transfer_venmo');
     expect(simulateSpy).toHaveBeenCalledOnce();
     expect(sendSpy).toHaveBeenCalledOnce();
     expect(tx).toMatch(/^0x[0-9a-fA-F]{64}$/);
+  });
+
+  it('routes zelle-chase to chase/transfer_zelle attestation endpoint', async () => {
+    const intentHash = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' as const;
+    const INPUT_HASH = ('0x' + 'bb'.repeat(32)) as `0x${string}`;
+
+    vi.spyOn(client, 'getFulfillIntentInputs' as any).mockResolvedValue({
+      amount: '1000000',
+      fiatCurrency: '0x5555555555555555555555555555555555555555555555555555555555555555',
+      conversionRate: '1000000000000000000',
+      payeeDetails: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      intentTimestampMs: '1700000000000',
+      paymentMethodHash: INPUT_HASH,
+    });
+
+    const signer = '0x1234567890123456789012345678901234567890';
+    const attestationResponse = {
+      success: true,
+      message: 'ok',
+      responseObject: {
+        platform: 'venmo',
+        actionType: 'transfer_venmo',
+        signature: '0x' + '11'.repeat(65),
+        signer,
+        domainSeparator: '0x',
+        typeHash: '0x',
+        typedDataSpec: { primaryType: 'PaymentAttestation', types: {} },
+        typedDataValue: { intentHash, releaseAmount: '1000000', dataHash: '0x' + '00'.repeat(32) },
+        proofInput: '0x',
+        encodedPaymentDetails: '0x',
+        metadata: '0x',
+      },
+      statusCode: 200,
+    } as any;
+    vi.mocked(att.apiCreatePaymentAttestation).mockResolvedValue(attestationResponse);
+
+    vi
+      .spyOn(client.publicClient, 'simulateContract' as any)
+      .mockResolvedValue({ request: { to: client['orchestratorAddress'], data: '0xabc' } } as any);
+    vi
+      .spyOn(client.walletClient, 'sendTransaction' as any)
+      .mockResolvedValue('0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef' as any);
+
+    await client.fulfillIntent({
+      intentHash,
+      proof: { foo: 'bar' },
+      timestampBufferMs: '300000',
+    });
+
+    const payload = vi.mocked(att.apiCreatePaymentAttestation).mock.calls[0]?.[0] as any;
+    expect(payload.intent.paymentMethod).toBe(INPUT_HASH);
+    const attestationArgs = vi.mocked(att.apiCreatePaymentAttestation).mock.calls[0] as any[];
+    expect(attestationArgs?.[2]).toBe('chase');
+    expect(attestationArgs?.[3]).toBe('transfer_zelle');
   });
 });
