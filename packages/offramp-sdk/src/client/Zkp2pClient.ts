@@ -12,11 +12,11 @@ import { getContracts, type RuntimeEnv } from '../contracts';
 import { apiSignIntentV2 } from '../adapters/verification';
 import { apiCreatePaymentAttestation } from '../adapters/attestation';
 import { encodeAddressAsBytes, encodePaymentAttestation, encodeVerifyPaymentData } from '../utils/encode';
-import { apiGetQuote, apiPostDepositDetails } from '../adapters/api';
+import { apiGetQuote, apiGetTakerTier, apiPostDepositDetails } from '../adapters/api';
 import { getGatingServiceAddress, getPaymentMethodsCatalog } from '../contracts';
 import { resolveFiatCurrencyBytes32, resolvePaymentMethodHashFromCatalog } from '../utils/paymentResolution';
 import { currencyKeccak256 } from '../utils/keccak';
-import type { QuoteRequest, QuoteResponse, PostDepositDetailsRequest } from '../types';
+import type { QuoteRequest, QuoteResponse, PostDepositDetailsRequest, GetTakerTierRequest, GetTakerTierResponse } from '../types';
 import { ERC20_ABI } from '../utils/erc20';
 import { sendTransactionWithAttribution } from '../utils/attribution';
 import type { TxOverrides } from '../types';
@@ -1300,6 +1300,31 @@ export class Zkp2pClient {
       }
     }
     return quote;
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // SUPPORTING: TAKER TIER
+  // (Used by frontends to display taker limits)
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /**
+   * **Supporting Method** - Fetches taker tier information for an address.
+   *
+   * > **Note**: Requires `apiKey` or `authorizationToken` to be set.
+   *
+   * @param req - Taker tier request parameters
+   * @param req.owner - Taker address
+   * @param req.chainId - Chain ID
+   * @param opts - Optional overrides for API URL and timeout
+   * @returns Taker tier response
+   */
+  async getTakerTier(req: GetTakerTierRequest, opts?: { baseApiUrl?: string; timeoutMs?: number }): Promise<GetTakerTierResponse> {
+    const baseApiUrl = (opts?.baseApiUrl ?? this.baseApiUrl ?? 'https://api.zkp2p.xyz').replace(/\/$/, '');
+    const timeoutMs = opts?.timeoutMs ?? this.apiTimeoutMs;
+    if (!this.apiKey && !this.authorizationToken) {
+      throw new Error('getTakerTier requires apiKey or authorizationToken');
+    }
+    return apiGetTakerTier(req, this.apiKey, baseApiUrl, this.authorizationToken, timeoutMs);
   }
 
   // ╔═══════════════════════════════════════════════════════════════════════════╗
