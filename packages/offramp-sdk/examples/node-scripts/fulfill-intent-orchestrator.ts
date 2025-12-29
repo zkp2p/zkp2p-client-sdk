@@ -2,7 +2,7 @@
  * Example: Fulfill an intent via Orchestrator
  *
  * Env:
- *   PRIVATE_KEY, RPC_URL, INTENT_HASH, ZK_TLS_PROOF, PLATFORM, ACTION_TYPE
+ *   PRIVATE_KEY, RPC_URL, INTENT_HASH, ZK_TLS_PROOF
  *   OPTIONAL: TIMESTAMP_BUFFER_MS, POST_INTENT_HOOK_DATA
  */
 import { createWalletClient, http } from 'viem';
@@ -16,13 +16,9 @@ async function main() {
   const INTENT_HASH = process.env.INTENT_HASH as `0x${string}`;
   const ZK_TLS_PROOF = process.env.ZK_TLS_PROOF as string; // stringified JSON or object JSON
   const TIMESTAMP_BUFFER_MS = process.env.TIMESTAMP_BUFFER_MS || '300000';
-  const PLATFORM = process.env.PLATFORM as string;
-  const ACTION_TYPE = process.env.ACTION_TYPE as string;
 
   if (!PRIV) throw new Error('Set PRIVATE_KEY');
   if (!INTENT_HASH) throw new Error('Set INTENT_HASH');
-  if (!PLATFORM) throw new Error('Set PLATFORM');
-  if (!ACTION_TYPE) throw new Error('Set ACTION_TYPE');
 
   const account = privateKeyToAccount(PRIV);
   const walletClient = createWalletClient({ account, chain: base, transport: http(RPC) });
@@ -32,8 +28,6 @@ async function main() {
   const hash = await client.fulfillIntent({
     intentHash: INTENT_HASH,
     proof: ZK_TLS_PROOF,
-    platform: PLATFORM,
-    actionType: ACTION_TYPE,
     timestampBufferMs: TIMESTAMP_BUFFER_MS,
   });
 
